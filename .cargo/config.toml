@@ -1,0 +1,5 @@
+# MSVC builds statically link the C runtime so the clean-machine smoke does not
+# require a separately installed Visual C++ runtime. Applied to the MSVC target
+# only; the GNU target is intentionally untouched.
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]

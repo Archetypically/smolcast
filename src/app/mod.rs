@@ -1,0 +1,6 @@
+//! eframe app shell: the persistent root viewport, hotkey/tray ownership, and
+//! the clipboard worker handshake. The UI itself lives in `model`.
+
+pub mod eframe_host;
+pub mod model;
+pub mod notice;

@@ -1,0 +1,81 @@
+version: '3'
+
+vars:
+  TARGET: '{{if eq OS "windows"}}x86_64-pc-windows-msvc{{else}}x86_64-pc-windows-gnu{{end}}'
+  CARGO: '{{if .CARGO_HOME}}{{.CARGO_HOME}}/bin/cargo{{if eq OS "windows"}}.exe{{end}}{{else if eq OS "windows"}}{{.USERPROFILE}}/.cargo/bin/cargo.exe{{else}}{{.HOME}}/.cargo/bin/cargo{{end}}'
+
+tasks:
+  default:
+    desc: List available commands
+    cmds:
+      - task --list
+
+  up:
+    desc: Install development dependencies (Windows or Debian/Ubuntu Linux)
+    preconditions:
+      - sh: '[ "{{ARCH}}" = "amd64" ] && { [ "{{OS}}" = "windows" ] || [ "{{OS}}" = "linux" ]; }'
+        msg: Setup currently supports x86-64 Windows and Debian/Ubuntu Linux only.
+    cmds:
+      - cmd: bash scripts/setup.sh
+        platforms: [linux]
+      - cmd: powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/setup.ps1
+        platforms: [windows]
+
+  build:
+    desc: Build the Windows application (after implementation begins)
+    preconditions: &application
+      - sh: test -f Cargo.toml
+        msg: No Cargo package. Run task up, then see README.md.
+    cmds:
+      - '"{{.CARGO}}" build --locked --target {{.TARGET}}'
+
+  build-release:
+    desc: Build the release Windows application
+    preconditions: *application
+    cmds:
+      - '"{{.CARGO}}" build --locked --release --target {{.TARGET}}'
+
+  run:
+    desc: Build and launch on Windows, or through WSL Windows interop
+    preconditions:
+      - sh: '[ "{{OS}}" = "windows" ] || test -e /proc/sys/fs/binfmt_misc/WSLInterop'
+        msg: Run on Windows or WSL with Windows interop enabled; Wine is not a verification target.
+    cmds:
+      - task: build
+      - './target/{{.TARGET}}/debug/smolcast.exe {{.CLI_ARGS}}'
+
+  check:
+    desc: Type-check for Windows
+    preconditions: *application
+    cmds:
+      - '"{{.CARGO}}" check --locked --target {{.TARGET}}'
+
+  clippy:
+    desc: Lint Windows code and tests
+    preconditions: *application
+    cmds:
+      - '"{{.CARGO}}" clippy --locked --target {{.TARGET}} --all-targets -- -D warnings'
+
+  fmt:
+    desc: Format Rust source
+    preconditions: *application
+    cmds:
+      - '"{{.CARGO}}" fmt --all'
+
+  fmt-check:
+    desc: Check Rust formatting without changes
+    preconditions: *application
+    cmds:
+      - '"{{.CARGO}}" fmt --all -- --check'
+
+  test:
+    desc: Run portable library tests on the host
+    preconditions: *application
+    cmds:
+      - '"{{.CARGO}}" test --locked --lib'
+
+  clean:
+    desc: Remove Cargo build artifacts
+    preconditions: *application
+    cmds:
+      - '"{{.CARGO}}" clean'

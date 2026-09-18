@@ -1,0 +1,78 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  RUSTFLAGS: ""
+
+jobs:
+  windows-msvc:
+    name: Windows MSVC build + lint
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pinned toolchain
+        shell: pwsh
+        run: |
+          rustup toolchain install 1.98.1 --profile minimal --component rustfmt,clippy
+          rustup target add x86_64-pc-windows-msvc --toolchain 1.98.1
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+      - name: Clippy (all targets)
+        run: cargo clippy --locked --target x86_64-pc-windows-msvc --all-targets -- -D warnings
+      - name: Build debug
+        run: cargo build --locked --target x86_64-pc-windows-msvc
+      - name: Build release
+        run: cargo build --locked --release --target x86_64-pc-windows-msvc
+      - name: Capture release size and import table
+        shell: pwsh
+        run: |
+          $exe = "target/x86_64-pc-windows-msvc/release/smolcast.exe"
+          if (Get-Command llvm-objdump -ErrorAction SilentlyContinue) {
+            llvm-objdump -p $exe | Out-File -Encoding utf8 artifacts-imports.txt -Append
+          } else {
+            "llvm-objdump unavailable; size only" | Out-File -Encoding utf8 artifacts-imports.txt
+          }
+          "bytes=$((Get-Item $exe).Length)" | Out-File -Encoding utf8 artifacts-size.txt
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-release
+          path: |
+            target/x86_64-pc-windows-msvc/release/smolcast.exe
+            artifacts-size.txt
+            artifacts-imports.txt
+          if-no-files-found: error
+
+  linux-gnu:
+    name: Linux host tests + GNU cross-link
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install MinGW x86-64
+        run: sudo apt-get update && sudo apt-get install -y gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64
+      - name: Install pinned toolchain and GNU target
+        run: |
+          rustup toolchain install 1.98.1 --profile minimal --component rustfmt,clippy
+          rustup target add x86_64-pc-windows-gnu --toolchain 1.98.1
+      - name: Host library tests
+        run: cargo test --locked --lib
+      - name: Build debug (GNU)
+        run: cargo build --locked --target x86_64-pc-windows-gnu
+      - name: Build release (GNU)
+        run: cargo build --locked --release --target x86_64-pc-windows-gnu
+      - name: Capture release size
+        run: |
+          bytes=$(stat -c %s target/x86_64-pc-windows-gnu/release/smolcast.exe)
+          echo "bytes=$bytes" > artifacts-size.txt
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-gnu-release
+          path: |
+            target/x86_64-pc-windows-gnu/release/smolcast.exe
+            artifacts-size.txt
+          if-no-files-found: error
