@@ -369,6 +369,11 @@ fn launch(spec: &LaunchSpec) -> Result<(), LaunchError> {
             unsafe { ShellExecuteExW(&mut info) }
                 .map_err(|e| LaunchError::from_win("launch shortcut", &e))
         }
+        LaunchSpec::Command(_) => Err(LaunchError {
+            operation: "launch",
+            message: "built-in commands open in the palette".into(),
+            code: None,
+        }),
         LaunchSpec::Packaged { aumid } => {
             let manager: IApplicationActivationManager = unsafe {
                 CoCreateInstance(&ApplicationActivationManager, None, CLSCTX_LOCAL_SERVER)
@@ -481,4 +486,25 @@ fn extract_icon(icon_key: &str, size: u32) -> Result<IconRgba, LaunchError> {
         message: "unsupported icon bitmap".into(),
         code: None,
     })
+}
+
+/// Open a URI (for example `ms-settings:clipboard`) with the shell, off the UI
+/// thread. Failures are ignored: the user can open Settings directly.
+pub fn open_uri(uri: &'static str) {
+    let _ = thread::Builder::new()
+        .name("smolcast-open".into())
+        .spawn(move || {
+            let Ok(_com) = ComApartment::enter() else {
+                return;
+            };
+            let file = wide(uri);
+            let mut info = SHELLEXECUTEINFOW {
+                cbSize: size_of::<SHELLEXECUTEINFOW>() as u32,
+                fMask: SEE_MASK_NOASYNC | SEE_MASK_FLAG_NO_UI,
+                lpFile: PCWSTR(file.as_ptr()),
+                nShow: SW_SHOWNORMAL.0,
+                ..Default::default()
+            };
+            let _ = unsafe { ShellExecuteExW(&mut info) };
+        });
 }

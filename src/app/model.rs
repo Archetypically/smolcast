@@ -9,15 +9,24 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver};
 
-use egui::{Color32, Context, Key, RichText, ViewportCommand};
+use egui::{Color32, Context, Key, Modifiers, RichText, ViewportCommand};
 
-use crate::core::app_index::AppId;
-use crate::core::config::{ConfigError, ConfigFile};
+use crate::core::app_index::{AppId, Command};
+use crate::core::config::{ClipboardSource, ConfigError, ConfigFile, Settings};
+use crate::core::history::{Limits, Payload};
 use crate::core::usage::Usage;
+use crate::win::clipboard::{
+    ClipboardCommand, ClipboardError, ClipboardWriteReceipt, WindowsSnapshot,
+};
 use crate::win::icon::IconRgba;
-use crate::win::paste::{Destination, capture_destination};
+use crate::win::paste::{
+    Destination, PasteOutcome, capture_destination, destination_intact, palette_is_foreground,
+    restore_foreground,
+};
+use crate::win::persistence::{ClipboardStoreCommand, LoadedEntry};
 use crate::win::shell::{LaunchError, ScanOutcome};
 
+use super::clipboard_view::{ClipboardView, PasteRequest};
 use super::launcher::{IconRequest, LaunchRequest, Launcher};
 use super::notice::{Notice, NoticeStore, Severity, op};
 
@@ -45,7 +54,60 @@ pub enum AppEvent {
         app_id: AppId,
         result: Result<(), LaunchError>,
     },
+    ClipboardCaptured(Payload),
+    /// The clipboard changed while smolcast's own capture was off (§7.0).
+    ClipboardChanged,
+    /// Stored smolcast history entries, oldest first (§7.2).
+    ClipboardHistoryLoaded(Vec<LoadedEntry>),
+    WindowsHistory {
+        generation: u64,
+        result: Result<WindowsSnapshot, ClipboardError>,
+    },
+    ClipboardWriteFinished {
+        request_id: u64,
+        result: Result<ClipboardWriteReceipt, ClipboardError>,
+    },
+    PasteFinished(PasteOutcome),
     Notice(Notice),
+}
+
+/// The palette view (§5.4). Every summon opens at `Root`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum View {
+    Root,
+    Clipboard,
+}
+
+/// Shared paste service state (§8.2 steps 1–5); steps 6–8 run on the host's
+/// finisher thread.
+enum PasteState {
+    Idle,
+    /// Waiting for the clipboard-write receipt; commits are disabled.
+    /// `payload` is set for smolcast-history items, which are promoted on success.
+    Writing {
+        request_id: u64,
+        payload: Option<Payload>,
+    },
+}
+
+/// A finisher the host should start: destination plus its cancel flag.
+pub struct PasteFinisherRequest {
+    pub destination: Destination,
+    pub cancel: Arc<AtomicBool>,
+}
+
+/// Stored entries are loaded at startup unless persistence is off or the
+/// source is always Windows (§7.2).
+pub fn loads_stored_history(settings: &Settings) -> bool {
+    settings.clipboard_persist && settings.clipboard_source != ClipboardSource::Windows
+}
+
+fn history_limits(settings: &Settings) -> Limits {
+    Limits {
+        max_entries: settings.clipboard_max_entries,
+        max_item_bytes: settings.clipboard_max_item_bytes,
+        max_total_bytes: settings.clipboard_max_total_bytes,
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -120,7 +182,15 @@ pub struct AppModel {
     search: String,
     /// Give the search field keyboard focus on the next painted frame.
     focus_search: bool,
+    view: View,
     launcher: Launcher,
+    clipboard: ClipboardView,
+    paste: PasteState,
+    next_request_id: u64,
+    /// Cancel flag of the most recent finisher; a new summon sets it.
+    paste_cancel: Option<Arc<AtomicBool>>,
+    clipboard_commands: Vec<ClipboardCommand>,
+    paste_finisher: Option<PasteFinisherRequest>,
     refresh_requested: bool,
     pending_config: Option<ConfigFile>,
     /// The conflict UI is capturing the next key chord as a session-only
@@ -151,14 +221,25 @@ impl AppModel {
         };
         Self {
             receiver,
-            config,
             hotkey_status,
             destination: None,
             notices,
             visible: false,
             search: String::new(),
             focus_search: false,
+            view: View::Root,
             launcher: Launcher::new(usage),
+            clipboard: ClipboardView::new(
+                history_limits(&config.settings),
+                config.settings.clipboard_source,
+                config.settings.clipboard_persist,
+                loads_stored_history(&config.settings),
+            ),
+            paste: PasteState::Idle,
+            next_request_id: 0,
+            paste_cancel: None,
+            clipboard_commands: Vec::new(),
+            paste_finisher: None,
             refresh_requested: false,
             pending_config: None,
             recording: false,
@@ -166,6 +247,7 @@ impl AppModel {
             trial_request: None,
             quit_requested: false,
             force_show: force_visible,
+            config,
         }
     }
 
@@ -182,8 +264,15 @@ impl AppModel {
             self.reduce(ctx, event);
         }
 
-        if self.visible && !self.recording && ctx.input(|i| i.key_pressed(Key::Escape)) {
-            self.hide(ctx);
+        // Consumed so the second `step` of the same frame cannot act on it again.
+        if self.visible
+            && !self.recording
+            && ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape))
+        {
+            match self.view {
+                View::Root => self.hide(ctx),
+                View::Clipboard => self.open_view(View::Root),
+            }
         }
 
         // The window `X` hides rather than exits (§1.5): cancel the close and sink.
@@ -192,6 +281,9 @@ impl AppModel {
             ctx.send_viewport_cmd(ViewportCommand::CancelClose);
             self.hide(ctx);
         }
+
+        let view_commands = self.clipboard.take_commands();
+        self.clipboard_commands.extend(view_commands);
     }
 
     /// Render the palette. Painting runs through `&mut egui::Ui` because egui
@@ -257,6 +349,43 @@ impl AppModel {
         self.launcher.take_usage_snapshot()
     }
 
+    // ---- clipboard and paste requests executed by the host ----------------------
+
+    pub fn take_clipboard_commands(&mut self) -> Vec<ClipboardCommand> {
+        std::mem::take(&mut self.clipboard_commands)
+    }
+
+    pub fn take_store_commands(&mut self) -> Vec<ClipboardStoreCommand> {
+        self.clipboard.take_store_commands()
+    }
+
+    pub fn clipboard_store_unavailable(&mut self) {
+        self.clipboard.store_unavailable();
+    }
+
+    pub fn take_paste_finisher(&mut self) -> Option<PasteFinisherRequest> {
+        self.paste_finisher.take()
+    }
+
+    pub fn paste_finisher_failed(&mut self, error: &str) {
+        self.notices.push(Notice::new(
+            Severity::Warning,
+            op::CLIPBOARD,
+            format!("Copied; paste manually (could not start paste: {error})."),
+        ));
+    }
+
+    fn capture_policy(&self) -> ClipboardCommand {
+        ClipboardCommand::SetCapturePolicy {
+            source: self.config.settings.clipboard_source,
+            capture: self.config.settings.clipboard_capture,
+        }
+    }
+
+    pub fn config(&self) -> &ConfigFile {
+        &self.config
+    }
+
     pub fn summon_hotkey(&self) -> &str {
         &self.config.settings.summon_hotkey
     }
@@ -270,7 +399,14 @@ impl AppModel {
         self.hotkey_status = HotkeyStatus::Active {
             canonical: cfg.settings.summon_hotkey.clone(),
         };
+        self.clipboard.set_limits(history_limits(&cfg.settings));
+        self.clipboard.set_setting(cfg.settings.clipboard_source);
+        self.clipboard.set_persist(cfg.settings.clipboard_persist);
+        self.clipboard_commands.push(ClipboardCommand::SetItemCap(
+            cfg.settings.clipboard_max_item_bytes,
+        ));
         self.config = cfg;
+        self.clipboard_commands.push(self.capture_policy());
         self.notices.push(Notice::new(
             Severity::Info,
             op::CONFIG,
@@ -344,7 +480,158 @@ impl AppModel {
                     self.hide(ctx);
                 }
             }
+            AppEvent::ClipboardCaptured(payload) => self.clipboard.record(payload),
+            AppEvent::ClipboardHistoryLoaded(entries) => self.clipboard.on_loaded(entries),
+            AppEvent::ClipboardChanged => self
+                .clipboard
+                .on_clipboard_changed(self.visible && self.view == View::Clipboard),
+            AppEvent::WindowsHistory { generation, result } => {
+                self.clipboard.on_windows_history(generation, result);
+            }
+            AppEvent::ClipboardWriteFinished { request_id, result } => {
+                self.on_write_finished(ctx, request_id, result);
+            }
+            AppEvent::PasteFinished(outcome) => self.on_paste_finished(outcome),
             AppEvent::Notice(n) => self.notices.push(n),
+        }
+    }
+
+    // ---- paste service (§8.2) -----------------------------------------------------
+
+    /// Step 1: write the clipboard asynchronously; commits stay disabled until
+    /// the receipt arrives.
+    fn start_paste(&mut self, request: PasteRequest) {
+        if !matches!(self.paste, PasteState::Idle) {
+            return;
+        }
+        self.next_request_id += 1;
+        let request_id = self.next_request_id;
+        let (command, payload) = match request {
+            PasteRequest::Local(payload) => (
+                match &payload {
+                    Payload::Text(text) => ClipboardCommand::SetText {
+                        request_id,
+                        text: text.clone(),
+                    },
+                    Payload::Image(image) => ClipboardCommand::SetImage {
+                        request_id,
+                        image: image.clone(),
+                    },
+                },
+                Some(payload),
+            ),
+            PasteRequest::Windows { item_id } => (
+                ClipboardCommand::WindowsSetContent {
+                    request_id,
+                    item_id,
+                },
+                None,
+            ),
+        };
+        self.clipboard_commands.push(command);
+        self.paste = PasteState::Writing {
+            request_id,
+            payload,
+        };
+    }
+
+    /// Steps 2–5. Every failure keeps the palette visible with a notice, and
+    /// nothing is injected.
+    fn on_write_finished(
+        &mut self,
+        ctx: &Context,
+        request_id: u64,
+        result: Result<ClipboardWriteReceipt, ClipboardError>,
+    ) {
+        let payload = match std::mem::replace(&mut self.paste, PasteState::Idle) {
+            PasteState::Writing {
+                request_id: pending,
+                payload,
+            } if pending == request_id => payload,
+            // A stale receipt (Escape or a new summon cancelled the paste).
+            other => {
+                self.paste = other;
+                return;
+            }
+        };
+        if let Err(e) = result {
+            self.notices.push(
+                Notice::new(
+                    Severity::Error,
+                    op::CLIPBOARD,
+                    format!("Could not copy: {e}"),
+                )
+                .with_optional_code(e.code),
+            );
+            return;
+        }
+        // A pasted smolcast entry becomes the most recent one; our own write is
+        // never captured by the listener. Windows reorders its own history.
+        if let Some(payload) = payload {
+            self.clipboard.record(payload);
+        }
+
+        let manual = |reason: &str| {
+            Notice::new(
+                Severity::Warning,
+                op::CLIPBOARD,
+                format!("Copied; {reason} — paste manually."),
+            )
+        };
+        let Some(dest) = self.destination else {
+            self.notices
+                .push(manual("there was no window to paste into"));
+            return;
+        };
+        if !destination_intact(&dest) {
+            self.notices.push(manual("destination closed or changed"));
+            return;
+        }
+        if !palette_is_foreground() {
+            // The user already focused another window; never steal it back.
+            self.notices.push(manual("focus moved to another window"));
+            return;
+        }
+        if !restore_foreground(&dest) {
+            self.notices
+                .push(manual("Windows refused to switch windows"));
+            return;
+        }
+        let cancel = Arc::new(AtomicBool::new(false));
+        self.paste_cancel = Some(cancel.clone());
+        self.paste_finisher = Some(PasteFinisherRequest {
+            destination: dest,
+            cancel,
+        });
+        self.hide(ctx);
+    }
+
+    /// Steps 6–8 result: failures are stored for the next summon (§5.3).
+    fn on_paste_finished(&mut self, outcome: PasteOutcome) {
+        let reason = match outcome {
+            PasteOutcome::Pasted | PasteOutcome::Cancelled => return,
+            PasteOutcome::DestinationChanged => "the destination closed or changed",
+            PasteOutcome::FocusMoved => "focus moved to another window",
+            PasteOutcome::ForegroundTimeout => "the destination did not come to the front",
+            PasteOutcome::ModifiersHeld => "modifier keys stayed held",
+            PasteOutcome::InjectionBlocked => {
+                "Windows blocked the keystroke (the app may be elevated)"
+            }
+        };
+        self.notices.push(Notice::new(
+            Severity::Warning,
+            op::CLIPBOARD,
+            format!("Copied, but not pasted: {reason}. Paste manually."),
+        ));
+    }
+
+    fn open_view(&mut self, view: View) {
+        self.view = view;
+        self.search.clear();
+        self.focus_search = true;
+        match view {
+            View::Root => self.launcher.reset_view(),
+            View::Clipboard => self.clipboard.open(),
         }
     }
 
@@ -352,6 +639,12 @@ impl AppModel {
     /// already visible, and never replace the captured destination while showing.
     fn summon(&mut self, ctx: &Context) {
         if !self.visible {
+            // A new summon cancels any stale paste before capturing a new
+            // destination (§8.2).
+            if let Some(cancel) = self.paste_cancel.take() {
+                cancel.store(true, Ordering::Release);
+            }
+            self.paste = PasteState::Idle;
             self.destination = capture_destination();
             self.launcher.on_summon();
             self.show(ctx);
@@ -371,6 +664,10 @@ impl AppModel {
     fn hide(&mut self, ctx: &Context) {
         self.visible = false;
         self.recording = false;
+        self.view = View::Root;
+        // Escape before the receipt cancels injection; the clipboard content,
+        // if already written, stays (§8.2).
+        self.paste = PasteState::Idle;
         self.destination = None;
         self.search.clear();
         ctx.send_viewport_cmd(ViewportCommand::Visible(false));
@@ -383,6 +680,9 @@ impl AppModel {
 
         ui.horizontal(|ui| {
             ui.label(RichText::new("smolcast").heading().strong());
+            if self.view == View::Clipboard {
+                ui.label(RichText::new("›  Clipboard History").heading());
+            }
             match &self.hotkey_status {
                 HotkeyStatus::Active { canonical } => {
                     ui.label(RichText::new(format!(" ({canonical})")).weak());
@@ -397,19 +697,52 @@ impl AppModel {
         });
 
         ui.add_space(8.0);
+        let paste_enabled = matches!(self.paste, PasteState::Idle);
         if !self.recording {
-            self.launcher.handle_keys(ui);
+            // Backspace on an empty search leaves a sub-view (§5.4).
+            if self.view != View::Root
+                && self.search.is_empty()
+                && ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Backspace))
+            {
+                self.open_view(View::Root);
+            }
+            match self.view {
+                View::Root => self.launcher.handle_keys(ui),
+                View::Clipboard => self.clipboard.handle_keys(ui, paste_enabled),
+            }
         }
+        let hint = match self.view {
+            View::Root => "Search apps and commands…",
+            View::Clipboard => "Search clipboard history…",
+        };
         let search = ui.add(
             egui::TextEdit::singleline(&mut self.search)
-                .hint_text("Search apps…")
+                .hint_text(hint)
                 .desired_width(f32::INFINITY),
         );
         if std::mem::take(&mut self.focus_search) {
             search.request_focus();
         }
         ui.add_space(8.0);
-        self.launcher.results_ui(ui, &self.search);
+        match self.view {
+            View::Root => {
+                self.launcher.results_ui(ui, &self.search);
+                if let Some(command) = self.launcher.take_open_command() {
+                    match command {
+                        Command::ClipboardHistory => self.open_view(View::Clipboard),
+                    }
+                }
+            }
+            View::Clipboard => {
+                self.clipboard.ui(ui, &self.search, paste_enabled);
+                if let Some(payload) = self.clipboard.take_paste_request() {
+                    self.start_paste(payload);
+                }
+                if self.clipboard.take_open_settings() {
+                    crate::win::shell::open_uri("ms-settings:clipboard");
+                }
+            }
+        }
         ui.add_space(8.0);
 
         if matches!(self.hotkey_status, HotkeyStatus::Conflict { .. }) {

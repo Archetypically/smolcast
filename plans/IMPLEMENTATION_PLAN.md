@@ -435,6 +435,18 @@ text/image bytes or full script arguments. Startup errors that prevent summon
 must force the palette visible. Errors detected after a successful hide are stored
 and shown on the next summon; do not steal focus again solely to display an error.
 
+### 5.4 Palette navigation (approved 2026-09-24)
+
+The root view is one flat, ranked list, as in Raycast. Applications and built-in
+commands are ranked together, and each row's right-hand column names its type
+(`Application`, `Command`). Built-in commands are identified by
+`AppId::Command { name }`, so they share the ranking formula and usage history
+with applications. Selecting a command opens its view (Clipboard History in
+milestone 3, Emoji in milestone 4); scripts join the root list in milestone 5
+as the `Script` type. In a sub-view, Escape or Backspace on an empty search
+returns to the root. Escape at the root hides the palette. Every summon opens
+at the root with an empty search.
+
 ---
 
 ## 6. App launcher contract
@@ -556,6 +568,34 @@ error and does not increment usage.
 
 ## 7. Clipboard capture, image normalization, and history
 
+### 7.0 History source (approved 2026-09-24)
+
+Clipboard History has two sources, chosen by `settings.clipboard_source`:
+
+- `auto` (the default) uses Windows clipboard history when it is enabled
+  (`Clipboard.IsHistoryEnabled`) and smolcast's own session history otherwise.
+  The choice is re-evaluated each time the view opens.
+- `windows` always uses Windows clipboard history. When Windows history is
+  off, the view says so and offers a button that opens `ms-settings:clipboard`.
+- `smolcast` always uses the session history specified in §7.1–§7.5.
+
+The Windows source shares data with Win+V instead of keeping a copy. It uses
+`Clipboard.GetHistoryItemsAsync`, `SetHistoryItemAsContent` (for paste-back),
+`DeleteItemFromHistory` and `ClearHistory`; ClearHistory keeps pinned items.
+All of these calls run on the clipboard thread, which is an STA with a message
+pump and keeps every WinRT object on that thread. Blocking `.join()` waits are
+acceptable there because completions run on WinRT's thread pool. The UI gets
+owned snapshots only: item id, timestamp, a text preview (at most 64 KiB), or
+an RGBA thumbnail (at most 256 px, decoded with `Windows.Graphics.Imaging`).
+The snapshot is refreshed when the view opens, after a delete or clear, and on
+`WM_CLIPBOARDUPDATE` while the view is open. Windows owns item limits,
+retention, privacy exclusions and pinning, so smolcast adds no tests for them.
+Capture into smolcast's session history runs only while the effective source
+is `smolcast`. Neither source has Pause: Windows offers no equivalent, so it
+was dropped for both. Delete and Clear all remain. Paste-back (§8) is the same
+for both sources; with Windows items, step 1's clipboard write is
+`SetHistoryItemAsContent`.
+
 ### 7.1 Clipboard protocol and retries
 
 Commands are:
@@ -607,9 +647,24 @@ Windows owns it and the local guard must relinquish without freeing. Record the
 exact post-close sequence as a secondary self-write guard, including the case where
 setting the marker failed after content succeeded.
 
-Clipboard history is session-only and is never serialized. Pause disables new
-capture but does not clear existing entries. Clear/delete only mutate memory and
-drop associated preview textures.
+**Persistence (revised 2026-09-24, user decision):** smolcast's own history
+survives restarts. This reverses the earlier session-only rule. It is on by
+default; setting `clipboard_persist = false` returns to session-only and
+deletes the stored files at the next start. Each entry is one file,
+`%LOCALAPPDATA%\\smolcast\\clipboard\\<token>.clip`. The file holds a record
+(`core::history::encode_record`: magic, kind, time, body length, body)
+encrypted with DPAPI `CryptProtectData`, current-user scope, secondary entropy
+`smolcast.clipboard.v1`. The record is written through §10.5's atomic write on
+the state-writer thread, never on the UI thread. An entry is written once when
+captured, rewritten when a duplicate promotes it (its time changed), and deleted
+when it is evicted, deleted or cleared. At startup the stored entries load in
+the background, oldest first, unless the source is always `windows`; captures
+that arrive before the load finishes are applied after it. The history limits
+are re-applied as entries load. Files that fail to decrypt or decode are
+deleted, for example after a password reset invalidates the DPAPI key.
+Exclusion hints still prevent capture, so excluded content never reaches
+disk. Pause was dropped (§7.0). Clear and delete remove the entries from
+memory and disk and drop their preview textures.
 
 ### 7.3 Text capture
 
@@ -660,7 +715,10 @@ content-free format/error counter, not a panic.
 For paste-back, encode a 124-byte `BITMAPV5HEADER` followed by top-down BGRA pixels:
 negative height, 32 bits/pixel, `BI_BITFIELDS`, red/green/blue/alpha masks
 `00FF0000/0000FF00/000000FF/FF000000`, and sRGB color space. Publish as
-`CF_DIBV5`; Windows may synthesize `CF_DIB` for consumers. Paint is the required
+`CF_DIBV5`, and alongside it an explicit 24-bit `BI_RGB` bottom-up `CF_DIB`
+composited over white. The first Windows test (2026-09-24) found that relying
+on Windows to synthesize `CF_DIB` from a `BI_BITFIELDS` `CF_DIBV5` failed to
+paste. Paint is the required
 compatibility smoke target.
 
 ### 7.5 History and memory bounds
@@ -738,6 +796,24 @@ Paste is an asynchronous state machine stored in `AppModel`:
    Require return count 4. A smaller count stores a manual-paste notice. Never
    retry injection automatically.
 
+**Timing revision (2026-09-24, measured):** eframe 0.36 delays any repaint of
+an invisible window to at least 100 ms (`INVISIBLE_WINDOW_REPAINT_INTERVAL`), so
+repaint-driven 10 ms ticks after the hide in step 5 cannot meet steps 6–7. Steps
+1–5 stay on the UI thread. Once the palette hides, one bounded paste-finisher
+thread runs steps 6–8: it polls every 10 ms with `GetForegroundWindow`,
+`IsWindow`, `GetWindowThreadProcessId` and `GetAsyncKeyState`, then calls
+`SendInput`, all with the same 150 ms and 750 ms deadlines and the same abort
+rules. It reports one `PasteFinished` event, which carries any manual-paste
+notice to show on the next summon. After the destination becomes foreground, the finisher also waits at least
+75 ms (overlapping the modifier wait) before injecting, so apps that restore
+keyboard focus asynchronously, such as Chromium/Electron and XAML-island
+terminals, have focused their input first. In the first Windows test, pastes
+into a Claude prompt were lost while a manual Ctrl+V worked (2026-09-24).
+A new summon sets the finisher's cancel flag
+before it captures a new destination. Step 4's foreground check tests that the
+foreground window belongs to the smolcast process; the visible palette is that
+process's only top-level window, and this avoids a raw-window-handle dependency.
+
 The clipboard-set receipt is the guaranteed outcome. `SendInput` cannot prove the
 destination consumed Ctrl+V, and UIPI does not identify itself distinctly. An
 elevated destination therefore receives clipboard content but may receive no
@@ -790,7 +866,9 @@ Use `directories::BaseDirs`, then join exact product paths:
 - `%APPDATA%\\smolcast\\config.toml`;
 - `%LOCALAPPDATA%\\smolcast\\usage.json`.
 
-Clipboard history never touches disk. There is no `index.json` in v1: scan in the
+- `%LOCALAPPDATA%\\smolcast\\clipboard\\` (DPAPI-encrypted history entries, §7.2).
+
+There is no `index.json` in v1: scan in the
 background on startup and measure before adding a cache/schema.
 
 ### 10.2 Config schema v1
@@ -804,6 +882,7 @@ clipboard_capture = true
 clipboard_max_entries = 100
 clipboard_max_item_bytes = 8388608
 clipboard_max_total_bytes = 67108864
+clipboard_source = "auto" # optional: "auto" | "windows" | "smolcast"
 
 [scripts.open-project]
 name = "Open project"
@@ -828,6 +907,7 @@ struct Settings {
     clipboard_max_entries: usize,
     clipboard_max_item_bytes: usize,
     clipboard_max_total_bytes: usize,
+    clipboard_source: ClipboardSource, // #[serde(default)] = Auto (§7.0)
 }
 
 struct ScriptConfig {

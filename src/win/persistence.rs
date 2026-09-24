@@ -14,6 +14,10 @@ use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use windows::Win32::Foundation::{HLOCAL, LocalFree};
+use windows::Win32::Security::Cryptography::{
+    CRYPT_INTEGER_BLOB, CRYPTPROTECT_UI_FORBIDDEN, CryptProtectData, CryptUnprotectData,
+};
 use windows::Win32::Storage::FileSystem::{
     MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH, MoveFileExW,
 };
@@ -21,6 +25,7 @@ use windows::core::PCWSTR;
 
 use crate::app::model::{AppEvent, Wake};
 use crate::app::notice::{Notice, Severity, op};
+use crate::core::history::{Payload, decode_record};
 use crate::core::usage::Usage;
 
 /// Temp files older than this are leftovers from a crashed write (§10.5).
@@ -35,6 +40,9 @@ pub struct StatePaths {
     pub config: PathBuf,
     /// `%LOCALAPPDATA%\smolcast\usage.json`
     pub usage: PathBuf,
+    /// `%LOCALAPPDATA%\smolcast\clipboard\`: one DPAPI-encrypted file per
+    /// persisted history entry (§7.2).
+    pub clipboard_dir: PathBuf,
 }
 
 impl StatePaths {
@@ -43,6 +51,7 @@ impl StatePaths {
         Some(Self {
             config: base.config_dir().join("smolcast").join("config.toml"),
             usage: base.data_local_dir().join("smolcast").join("usage.json"),
+            clipboard_dir: base.data_local_dir().join("smolcast").join("clipboard"),
         })
     }
 }
@@ -227,8 +236,40 @@ pub fn unix_ms_now() -> i64 {
         .map_or(0, |d| i64::try_from(d.as_millis()).unwrap_or(i64::MAX))
 }
 
+/// Persisted clipboard-history operations (§7.2), executed in order.
+pub enum ClipboardStoreCommand {
+    /// Encrypt and write one entry record (from `encode_record`).
+    Save {
+        token: String,
+        record: Vec<u8>,
+    },
+    Delete {
+        token: String,
+    },
+    /// Delete every stored entry.
+    Clear,
+    /// Decrypt and decode every stored entry; the result arrives as
+    /// `AppEvent::ClipboardHistoryLoaded`.
+    Load {
+        item_cap: usize,
+    },
+}
+
+/// One entry read back from disk.
+#[derive(Debug)]
+pub struct LoadedEntry {
+    pub token: String,
+    pub payload: Payload,
+    pub captured_at_ms: i64,
+}
+
+const CLIP_EXTENSION: &str = "clip";
+/// DPAPI secondary entropy: binds blobs to this purpose.
+const CLIP_ENTROPY: &[u8] = b"smolcast.clipboard.v1";
+
 enum WriterCommand {
     Usage { generation: u64, bytes: Vec<u8> },
+    Clipboard(ClipboardStoreCommand),
     Shutdown,
 }
 
@@ -241,11 +282,11 @@ pub struct StateWriter {
 }
 
 impl StateWriter {
-    pub fn start(usage_path: PathBuf, wake: Wake) -> io::Result<Self> {
+    pub fn start(usage_path: PathBuf, clipboard_dir: PathBuf, wake: Wake) -> io::Result<Self> {
         let (tx, rx) = mpsc::channel();
         let join = thread::Builder::new()
             .name("smolcast-state".into())
-            .spawn(move || writer_main(rx, usage_path, wake))?;
+            .spawn(move || writer_main(rx, usage_path, clipboard_dir, wake))?;
         Ok(Self {
             tx,
             join: Some(join),
@@ -255,6 +296,10 @@ impl StateWriter {
     /// Queue a usage snapshot. `generation` must increase with every snapshot.
     pub fn save_usage(&self, generation: u64, bytes: Vec<u8>) {
         let _ = self.tx.send(WriterCommand::Usage { generation, bytes });
+    }
+
+    pub fn clipboard(&self, command: ClipboardStoreCommand) {
+        let _ = self.tx.send(WriterCommand::Clipboard(command));
     }
 
     /// Flush queued snapshots, stop, and join (§1.5 step 4).
@@ -276,7 +321,12 @@ impl Drop for StateWriter {
     }
 }
 
-fn writer_main(rx: Receiver<WriterCommand>, usage_path: PathBuf, wake: Wake) {
+fn writer_main(
+    rx: Receiver<WriterCommand>,
+    usage_path: PathBuf,
+    clipboard_dir: PathBuf,
+    wake: Wake,
+) {
     remove_stale_temps(&usage_path);
     let mut written_generation = 0u64;
     while let Ok(first) = rx.recv() {
@@ -288,6 +338,10 @@ fn writer_main(rx: Receiver<WriterCommand>, usage_path: PathBuf, wake: Wake) {
                     if newest.as_ref().is_none_or(|(g, _)| generation > *g) {
                         newest = Some((generation, bytes));
                     }
+                }
+                // Clipboard operations are not coalesced: each runs in order.
+                WriterCommand::Clipboard(command) => {
+                    clipboard_store(&clipboard_dir, command, &wake)
                 }
                 WriterCommand::Shutdown => stop = true,
             }
@@ -308,6 +362,147 @@ fn writer_main(rx: Receiver<WriterCommand>, usage_path: PathBuf, wake: Wake) {
             break;
         }
     }
+}
+
+fn clipboard_store(dir: &Path, command: ClipboardStoreCommand, wake: &Wake) {
+    let failed = |e: String| {
+        wake.send(AppEvent::Notice(Notice::new(
+            Severity::Warning,
+            op::CLIPBOARD,
+            format!("Clipboard history storage: {e}"),
+        )));
+    };
+    match command {
+        ClipboardStoreCommand::Save { token, record } => {
+            let path = dir.join(format!("{token}.{CLIP_EXTENSION}"));
+            match dpapi_protect(&record) {
+                Ok(blob) => {
+                    if let Err(e) = atomic_write(&path, &blob) {
+                        failed(e.to_string());
+                    }
+                }
+                Err(e) => failed(format!("encrypt: {e}")),
+            }
+        }
+        ClipboardStoreCommand::Delete { token } => {
+            let _ = fs::remove_file(dir.join(format!("{token}.{CLIP_EXTENSION}")));
+        }
+        ClipboardStoreCommand::Clear => {
+            for path in clip_files(dir) {
+                let _ = fs::remove_file(path);
+            }
+        }
+        ClipboardStoreCommand::Load { item_cap } => {
+            let entries = load_clipboard(dir, item_cap);
+            wake.send(AppEvent::ClipboardHistoryLoaded(entries));
+        }
+    }
+}
+
+/// Stored entry files, plus removal of this directory's stale temp files.
+fn clip_files(dir: &Path) -> Vec<PathBuf> {
+    let Ok(entries) = fs::read_dir(dir) else {
+        return Vec::new();
+    };
+    let mut files = Vec::new();
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let name = entry.file_name().to_string_lossy().into_owned();
+        if path.extension().is_some_and(|e| e == CLIP_EXTENSION) {
+            files.push(path);
+        } else if let Some(dest) = name.find(".clip.").map(|i| &name[..i + 5])
+            && is_temp_for(&name, dest)
+        {
+            remove_stale_temps(&dir.join(dest));
+        }
+    }
+    files
+}
+
+/// Read every stored entry, oldest first. Files that cannot be decrypted or
+/// decoded (for example after a Windows password reset invalidated the DPAPI
+/// key, or a record over the current item cap) are deleted.
+fn load_clipboard(dir: &Path, item_cap: usize) -> Vec<LoadedEntry> {
+    let mut loaded = Vec::new();
+    for path in clip_files(dir) {
+        let Some(token) = path.file_stem().map(|s| s.to_string_lossy().into_owned()) else {
+            continue;
+        };
+        let decoded = fs::read(&path)
+            .ok()
+            .and_then(|blob| dpapi_unprotect(&blob).ok())
+            .and_then(|plain| decode_record(&plain, item_cap).ok());
+        match decoded {
+            Some((payload, captured_at_ms)) => loaded.push(LoadedEntry {
+                token,
+                payload,
+                captured_at_ms,
+            }),
+            None => {
+                let _ = fs::remove_file(&path);
+            }
+        }
+    }
+    loaded.sort_by(|a, b| {
+        a.captured_at_ms
+            .cmp(&b.captured_at_ms)
+            .then_with(|| a.token.cmp(&b.token))
+    });
+    loaded
+}
+
+fn blob(bytes: &[u8]) -> CRYPT_INTEGER_BLOB {
+    CRYPT_INTEGER_BLOB {
+        cbData: bytes.len() as u32,
+        pbData: bytes.as_ptr() as *mut u8,
+    }
+}
+
+/// Copy a DPAPI output blob, zero it, and free it.
+fn take_blob(out: CRYPT_INTEGER_BLOB) -> Vec<u8> {
+    let bytes = unsafe { std::slice::from_raw_parts(out.pbData, out.cbData as usize) }.to_vec();
+    unsafe {
+        std::ptr::write_bytes(out.pbData, 0, out.cbData as usize);
+        LocalFree(Some(HLOCAL(out.pbData.cast())));
+    }
+    bytes
+}
+
+/// Encrypt for the current Windows user (DPAPI, user scope).
+fn dpapi_protect(plain: &[u8]) -> io::Result<Vec<u8>> {
+    let (input, entropy) = (blob(plain), blob(CLIP_ENTROPY));
+    let mut out = CRYPT_INTEGER_BLOB::default();
+    unsafe {
+        CryptProtectData(
+            &input,
+            PCWSTR::null(),
+            Some(&entropy),
+            None,
+            None,
+            CRYPTPROTECT_UI_FORBIDDEN,
+            &mut out,
+        )
+    }
+    .map_err(io::Error::from)?;
+    Ok(take_blob(out))
+}
+
+fn dpapi_unprotect(cipher: &[u8]) -> io::Result<Vec<u8>> {
+    let (input, entropy) = (blob(cipher), blob(CLIP_ENTROPY));
+    let mut out = CRYPT_INTEGER_BLOB::default();
+    unsafe {
+        CryptUnprotectData(
+            &input,
+            None,
+            Some(&entropy),
+            None,
+            None,
+            CRYPTPROTECT_UI_FORBIDDEN,
+            &mut out,
+        )
+    }
+    .map_err(io::Error::from)?;
+    Ok(take_blob(out))
 }
 
 #[cfg(test)]

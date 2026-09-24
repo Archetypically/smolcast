@@ -11,6 +11,8 @@
 // reported via a message box because no eframe window exists yet.
 #![windows_subsystem = "windows"]
 
+use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 use std::sync::mpsc;
 
 use eframe::egui;
@@ -18,7 +20,7 @@ use windows::Win32::UI::WindowsAndMessaging::{MB_ICONERROR, MB_OK, MessageBoxW};
 use windows::core::PCWSTR;
 
 use smolcast::app::eframe_host::EframeApp;
-use smolcast::app::model::{AppEvent, AppModel};
+use smolcast::app::model::{AppEvent, AppModel, Wake};
 use smolcast::app::notice::{Notice, Severity, op};
 use smolcast::core::config::{self, ConfigFile};
 use smolcast::win::clipboard::ClipboardThread;
@@ -84,9 +86,16 @@ fn main() -> eframe::Result {
     let (event_tx, event_rx) = mpsc::channel::<AppEvent>();
     let ctx = egui::Context::default();
 
-    // 5. Clipboard worker with ready handshake (§1.3). Milestone 1 requires its
-    //    class registration and HWND to succeed, so failure aborts startup.
-    let clipboard = match ClipboardThread::start() {
+    // 5. Clipboard worker with ready handshake (§1.3): class, HWND, and format
+    //    listener must all exist, so failure aborts startup. It shares the
+    //    shutdown flag every producer checks (§1.5 step 1).
+    let shutting_down = Arc::new(AtomicBool::new(false));
+    let clipboard = match ClipboardThread::start(
+        config.settings.clipboard_max_item_bytes,
+        config.settings.clipboard_source,
+        config.settings.clipboard_capture,
+        Wake::new(event_tx.clone(), ctx.clone(), shutting_down.clone()),
+    ) {
         Ok(worker) => worker,
         Err(e) => fatal(&format!("Clipboard worker failed to start: {e}")),
     };
@@ -113,7 +122,7 @@ fn main() -> eframe::Result {
         Some(ctx),
         Box::new(move |cc| {
             let model = AppModel::new(event_rx, config, usage, startup_notices, force_visible);
-            let app = EframeApp::build(cc, model, event_tx, paths, clipboard);
+            let app = EframeApp::build(cc, model, event_tx, paths, clipboard, shutting_down);
             Ok(Box::new(app))
         }),
     ) {

@@ -36,6 +36,10 @@ pub enum AppId {
     UnresolvedShortcut {
         path_key: String,
     },
+    /// A built-in palette command (plan §5.4).
+    Command {
+        name: String,
+    },
 }
 
 /// Where an entry was enumerated. Declaration order is selection priority.
@@ -44,6 +48,8 @@ pub enum AppSource {
     UserStartMenu,
     CommonStartMenu,
     AppsFolder,
+    /// Built into smolcast; never deduplicated with enumerated apps.
+    Builtin,
 }
 
 /// How to launch an entry. Paths and AUMIDs keep their original case; the
@@ -55,6 +61,53 @@ pub enum LaunchSpec {
     Shortcut { lnk_path: PathBuf },
     /// Launched through `IApplicationActivationManager::ActivateApplication`.
     Packaged { aumid: String },
+    /// Opens a palette view instead of launching a process.
+    Command(Command),
+}
+
+/// Built-in commands listed at the palette root (§5.4).
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum Command {
+    ClipboardHistory,
+}
+
+impl Command {
+    pub const ALL: [Command; 1] = [Command::ClipboardHistory];
+
+    pub fn title(self) -> &'static str {
+        match self {
+            Command::ClipboardHistory => "Clipboard History",
+        }
+    }
+
+    /// Stable usage-state key.
+    pub fn key(self) -> &'static str {
+        match self {
+            Command::ClipboardHistory => "clipboard-history",
+        }
+    }
+
+    pub fn id(self) -> AppId {
+        AppId::Command {
+            name: self.key().into(),
+        }
+    }
+}
+
+/// Root-list entries for every built-in command.
+pub fn builtin_commands() -> Vec<IndexedApp> {
+    Command::ALL
+        .into_iter()
+        .map(|command| IndexedApp {
+            id: command.id(),
+            display_name: command.title().into(),
+            sort_name: command.title().to_lowercase(),
+            aliases: Vec::new(),
+            source: AppSource::Builtin,
+            launch: LaunchSpec::Command(command),
+            icon_key: String::new(),
+        })
+        .collect()
 }
 
 /// One enumerated row before deduplication.
@@ -216,6 +269,7 @@ fn launch_order_key(launch: &LaunchSpec) -> String {
     match launch {
         LaunchSpec::Shortcut { lnk_path } => lnk_path.to_string_lossy().into_owned(),
         LaunchSpec::Packaged { aumid } => aumid.clone(),
+        LaunchSpec::Command(command) => command.key().into(),
     }
 }
 
@@ -453,6 +507,17 @@ mod tests {
                 }
             );
         }
+    }
+
+    #[test]
+    fn builtin_commands_have_stable_ids() {
+        let commands = builtin_commands();
+        assert_eq!(commands.len(), Command::ALL.len());
+        assert_eq!(
+            serde_json::to_string(&commands[0].id).unwrap(),
+            r#"{"kind":"command","name":"clipboard-history"}"#
+        );
+        assert_eq!(commands[0].source, AppSource::Builtin);
     }
 
     #[test]

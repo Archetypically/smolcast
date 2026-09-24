@@ -10,12 +10,14 @@ use std::thread::JoinHandle;
 
 use egui::{Context, ViewportCommand};
 
+use crate::app::model::loads_stored_history;
 use crate::app::model::{AppEvent, AppModel, HotkeyStatus, Wake};
 use crate::app::notice::{Notice, Severity, op};
 use crate::core::config::{self, ConfigFile};
 use crate::win::clipboard::ClipboardThread;
 use crate::win::hotkey::{self, HotkeyManager};
-use crate::win::persistence::{StatePaths, StateWriter};
+use crate::win::paste;
+use crate::win::persistence::{ClipboardStoreCommand, StatePaths, StateWriter};
 use crate::win::shell::{self, IconWorker};
 use crate::win::tray::{self, TrayHandle};
 
@@ -32,6 +34,8 @@ pub struct EframeApp {
     /// Set during shutdown so a running scan stops between items (§1.5 step 5).
     scan_cancel: Arc<AtomicBool>,
     launch_jobs: Vec<JoinHandle<()>>,
+    /// Paste finishers and their cancel flags (§8.2 steps 6–8).
+    paste_jobs: Vec<(JoinHandle<()>, Arc<AtomicBool>)>,
     event_tx: Sender<AppEvent>,
     ctx: Context,
     paths: StatePaths,
@@ -54,9 +58,9 @@ impl EframeApp {
         event_tx: Sender<AppEvent>,
         paths: StatePaths,
         clipboard: ClipboardThread,
+        shutting_down: Arc<AtomicBool>,
     ) -> Self {
         let ctx = cc.egui_ctx.clone();
-        let shutting_down = Arc::new(AtomicBool::new(false));
         let wake = Wake::new(event_tx.clone(), ctx.clone(), shutting_down.clone());
 
         let mut model = model;
@@ -81,14 +85,31 @@ impl EframeApp {
 
         // Launcher workers (§6): the usage writer and the icon extractor. A
         // failure disables that piece only and is reported.
-        let state_writer = match StateWriter::start(paths.usage.clone(), wake.clone()) {
-            Ok(writer) => Some(writer),
+        let state_writer = match StateWriter::start(
+            paths.usage.clone(),
+            paths.clipboard_dir.clone(),
+            wake.clone(),
+        ) {
+            Ok(writer) => {
+                // Stored clipboard history (§7.2): load it, or delete it when
+                // persistence is off.
+                let settings = &model.config().settings;
+                if loads_stored_history(settings) {
+                    writer.clipboard(ClipboardStoreCommand::Load {
+                        item_cap: settings.clipboard_max_item_bytes,
+                    });
+                } else if !settings.clipboard_persist {
+                    writer.clipboard(ClipboardStoreCommand::Clear);
+                }
+                Some(writer)
+            }
             Err(e) => {
                 model.push_notice(Notice::new(
                     Severity::Warning,
                     op::USAGE,
-                    format!("Launch history will not be saved: {e}"),
+                    format!("Launch and clipboard history will not be saved: {e}"),
                 ));
+                model.clipboard_store_unavailable();
                 None
             }
         };
@@ -132,6 +153,7 @@ impl EframeApp {
             scan_job: None,
             scan_cancel: Arc::new(AtomicBool::new(false)),
             launch_jobs: Vec::new(),
+            paste_jobs: Vec::new(),
             event_tx,
             ctx,
             paths,
@@ -158,6 +180,7 @@ impl EframeApp {
         }
 
         self.run_launcher_requests();
+        self.run_clipboard_requests();
 
         if self.model.take_refresh_requested() {
             self.start_refresh();
@@ -217,6 +240,29 @@ impl EframeApp {
             (&self.state_writer, self.model.take_usage_snapshot())
         {
             writer.save_usage(generation, bytes);
+        }
+    }
+
+    /// Forward clipboard commands to the clipboard thread and start paste
+    /// finishers (§7.1, §8.2).
+    fn run_clipboard_requests(&mut self) {
+        if let Some(clipboard) = &self.clipboard {
+            for command in self.model.take_clipboard_commands() {
+                clipboard.send_command(command);
+            }
+        }
+        let store = self.model.take_store_commands();
+        if let Some(writer) = &self.state_writer {
+            for command in store {
+                writer.clipboard(command);
+            }
+        }
+        self.paste_jobs.retain(|(job, _)| !job.is_finished());
+        if let Some(request) = self.model.take_paste_finisher() {
+            match paste::spawn_finisher(request.destination, request.cancel.clone(), self.wake()) {
+                Ok(job) => self.paste_jobs.push((job, request.cancel)),
+                Err(e) => self.model.paste_finisher_failed(&e.to_string()),
+            }
         }
     }
 
@@ -321,6 +367,10 @@ impl EframeApp {
             worker.shutdown();
         }
         for job in self.launch_jobs.drain(..) {
+            let _ = job.join();
+        }
+        for (job, cancel) in self.paste_jobs.drain(..) {
+            cancel.store(true, Ordering::Release);
             let _ = job.join();
         }
 
