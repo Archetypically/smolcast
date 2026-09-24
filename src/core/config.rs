@@ -102,6 +102,28 @@ pub struct Settings {
     pub clipboard_max_entries: usize,
     pub clipboard_max_item_bytes: usize,
     pub clipboard_max_total_bytes: usize,
+    /// Optional so configs written before it existed stay valid (§7.0).
+    #[serde(default)]
+    pub clipboard_source: ClipboardSource,
+    /// Keep smolcast's own history across restarts, DPAPI-encrypted (§7.2).
+    /// Optional for the same reason as `clipboard_source`.
+    #[serde(default = "default_true")]
+    pub clipboard_persist: bool,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+/// Which history backs the Clipboard History view (§7.0).
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ClipboardSource {
+    /// Windows clipboard history when it is enabled, smolcast's otherwise.
+    #[default]
+    Auto,
+    Windows,
+    Smolcast,
 }
 
 impl Default for Settings {
@@ -112,6 +134,8 @@ impl Default for Settings {
             clipboard_max_entries: DEFAULT_CLIPBOARD_MAX_ENTRIES,
             clipboard_max_item_bytes: DEFAULT_CLIPBOARD_MAX_ITEM_BYTES,
             clipboard_max_total_bytes: DEFAULT_CLIPBOARD_MAX_TOTAL_BYTES,
+            clipboard_source: ClipboardSource::Auto,
+            clipboard_persist: true,
         }
     }
 }
@@ -487,6 +511,28 @@ mod tests {
         .unwrap();
         assert_eq!(cfg.scripts["a"].hotkey, None);
         assert_eq!(cfg.settings.summon_hotkey, "control+alt+Space");
+    }
+
+    #[test]
+    fn clipboard_source_is_optional_and_validated() {
+        let base = "schema_version = 1\n[settings]\nsummon_hotkey = \"control+alt+Space\"\nclipboard_capture = true\nclipboard_max_entries = 100\nclipboard_max_item_bytes = 8388608\nclipboard_max_total_bytes = 67108864\n";
+        assert_eq!(
+            parse(base).unwrap().settings.clipboard_source,
+            ClipboardSource::Auto
+        );
+        for (value, expected) in [
+            ("auto", ClipboardSource::Auto),
+            ("windows", ClipboardSource::Windows),
+            ("smolcast", ClipboardSource::Smolcast),
+        ] {
+            let text = format!("{base}clipboard_source = \"{value}\"\n");
+            assert_eq!(parse(&text).unwrap().settings.clipboard_source, expected);
+        }
+        assert!(parse(base).unwrap().settings.clipboard_persist);
+        let off = format!("{base}clipboard_persist = false\n");
+        assert!(!parse(&off).unwrap().settings.clipboard_persist);
+        let bad = format!("{base}clipboard_source = \"Windows\"\n");
+        assert!(matches!(parse(&bad), Err(ConfigError::Parse { .. })));
     }
 
     #[test]

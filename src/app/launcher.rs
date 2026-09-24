@@ -9,7 +9,7 @@ use std::time::{Duration, Instant};
 
 use egui::{Color32, Key, Modifiers, RichText, Sense, TextureHandle, TextureOptions, Vec2};
 
-use crate::core::app_index::{AppId, IndexedApp, LaunchSpec};
+use crate::core::app_index::{AppId, Command, IndexedApp, LaunchSpec, builtin_commands};
 use crate::core::matcher::{Ranked, rank};
 use crate::core::usage::Usage;
 use crate::win::icon::IconRgba;
@@ -78,6 +78,8 @@ pub struct Launcher {
     usage: Usage,
     usage_generation: u64,
 
+    /// True once any scan delivered apps; before that only commands are listed.
+    indexed: bool,
     ranked: Vec<Ranked>,
     /// Query the current `ranked` was computed for; `None` forces a re-rank.
     ranked_for: Option<String>,
@@ -93,6 +95,7 @@ pub struct Launcher {
     scan_request: Option<u64>,
     launch_request: Option<LaunchRequest>,
     launch_pending: Option<AppId>,
+    open_command: Option<Command>,
     icon_requests: Vec<IconRequest>,
     usage_snapshot: Option<(u64, Vec<u8>)>,
     icons: IconCache,
@@ -102,7 +105,8 @@ impl Launcher {
     /// Starts with the persisted usage and requests the startup scan.
     pub fn new(usage: Usage) -> Self {
         let mut launcher = Self {
-            apps: Vec::new(),
+            apps: builtin_commands(),
+            indexed: false,
             usage,
             usage_generation: 0,
             ranked: Vec::new(),
@@ -117,6 +121,7 @@ impl Launcher {
             scan_request: None,
             launch_request: None,
             launch_pending: None,
+            open_command: None,
             icon_requests: Vec::new(),
             usage_snapshot: None,
             icons: IconCache::default(),
@@ -191,6 +196,8 @@ impl Launcher {
                 }
                 self.last_skipped = Some(outcome.skipped_shortcuts);
                 self.apps = outcome.apps;
+                self.apps.extend(builtin_commands());
+                self.indexed = true;
                 self.ranked_for = None;
                 // Icons of apps that left the index are no longer requested;
                 // the LRU evicts them. Failed lookups are retried next index.
@@ -245,10 +252,7 @@ impl Launcher {
         match result {
             Ok(()) => {
                 // Usage increments only after the shell accepted the launch (§6.3).
-                self.usage.record_launch(&app_id, unix_ms_now());
-                self.usage_generation += 1;
-                self.usage_snapshot = Some((self.usage_generation, self.usage.encode()));
-                self.ranked_for = None;
+                self.record_usage(&app_id);
                 true
             }
             Err(e) => {
@@ -268,6 +272,13 @@ impl Launcher {
                 false
             }
         }
+    }
+
+    fn record_usage(&mut self, app_id: &AppId) {
+        self.usage.record_launch(app_id, unix_ms_now());
+        self.usage_generation += 1;
+        self.usage_snapshot = Some((self.usage_generation, self.usage.encode()));
+        self.ranked_for = None;
     }
 
     pub fn launch_start_failed(&mut self, notices: &mut NoticeStore, e: &str) {
@@ -290,6 +301,11 @@ impl Launcher {
 
     pub fn take_scan_request(&mut self) -> Option<u64> {
         self.scan_request.take()
+    }
+
+    /// A built-in command the user chose; the model opens its view.
+    pub fn take_open_command(&mut self) -> Option<Command> {
+        self.open_command.take()
     }
 
     pub fn take_launch_request(&mut self) -> Option<LaunchRequest> {
@@ -342,10 +358,8 @@ impl Launcher {
         self.selected = self.selected.min(self.ranked.len().saturating_sub(1));
 
         if self.ranked.is_empty() {
-            let text = if self.apps.is_empty() && self.scan_active {
+            let text = if !self.indexed && self.scan_active {
                 "Indexing apps…"
-            } else if self.apps.is_empty() {
-                "No apps found."
             } else {
                 "No matches."
             };
@@ -369,7 +383,9 @@ impl Launcher {
             let icon = self.icons.textures.get(&app.id).cloned();
             if icon.is_some() {
                 self.icons.touch(&app.id);
-            } else if !self.icons.pending.contains(&app.id) && !self.icons.failed.contains(&app.id)
+            } else if !app.icon_key.is_empty()
+                && !self.icons.pending.contains(&app.id)
+                && !self.icons.failed.contains(&app.id)
             {
                 self.icons.pending.insert(app.id.clone());
                 self.icon_requests.push(IconRequest {
@@ -392,22 +408,36 @@ impl Launcher {
                     ui.set_width(ui.available_width());
                     ui.horizontal(|ui| {
                         let size = Vec2::splat(ICON_POINTS);
-                        match &icon {
-                            Some(texture) => {
+                        match (&icon, &app.launch) {
+                            (Some(texture), _) => {
                                 ui.add(egui::Image::new(texture).fit_to_exact_size(size));
                             }
-                            None => {
+                            (None, LaunchSpec::Command(command)) => {
+                                ui.add_sized(size, egui::Label::new(command_glyph(*command)));
+                            }
+                            (None, _) => {
                                 ui.allocate_exact_size(size, Sense::hover());
                             }
                         }
-                        let mut name = RichText::new(&app.display_name);
-                        if selected {
-                            name = name.color(ui.visuals().selection.stroke.color);
-                        }
-                        ui.label(name);
-                        if launching {
-                            ui.label(RichText::new("launching…").weak().small());
-                        }
+                        // Right column first: the entry type (§5.4).
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            let kind = if launching {
+                                "Launching…"
+                            } else {
+                                kind_label(&app.launch)
+                            };
+                            ui.label(RichText::new(kind).weak().small());
+                            ui.with_layout(
+                                egui::Layout::left_to_right(egui::Align::Center),
+                                |ui| {
+                                    let mut name = RichText::new(&app.display_name);
+                                    if selected {
+                                        name = name.color(ui.visuals().selection.stroke.color);
+                                    }
+                                    ui.add(egui::Label::new(name).truncate());
+                                },
+                            );
+                        });
                     });
                 })
                 .response
@@ -430,10 +460,30 @@ impl Launcher {
             return;
         };
         let app = &self.apps[ranked.index];
+        if let LaunchSpec::Command(command) = app.launch {
+            // Opening a command view counts as a use for ranking.
+            let id = app.id.clone();
+            self.open_command = Some(command);
+            self.record_usage(&id);
+            return;
+        }
         self.launch_pending = Some(app.id.clone());
         self.launch_request = Some(LaunchRequest {
             app_id: app.id.clone(),
             spec: app.launch.clone(),
         });
+    }
+}
+
+fn kind_label(launch: &LaunchSpec) -> &'static str {
+    match launch {
+        LaunchSpec::Shortcut { .. } | LaunchSpec::Packaged { .. } => "Application",
+        LaunchSpec::Command(_) => "Command",
+    }
+}
+
+fn command_glyph(command: Command) -> &'static str {
+    match command {
+        Command::ClipboardHistory => "📋",
     }
 }

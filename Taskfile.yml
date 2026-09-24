@@ -47,6 +47,11 @@ tasks:
     cmds:
       - task: '{{if eq .PROFILE "release"}}build-release{{else}}build{{end}}'
       - mkdir -p '{{.STAGE_DIR}}/{{.PROFILE}}'
+      # A running exe cannot be overwritten but can be renamed: move it aside so
+      # staging works while the previous build is still resident.
+      # Earlier moved-aside builds are deleted unless they are still running.
+      - for old in '{{.STAGE_DIR}}/{{.PROFILE}}'/smolcast.old-*.exe; do rm -f "$old" 2>/dev/null || true; done
+      - '[ ! -e "{{.STAGE_DIR}}/{{.PROFILE}}/smolcast.exe" ] || mv "{{.STAGE_DIR}}/{{.PROFILE}}/smolcast.exe" "{{.STAGE_DIR}}/{{.PROFILE}}/smolcast.old-$(date +%s).exe"'
       - cp 'target/{{.TARGET}}/{{.PROFILE}}/smolcast.exe' '{{.STAGE_DIR}}/{{.PROFILE}}/smolcast.exe'
       - echo 'Staged {{.STAGE_DIR}}/{{.PROFILE}}/smolcast.exe'
 
