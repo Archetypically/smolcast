@@ -5,6 +5,8 @@
 //! (`plans/IMPLEMENTATION_PLAN.md` §4). Event handling lives here so the eframe
 //! adapter can stay a thin lifecycle shim.
 
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver};
 
 use egui::{Color32, Context, Key, RichText, ViewportCommand};
@@ -38,19 +40,28 @@ pub enum TrayCommand {
 
 /// Producer wake handle: one event sender plus an `egui::Context`. Enforces the
 /// send-then-repaint producer contract (§1.2): send, then request a repaint,
-/// never wait for the UI.
+/// never wait for the UI. Once the shared `shutting_down` flag is set (§1.5
+/// step 1), late callbacks become no-ops.
 #[derive(Clone, Debug)]
 pub struct Wake {
     tx: mpsc::Sender<AppEvent>,
     ctx: Context,
+    shutting_down: Arc<AtomicBool>,
 }
 
 impl Wake {
-    pub fn new(tx: mpsc::Sender<AppEvent>, ctx: Context) -> Self {
-        Self { tx, ctx }
+    pub fn new(tx: mpsc::Sender<AppEvent>, ctx: Context, shutting_down: Arc<AtomicBool>) -> Self {
+        Self {
+            tx,
+            ctx,
+            shutting_down,
+        }
     }
 
     pub fn send(&self, event: AppEvent) {
+        if self.shutting_down.load(Ordering::Acquire) {
+            return;
+        }
         if self.tx.send(event).is_ok() {
             self.ctx.request_repaint();
         }
@@ -76,7 +87,6 @@ pub enum HotkeyStatus {
         requested: String,
         reason: Option<String>,
     },
-    Disabled,
 }
 
 /// The number of most-recent notices rendered in the palette at once. The store
@@ -93,7 +103,10 @@ pub struct AppModel {
     search: String,
     refresh_requested: bool,
     pending_config: Option<ConfigFile>,
-    trial_edit: String,
+    /// The conflict UI is capturing the next key chord as a session-only
+    /// summon key; Escape cancels capture instead of hiding.
+    recording: bool,
+    capture_hint: Option<String>,
     trial_request: Option<String>,
     quit_requested: bool,
     force_show: bool,
@@ -125,7 +138,8 @@ impl AppModel {
             search: String::new(),
             refresh_requested: false,
             pending_config: None,
-            trial_edit: String::new(),
+            recording: false,
+            capture_hint: None,
             trial_request: None,
             quit_requested: false,
             force_show: force_visible,
@@ -145,12 +159,13 @@ impl AppModel {
             self.reduce(ctx, event);
         }
 
-        if self.visible && ctx.input(|i| i.key_pressed(Key::Escape)) {
+        if self.visible && !self.recording && ctx.input(|i| i.key_pressed(Key::Escape)) {
             self.hide(ctx);
         }
 
         // The window `X` hides rather than exits (§1.5): cancel the close and sink.
-        if ctx.input(|i| i.viewport().close_requested()) {
+        // A pending tray Quit is the one close that must go through.
+        if !self.quit_requested && ctx.input(|i| i.viewport().close_requested()) {
             ctx.send_viewport_cmd(ViewportCommand::CancelClose);
             self.hide(ctx);
         }
@@ -216,6 +231,7 @@ impl AppModel {
     /// Apply a session-only hotkey that registered successfully; it is not
     /// persisted, so the recovery UI keeps showing the needed config edit.
     pub fn accept_trial_hotkey(&mut self, key: String) {
+        self.capture_hint = None;
         self.hotkey_status = HotkeyStatus::Active { canonical: key };
         self.notices.push(Notice::new(
             Severity::Info,
@@ -227,6 +243,7 @@ impl AppModel {
     /// A registration failure. Keep the old registration and registration state;
     /// force the palette visible so the recovery UI is observable (§5.2).
     pub fn report_hotkey_conflict(&mut self, requested: String, reason: Option<String>) {
+        self.capture_hint = None;
         self.hotkey_status = HotkeyStatus::Conflict {
             requested: requested.clone(),
             reason,
@@ -281,6 +298,7 @@ impl AppModel {
 
     fn hide(&mut self, ctx: &Context) {
         self.visible = false;
+        self.recording = false;
         self.destination = None;
         self.search.clear();
         ctx.send_viewport_cmd(ViewportCommand::Visible(false));
@@ -303,9 +321,6 @@ impl AppModel {
                             .color(Color32::from_rgb(220, 120, 60)),
                     );
                 }
-                HotkeyStatus::Disabled => {
-                    ui.label(RichText::new(" (no hotkey)").weak());
-                }
             }
         });
 
@@ -318,28 +333,92 @@ impl AppModel {
         ui.add_space(8.0);
 
         if matches!(self.hotkey_status, HotkeyStatus::Conflict { .. }) {
-            ui.horizontal(|ui| {
-                let response = ui.add(
-                    egui::TextEdit::singleline(&mut self.trial_edit)
-                        .hint_text("temporary hotkey, e.g. control+alt+KeyQ")
-                        .desired_width(260.0),
-                );
-                if response.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter)) {
-                    self.submit_trial();
-                }
-                if ui.button("Apply temporary key").clicked() {
-                    self.submit_trial();
-                }
-            });
+            self.hotkey_capture_ui(ui);
         }
 
         self.notices_ui(ui);
     }
 
-    fn submit_trial(&mut self) {
-        let key = self.trial_edit.trim().to_owned();
-        if !key.is_empty() {
-            self.trial_request = Some(key);
+    /// Session-only replacement key (§5.2): record a pressed chord rather than
+    /// asking the user to type `global-hotkey` syntax.
+    fn hotkey_capture_ui(&mut self, ui: &mut egui::Ui) {
+        if self.recording {
+            self.capture_chord(ui);
+        }
+        ui.horizontal(|ui| {
+            let label = if self.recording {
+                "Press a key combination… (Esc cancels)"
+            } else {
+                "Record temporary key"
+            };
+            let response = ui.add(egui::Button::new(label).selected(self.recording));
+            if response.clicked() {
+                self.recording = !self.recording;
+                self.capture_hint = None;
+                // Nothing may keep keyboard focus while recording: a focused
+                // button activates on Space/Enter and a text field would
+                // receive the chord's character.
+                response.surrender_focus();
+                ui.memory_mut(|m| m.stop_text_input());
+            }
+        });
+        if let Some(hint) = &self.capture_hint {
+            ui.label(RichText::new(hint).weak().small());
+        }
+    }
+
+    /// Consume key events while recording. A chord needs Ctrl or Alt so a
+    /// global registration never swallows ordinary typing.
+    fn capture_chord(&mut self, ui: &mut egui::Ui) {
+        let events = ui.input_mut(|i| {
+            let events = std::mem::take(&mut i.events);
+            let (keys, rest): (Vec<_>, Vec<_>) = events
+                .into_iter()
+                .partition(|e| matches!(e, egui::Event::Key { .. } | egui::Event::Text(_)));
+            i.events = rest;
+            keys
+        });
+        for event in events {
+            let egui::Event::Key {
+                key,
+                physical_key,
+                pressed: true,
+                repeat: false,
+                modifiers,
+            } = event
+            else {
+                continue;
+            };
+            let key = physical_key.unwrap_or(key);
+            if key == Key::Escape && !modifiers.any() {
+                self.recording = false;
+                self.capture_hint = None;
+                return;
+            }
+            if !(modifiers.ctrl || modifiers.alt) {
+                self.capture_hint = Some("Include Ctrl or Alt in the combination.".into());
+                continue;
+            }
+            let Some(code) = hotkey_code(key) else {
+                self.capture_hint = Some(format!("{} can't be used as a hotkey.", key.name()));
+                continue;
+            };
+            let mut chord = String::new();
+            for (held, name) in [
+                (modifiers.ctrl, "control"),
+                (modifiers.alt, "alt"),
+                (modifiers.shift, "shift"),
+            ] {
+                if held {
+                    chord.push_str(name);
+                    chord.push('+');
+                }
+            }
+            chord.push_str(code);
+            self.recording = false;
+            self.capture_hint = Some(format!("Trying {chord}…"));
+            self.trial_request = Some(chord);
+            return;
         }
     }
 
@@ -379,4 +458,98 @@ impl AppModel {
             self.notices.clear();
         }
     }
+}
+
+/// Map an egui physical key to the `keyboard_types::Code` name accepted by
+/// `global-hotkey` on Windows. Modifier-only and logical-only keys have none.
+fn hotkey_code(key: Key) -> Option<&'static str> {
+    use Key::*;
+    Some(match key {
+        A => "KeyA",
+        B => "KeyB",
+        C => "KeyC",
+        D => "KeyD",
+        E => "KeyE",
+        F => "KeyF",
+        G => "KeyG",
+        H => "KeyH",
+        I => "KeyI",
+        J => "KeyJ",
+        K => "KeyK",
+        L => "KeyL",
+        M => "KeyM",
+        N => "KeyN",
+        O => "KeyO",
+        P => "KeyP",
+        Q => "KeyQ",
+        R => "KeyR",
+        S => "KeyS",
+        T => "KeyT",
+        U => "KeyU",
+        V => "KeyV",
+        W => "KeyW",
+        X => "KeyX",
+        Y => "KeyY",
+        Z => "KeyZ",
+        Num0 => "Digit0",
+        Num1 => "Digit1",
+        Num2 => "Digit2",
+        Num3 => "Digit3",
+        Num4 => "Digit4",
+        Num5 => "Digit5",
+        Num6 => "Digit6",
+        Num7 => "Digit7",
+        Num8 => "Digit8",
+        Num9 => "Digit9",
+        F1 => "F1",
+        F2 => "F2",
+        F3 => "F3",
+        F4 => "F4",
+        F5 => "F5",
+        F6 => "F6",
+        F7 => "F7",
+        F8 => "F8",
+        F9 => "F9",
+        F10 => "F10",
+        F11 => "F11",
+        F12 => "F12",
+        F13 => "F13",
+        F14 => "F14",
+        F15 => "F15",
+        F16 => "F16",
+        F17 => "F17",
+        F18 => "F18",
+        F19 => "F19",
+        F20 => "F20",
+        F21 => "F21",
+        F22 => "F22",
+        F23 => "F23",
+        F24 => "F24",
+        ArrowDown => "ArrowDown",
+        ArrowLeft => "ArrowLeft",
+        ArrowRight => "ArrowRight",
+        ArrowUp => "ArrowUp",
+        Space => "Space",
+        Enter => "Enter",
+        Tab => "Tab",
+        Backspace => "Backspace",
+        Insert => "Insert",
+        Delete => "Delete",
+        Home => "Home",
+        End => "End",
+        PageUp => "PageUp",
+        PageDown => "PageDown",
+        Backtick => "Backquote",
+        Minus => "Minus",
+        Equals => "Equal",
+        OpenBracket => "BracketLeft",
+        CloseBracket => "BracketRight",
+        Backslash => "Backslash",
+        Semicolon => "Semicolon",
+        Quote => "Quote",
+        Comma => "Comma",
+        Period => "Period",
+        Slash => "Slash",
+        _ => return None,
+    })
 }

@@ -6,9 +6,21 @@ Rust + egui + windows-rs. No Electron, WebView, Node runtime, extensions, AI fea
 
 ## Status
 
-**Milestone 1 implemented (Linux side); Windows smoke pending.**
+**Milestone 1 implemented; automated Windows acceptance passes. A few manual tray and conflict checks remain.**
 
-Cargo package, pinned toolchain, setup scripts, CI, config schema v1, eframe Glow root viewport, hotkey + tray + notice machinery, named-mutex single instance, the clipboard HWND worker with ready handshake, and ordered shutdown are coded. On the Linux host: `cargo test --lib` (13 config tests), `fmt`, and `clippy` pass, and the GNU debug + release cross-links succeed (release ≈ 5.9 MB, GUI subsystem, Windows system DLLs only). The Windows-gated proof — MSVC debug+release build, the interactive smoke gates (hotkey/tray wake after 60 s hidden, 100 summon/hide cycles, X-hides, tray-Quit exits, second-launch silence, hotkey-conflict recovery), and the §2.2 size/CPU/RAM/latency measurement — still has to run on a Windows 11 desktop.
+Cargo package, pinned toolchain, setup scripts, CI, config schema v1, eframe Glow root viewport, hotkey + tray + notice machinery, named-mutex single instance, the clipboard HWND worker with ready handshake, and ordered shutdown are coded. CI passes both the MSVC and Linux/GNU jobs. On Windows 11 (26100), with the GNU release build:
+
+| §2.2 / §12.1 measurement | Result |
+| --- | --- |
+| Release exe size | 5,907,456 B; imports only Windows system DLLs |
+| Hidden CPU after summon/hide | 0.0 ms over 65 s |
+| Private memory (hidden, after 120 summons) | ~76 MiB (review threshold 80 MiB) |
+| Hotkey → window visible | median ~102 ms, max ~158 ms (20 samples) — reviewed and accepted: eframe 0.36 throttles invisible-window repaints to 100 ms |
+| 100 summon/Escape cycles | one process, stable handles |
+| Wake after 65 s hidden | works |
+| Second launch | exits 0 silently |
+
+Still to check by hand: tray left-click and Quit (the process must exit and release resources), Alt+F4 hides, and hotkey-conflict recovery.
 
 The approved engineering plan is [plans/IMPLEMENTATION_PLAN.md](plans/IMPLEMENTATION_PLAN.md). `BRIEF.md` is the product source.
 
@@ -26,6 +38,8 @@ task up
 
 `task up` invokes `scripts/setup.ps1`: installs Visual Studio 2022 C++ Build Tools when absent via winget, checks the Windows SDK, installs the pinned Rust toolchain (1.98.1, from `rust-toolchain.toml`) with rustfmt + Clippy and the MSVC target, then links and runs a temporary Windows API probe. Installers can prompt for license approval/elevation and may require a reboot. Existing incomplete Visual Studio installations may need the Windows SDK added through Visual Studio Installer as directed by the script.
 
+> **Disk note for the maintainer's box:** Windows-side setup (below) installs several GB onto the system drive. On the WSL dev box, build only inside WSL and use `task stage`, which copies the exe to `E:\Projects\smolcast\`. MSVC binaries come from CI artifacts.
+
 Debian/Ubuntu x64 or WSL:
 
 1. Install Task using its official installation instructions.
@@ -33,7 +47,7 @@ Debian/Ubuntu x64 or WSL:
 
 `scripts/setup.sh` installs `build-essential`, CA certificates, curl, and MinGW x64 C/C++ tools via apt, then the pinned Rust toolchain (1.98.1) with rustfmt, Clippy, and `x86_64-pc-windows-gnu`. It links a temporary Rust program against a Windows API. It requires sudo for missing system packages and network access for downloads. Both setup paths fetch the locked Cargo dependencies.
 
-**Local verification:** `cargo test --lib`, `fmt`, and `clippy` pass; the GNU debug and release cross-links succeed (release ≈ 5.9 MB, GUI subsystem). The Windows-native MSVC build, runtime smoke, and idle/latency measurements have not yet been performed.
+**Local verification:** `cargo test --lib`, `fmt`, and `clippy` pass; the GNU debug and release cross-links succeed (release ≈ 5.9 MB, GUI subsystem). The MSVC build runs in CI; runtime measurements are in Status above.
 
 ### Commands
 
@@ -43,7 +57,8 @@ Debian/Ubuntu x64 or WSL:
 | `task up` | Install development dependencies and smoke-check the toolchain; no app launch |
 | `task build` | Debug Windows build, using the lockfile |
 | `task build-release` | Release Windows build, using the lockfile |
-| `task run` | Build and run natively on Windows, or via WSL Windows interop |
+| `task run` | Build and run natively on Windows; on WSL, stage a debug build to E: and launch it through interop |
+| `task stage` | WSL only: build (`PROFILE=release` by default) and copy the exe to `STAGE_DIR` (default `/mnt/e/Projects/smolcast`) |
 | `task check` | Windows-target type-check |
 | `task clippy` | Windows-target lint, including tests |
 | `task fmt` / `task fmt-check` | Format / check formatting |

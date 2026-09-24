@@ -2,4 +2,4 @@
 
 Memory is stored in MEMORY.md; read it unconditionally at the beginning of every session. 
 
-Every decision that is recorded should go into memory. Use this as a committed, living document of memory that can be used to port around project context to other agents.
+Every decision that is recorded should go into memory. MEMORY.md is a local-only, living document on this devbox: it is gitignored and must never be committed. Durable project decisions that other contributors need belong in `plans/IMPLEMENTATION_PLAN.md` or `README.md`.

@@ -35,14 +35,35 @@ tasks:
     cmds:
       - '"{{.CARGO}}" build --locked --release --target {{.TARGET}}'
 
+  stage:
+    desc: Cross-build in WSL and copy the exe to a Windows-local drive (PROFILE=debug|release)
+    platforms: [linux]
+    vars:
+      PROFILE: '{{.PROFILE | default "release"}}'
+      STAGE_DIR: '{{.STAGE_DIR | default "/mnt/e/Projects/smolcast"}}'
+    preconditions:
+      - sh: test -d "$(dirname '{{.STAGE_DIR}}')"
+        msg: 'Staging parent for {{.STAGE_DIR}} is missing; set STAGE_DIR to a Windows-drive path under /mnt.'
+    cmds:
+      - task: '{{if eq .PROFILE "release"}}build-release{{else}}build{{end}}'
+      - mkdir -p '{{.STAGE_DIR}}/{{.PROFILE}}'
+      - cp 'target/{{.TARGET}}/{{.PROFILE}}/smolcast.exe' '{{.STAGE_DIR}}/{{.PROFILE}}/smolcast.exe'
+      - echo 'Staged {{.STAGE_DIR}}/{{.PROFILE}}/smolcast.exe'
+
   run:
-    desc: Build and launch on Windows, or through WSL Windows interop
+    desc: Build and launch on Windows, or stage to drive E and launch via WSL Windows interop
     preconditions:
       - sh: '[ "{{OS}}" = "windows" ] || test -e /proc/sys/fs/binfmt_misc/WSLInterop'
         msg: Run on Windows or WSL with Windows interop enabled; Wine is not a verification target.
     cmds:
-      - task: build
-      - './target/{{.TARGET}}/debug/smolcast.exe {{.CLI_ARGS}}'
+      - cmd: '"{{.CARGO}}" build --locked --target {{.TARGET}}'
+        platforms: [windows]
+      - cmd: './target/{{.TARGET}}/debug/smolcast.exe {{.CLI_ARGS}}'
+        platforms: [windows]
+      - cmd: task stage PROFILE=debug
+        platforms: [linux]
+      - cmd: '"{{.STAGE_DIR | default "/mnt/e/Projects/smolcast"}}/debug/smolcast.exe" {{.CLI_ARGS}}'
+        platforms: [linux]
 
   check:
     desc: Type-check for Windows
