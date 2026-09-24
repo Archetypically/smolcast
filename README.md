@@ -20,7 +20,9 @@ Cargo package, pinned toolchain, setup scripts, CI, config schema v1, eframe Glo
 | Wake after 65 s hidden | works |
 | Second launch | exits 0 silently |
 
-Still to check by hand: tray left-click and Quit (the process must exit and release resources), Alt+F4 hides, and hotkey-conflict recovery.
+Manual checks passed: tray click and Quit, and hotkey-conflict recovery with a recorded temporary key.
+
+**Milestone 2 (app launcher) implemented.** It covers Start Menu (user + common) and packaged AppsFolder enumeration, deterministic dedup with aliases, fuzzy + usage ranking, lazily loaded icons (capped at 128), shortcut launch via `ShellExecuteExW` and packaged-app activation by AUMID, and usage state in `%LOCALAPPDATA%\smolcast\usage.json` saved by an atomic, coalescing writer. It is verified on Windows 11: search, keyboard selection, packaged and shortcut launches, usage-ranked order after a restart, and repeated refreshes. Still pending: the removed-shortcut launch check.
 
 The approved engineering plan is [plans/IMPLEMENTATION_PLAN.md](plans/IMPLEMENTATION_PLAN.md). `BRIEF.md` is the product source.
 

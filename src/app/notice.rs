@@ -38,6 +38,11 @@ impl Notice {
         self.code = Some(code);
         self
     }
+
+    pub fn with_optional_code(mut self, code: Option<u32>) -> Self {
+        self.code = code;
+        self
+    }
 }
 
 /// Stable operation codes for diagnostics and UI grouping.
@@ -47,6 +52,8 @@ pub mod op {
     pub const CONFIG: &str = "config";
     pub const TRAY: &str = "tray";
     pub const CLIPBOARD: &str = "clipboard";
+    pub const LAUNCHER: &str = "launcher";
+    pub const USAGE: &str = "usage";
 }
 
 /// Maximum number of notices retained in memory (§5.3).
