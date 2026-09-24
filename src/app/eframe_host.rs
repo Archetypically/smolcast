@@ -4,6 +4,8 @@
 //! `model`.
 
 use std::path::PathBuf;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::Sender;
 use std::thread::JoinHandle;
 
@@ -27,7 +29,11 @@ pub struct EframeApp {
     ctx: Context,
     config_path: PathBuf,
     close_sent: bool,
-    shutdown_done: bool,
+    /// eframe 0.36 unconditionally shows the root window after its first painted
+    /// frame (`EpiIntegration::post_rendering`), ignoring `with_visible(false)`.
+    first_frame_seen: bool,
+    /// Shared with every `Wake` producer; set first during shutdown (§1.5 step 1).
+    shutting_down: Arc<AtomicBool>,
 }
 
 impl EframeApp {
@@ -43,7 +49,8 @@ impl EframeApp {
         clipboard: ClipboardThread,
     ) -> Self {
         let ctx = cc.egui_ctx.clone();
-        let wake = Wake::new(event_tx.clone(), ctx.clone());
+        let shutting_down = Arc::new(AtomicBool::new(false));
+        let wake = Wake::new(event_tx.clone(), ctx.clone(), shutting_down.clone());
 
         let mut model = model;
 
@@ -92,7 +99,8 @@ impl EframeApp {
             ctx,
             config_path,
             close_sent: false,
-            shutdown_done: false,
+            first_frame_seen: false,
+            shutting_down,
         }
     }
 
@@ -139,7 +147,11 @@ impl EframeApp {
             return;
         }
         let path = self.config_path.clone();
-        let wake = Wake::new(self.event_tx.clone(), self.ctx.clone());
+        let wake = Wake::new(
+            self.event_tx.clone(),
+            self.ctx.clone(),
+            self.shutting_down.clone(),
+        );
         match std::thread::Builder::new()
             .name("smolcast-refresh".into())
             .spawn(move || {
@@ -192,11 +204,11 @@ impl EframeApp {
     /// and drop hotkeys/tray, then stop and join the clipboard thread. Runs
     /// inside `on_exit`, before eframe destroys the viewport.
     fn shutdown_resources(&mut self) {
-        // eframe invokes `on_exit` once per shutdown; guard against re-entry.
-        if self.shutdown_done {
+        // Step 1: set the shared flag so late handler/worker callbacks stop
+        // sending. It also guards against re-entry.
+        if self.shutting_down.swap(true, Ordering::AcqRel) {
             return;
         }
-        self.shutdown_done = true;
 
         hotkey::clear_event_handler();
         tray::clear_event_handlers();
@@ -230,6 +242,12 @@ impl eframe::App for EframeApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
         self.step(&ctx);
+        // Re-hide after eframe's forced first-frame show (§2.1: the root viewport
+        // starts hidden). Viewport commands are applied after `post_rendering` in
+        // the same frame, so this wins; at most one blank frame can flash.
+        if !std::mem::replace(&mut self.first_frame_seen, true) && !self.model.is_visible() {
+            ctx.send_viewport_cmd(ViewportCommand::Visible(false));
+        }
         if self.model.is_visible() {
             egui::CentralPanel::default()
                 .frame(egui::Frame::window(ui.style()).inner_margin(egui::Margin::same(16)))
