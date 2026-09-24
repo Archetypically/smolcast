@@ -5,6 +5,9 @@
 
 pub mod clipboard;
 pub mod hotkey;
+pub mod icon;
 pub mod paste;
+pub mod persistence;
+pub mod shell;
 pub mod single_instance;
 pub mod tray;

@@ -11,9 +11,14 @@ use std::sync::mpsc::{self, Receiver};
 
 use egui::{Color32, Context, Key, RichText, ViewportCommand};
 
+use crate::core::app_index::AppId;
 use crate::core::config::{ConfigError, ConfigFile};
+use crate::core::usage::Usage;
+use crate::win::icon::IconRgba;
 use crate::win::paste::{Destination, capture_destination};
+use crate::win::shell::{LaunchError, ScanOutcome};
 
+use super::launcher::{IconRequest, LaunchRequest, Launcher};
 use super::notice::{Notice, NoticeStore, Severity, op};
 
 /// Typed application events produced by window/background components (§1.2).
@@ -27,6 +32,18 @@ pub enum AppEvent {
     /// active until the summon hotkey has been re-registered successfully.
     ConfigReload {
         result: Result<ConfigFile, ConfigError>,
+    },
+    IndexReady {
+        generation: u64,
+        result: Result<ScanOutcome, LaunchError>,
+    },
+    IconReady {
+        app_id: AppId,
+        result: Result<IconRgba, LaunchError>,
+    },
+    LaunchFinished {
+        app_id: AppId,
+        result: Result<(), LaunchError>,
     },
     Notice(Notice),
 }
@@ -101,6 +118,9 @@ pub struct AppModel {
     notices: NoticeStore,
     visible: bool,
     search: String,
+    /// Give the search field keyboard focus on the next painted frame.
+    focus_search: bool,
+    launcher: Launcher,
     refresh_requested: bool,
     pending_config: Option<ConfigFile>,
     /// The conflict UI is capturing the next key chord as a session-only
@@ -118,11 +138,12 @@ impl AppModel {
     pub fn new(
         receiver: Receiver<AppEvent>,
         config: ConfigFile,
-        startup_notice: Option<Notice>,
+        usage: Usage,
+        startup_notices: Vec<Notice>,
         force_visible: bool,
     ) -> Self {
         let mut notices = NoticeStore::new();
-        if let Some(n) = startup_notice {
+        for n in startup_notices {
             notices.push(n);
         }
         let hotkey_status = HotkeyStatus::Active {
@@ -136,6 +157,8 @@ impl AppModel {
             notices,
             visible: false,
             search: String::new(),
+            focus_search: false,
+            launcher: Launcher::new(usage),
             refresh_requested: false,
             pending_config: None,
             recording: false,
@@ -207,6 +230,33 @@ impl AppModel {
         self.trial_request.take()
     }
 
+    // ---- launcher requests executed by the host ---------------------------------
+
+    pub fn take_scan_request(&mut self) -> Option<u64> {
+        self.launcher.take_scan_request()
+    }
+
+    pub fn scan_start_failed(&mut self, generation: u64, error: &str) {
+        self.launcher
+            .scan_start_failed(generation, &mut self.notices, error);
+    }
+
+    pub fn take_launch_request(&mut self) -> Option<LaunchRequest> {
+        self.launcher.take_launch_request()
+    }
+
+    pub fn launch_start_failed(&mut self, error: &str) {
+        self.launcher.launch_start_failed(&mut self.notices, error);
+    }
+
+    pub fn take_icon_requests(&mut self) -> Vec<IconRequest> {
+        self.launcher.take_icon_requests()
+    }
+
+    pub fn take_usage_snapshot(&mut self) -> Option<(u64, Vec<u8>)> {
+        self.launcher.take_usage_snapshot()
+    }
+
     pub fn summon_hotkey(&self) -> &str {
         &self.config.settings.summon_hotkey
     }
@@ -265,7 +315,10 @@ impl AppModel {
         match event {
             AppEvent::SummonRequested => self.summon(ctx),
             AppEvent::Tray(TrayCommand::OpenPalette) => self.summon(ctx),
-            AppEvent::Tray(TrayCommand::Refresh) => self.refresh_requested = true,
+            AppEvent::Tray(TrayCommand::Refresh) => {
+                self.refresh_requested = true;
+                self.launcher.request_scan();
+            }
             AppEvent::Tray(TrayCommand::Quit) => self.quit_requested = true,
             AppEvent::ConfigReload { result } => match result {
                 Ok(cfg) => self.pending_config = Some(cfg),
@@ -275,6 +328,22 @@ impl AppModel {
                     format!("Config reload failed: {e}"),
                 )),
             },
+            AppEvent::IndexReady { generation, result } => {
+                self.launcher
+                    .on_index_ready(generation, result, &mut self.notices);
+            }
+            AppEvent::IconReady { app_id, result } => {
+                self.launcher.on_icon_ready(ctx, app_id, result);
+            }
+            AppEvent::LaunchFinished { app_id, result } => {
+                if self
+                    .launcher
+                    .on_launch_finished(app_id, result, &mut self.notices)
+                    && self.visible
+                {
+                    self.hide(ctx);
+                }
+            }
             AppEvent::Notice(n) => self.notices.push(n),
         }
     }
@@ -284,6 +353,7 @@ impl AppModel {
     fn summon(&mut self, ctx: &Context) {
         if !self.visible {
             self.destination = capture_destination();
+            self.launcher.on_summon();
             self.show(ctx);
         } else {
             ctx.send_viewport_cmd(ViewportCommand::Focus);
@@ -292,6 +362,8 @@ impl AppModel {
 
     fn show(&mut self, ctx: &Context) {
         self.visible = true;
+        self.focus_search = true;
+        self.launcher.reset_view();
         ctx.send_viewport_cmd(ViewportCommand::Visible(true));
         ctx.send_viewport_cmd(ViewportCommand::Focus);
     }
@@ -325,11 +397,19 @@ impl AppModel {
         });
 
         ui.add_space(8.0);
-        ui.add(
+        if !self.recording {
+            self.launcher.handle_keys(ui);
+        }
+        let search = ui.add(
             egui::TextEdit::singleline(&mut self.search)
-                .hint_text("Search… apps arrive in milestone 2")
+                .hint_text("Search apps…")
                 .desired_width(f32::INFINITY),
         );
+        if std::mem::take(&mut self.focus_search) {
+            search.request_focus();
+        }
+        ui.add_space(8.0);
+        self.launcher.results_ui(ui, &self.search);
         ui.add_space(8.0);
 
         if matches!(self.hotkey_status, HotkeyStatus::Conflict { .. }) {

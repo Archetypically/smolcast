@@ -3,7 +3,6 @@
 //! handlers, and drives viewport lifecycle. All UI and event reduction live in
 //! `model`.
 
-use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::Sender;
@@ -16,6 +15,8 @@ use crate::app::notice::{Notice, Severity, op};
 use crate::core::config::{self, ConfigFile};
 use crate::win::clipboard::ClipboardThread;
 use crate::win::hotkey::{self, HotkeyManager};
+use crate::win::persistence::{StatePaths, StateWriter};
+use crate::win::shell::{self, IconWorker};
 use crate::win::tray::{self, TrayHandle};
 
 /// The `eframe::App` and main-thread resource owner.
@@ -25,9 +26,15 @@ pub struct EframeApp {
     tray: Option<TrayHandle>,
     clipboard: Option<ClipboardThread>,
     refresh_worker: Option<JoinHandle<()>>,
+    state_writer: Option<StateWriter>,
+    icon_worker: Option<IconWorker>,
+    scan_job: Option<JoinHandle<()>>,
+    /// Set during shutdown so a running scan stops between items (§1.5 step 5).
+    scan_cancel: Arc<AtomicBool>,
+    launch_jobs: Vec<JoinHandle<()>>,
     event_tx: Sender<AppEvent>,
     ctx: Context,
-    config_path: PathBuf,
+    paths: StatePaths,
     close_sent: bool,
     /// eframe 0.36 unconditionally shows the root window after its first painted
     /// frame (`EpiIntegration::post_rendering`), ignoring `with_visible(false)`.
@@ -45,7 +52,7 @@ impl EframeApp {
         cc: &eframe::CreationContext<'_>,
         model: AppModel,
         event_tx: Sender<AppEvent>,
-        config_path: PathBuf,
+        paths: StatePaths,
         clipboard: ClipboardThread,
     ) -> Self {
         let ctx = cc.egui_ctx.clone();
@@ -72,6 +79,31 @@ impl EframeApp {
             hotkey::install_event_handler(wake.clone(), h.routes());
         }
 
+        // Launcher workers (§6): the usage writer and the icon extractor. A
+        // failure disables that piece only and is reported.
+        let state_writer = match StateWriter::start(paths.usage.clone(), wake.clone()) {
+            Ok(writer) => Some(writer),
+            Err(e) => {
+                model.push_notice(Notice::new(
+                    Severity::Warning,
+                    op::USAGE,
+                    format!("Launch history will not be saved: {e}"),
+                ));
+                None
+            }
+        };
+        let icon_worker = match IconWorker::start(wake.clone()) {
+            Ok(worker) => Some(worker),
+            Err(e) => {
+                model.push_notice(Notice::new(
+                    Severity::Warning,
+                    op::LAUNCHER,
+                    format!("App icons disabled: {e}"),
+                ));
+                None
+            }
+        };
+
         // Tray icon + menu (§5.2). Failure keeps the app running but reports a
         // visible notice; the hotkey path still works.
         let tray = match TrayHandle::build() {
@@ -95,9 +127,14 @@ impl EframeApp {
             tray,
             clipboard: Some(clipboard),
             refresh_worker: None,
+            state_writer,
+            icon_worker,
+            scan_job: None,
+            scan_cancel: Arc::new(AtomicBool::new(false)),
+            launch_jobs: Vec::new(),
             event_tx,
             ctx,
-            config_path,
+            paths,
             close_sent: false,
             first_frame_seen: false,
             shutting_down,
@@ -120,6 +157,8 @@ impl EframeApp {
             let _ = worker.join();
         }
 
+        self.run_launcher_requests();
+
         if self.model.take_refresh_requested() {
             self.start_refresh();
         }
@@ -140,18 +179,63 @@ impl EframeApp {
         }
     }
 
+    /// Execute the launcher's queued work (§6): scans, launches, icon lookups,
+    /// and usage snapshots. The model guarantees at most one active scan.
+    fn run_launcher_requests(&mut self) {
+        if self.scan_job.as_ref().is_some_and(|job| job.is_finished())
+            && let Some(job) = self.scan_job.take()
+        {
+            let _ = job.join();
+        }
+        self.launch_jobs.retain(|job| !job.is_finished());
+
+        if let Some(generation) = self.model.take_scan_request() {
+            match shell::spawn_scan(generation, self.scan_cancel.clone(), self.wake()) {
+                Ok(job) => {
+                    // A previous job has already delivered its result; join it
+                    // before tracking the new one.
+                    if let Some(old) = self.scan_job.replace(job) {
+                        let _ = old.join();
+                    }
+                }
+                Err(e) => self.model.scan_start_failed(generation, &e.to_string()),
+            }
+        }
+        if let Some(request) = self.model.take_launch_request() {
+            match shell::spawn_launch(request.app_id, request.spec, self.wake()) {
+                Ok(job) => self.launch_jobs.push(job),
+                Err(e) => self.model.launch_start_failed(&e.to_string()),
+            }
+        }
+        let icon_requests = self.model.take_icon_requests();
+        if let Some(worker) = &self.icon_worker {
+            for request in icon_requests {
+                worker.request(request.app_id, request.icon_key, request.size);
+            }
+        }
+        if let (Some(writer), Some((generation, bytes))) =
+            (&self.state_writer, self.model.take_usage_snapshot())
+        {
+            writer.save_usage(generation, bytes);
+        }
+    }
+
+    fn wake(&self) -> Wake {
+        Wake::new(
+            self.event_tx.clone(),
+            self.ctx.clone(),
+            self.shutting_down.clone(),
+        )
+    }
+
     /// Re-read config off the UI thread; the result arrives as a
     /// `ConfigReload` event (§5.2). The worker only does file I/O.
     fn start_refresh(&mut self) {
         if self.refresh_worker.is_some() {
             return;
         }
-        let path = self.config_path.clone();
-        let wake = Wake::new(
-            self.event_tx.clone(),
-            self.ctx.clone(),
-            self.shutting_down.clone(),
-        );
+        let path = self.paths.config.clone();
+        let wake = self.wake();
         match std::thread::Builder::new()
             .name("smolcast-refresh".into())
             .spawn(move || {
@@ -220,9 +304,24 @@ impl EframeApp {
         self.hotkeys = None;
         self.tray = None;
 
-        // Clipboard worker stop and join (§1.5 step 4).
+        // Clipboard and persistence workers flush/stop and join (§1.5 step 4).
         if let Some(clipboard) = self.clipboard.take() {
             clipboard.shutdown();
+        }
+        if let Some(writer) = self.state_writer.take() {
+            writer.shutdown();
+        }
+
+        // Scan/icon/launch jobs cancel between items and are joined (§1.5 step 5).
+        self.scan_cancel.store(true, Ordering::Release);
+        if let Some(job) = self.scan_job.take() {
+            let _ = job.join();
+        }
+        if let Some(worker) = self.icon_worker.take() {
+            worker.shutdown();
+        }
+        for job in self.launch_jobs.drain(..) {
+            let _ = job.join();
         }
 
         if let Some(worker) = self.refresh_worker.take() {

@@ -22,6 +22,7 @@ use smolcast::app::model::{AppEvent, AppModel};
 use smolcast::app::notice::{Notice, Severity, op};
 use smolcast::core::config::{self, ConfigFile};
 use smolcast::win::clipboard::ClipboardThread;
+use smolcast::win::persistence::{self, StatePaths};
 use smolcast::win::single_instance::{AcquireError, SingleInstance};
 
 /// Show a fatal startup error and exit. `stderr` alone cannot reach a user in a
@@ -52,24 +53,31 @@ fn main() -> eframe::Result {
         Err(e) => fatal(&format!("{e}")),
     };
 
-    // 2. Config path (§10.1): %APPDATA%\smolcast\config.toml.
-    let base_dirs = directories::BaseDirs::new().expect("no base directories");
-    let config_path = base_dirs.config_dir().join("smolcast").join("config.toml");
+    // 2. State paths (§10.1): %APPDATA%\smolcast\config.toml and
+    //    %LOCALAPPDATA%\smolcast\usage.json.
+    let Some(paths) = StatePaths::resolve() else {
+        fatal("Could not locate the AppData folders.");
+    };
 
     // 3. Config bootstrap (§2.1, §10.2): a malformed file yields safe defaults,
     //    no scripts, a visible error notice, and a forced palette.
-    let (config, startup_notice, force_visible) = match config::load(&config_path) {
-        Ok(cfg) => (cfg, None, false),
-        Err(e) => (
-            ConfigFile::default(),
-            Some(Notice::new(
+    let mut startup_notices = Vec::new();
+    let (config, force_visible) = match config::load(&paths.config) {
+        Ok(cfg) => (cfg, false),
+        Err(e) => {
+            startup_notices.push(Notice::new(
                 Severity::Error,
                 op::CONFIG,
                 format!("Config error: {e}"),
-            )),
-            true,
-        ),
+            ));
+            (ConfigFile::default(), true)
+        }
     };
+
+    // Usage is a cache (§10.4): a bad file is quarantined and reset with one
+    // notice, which is shown on the next summon rather than forcing the window.
+    let (usage, usage_notice) = persistence::load_usage(&paths.usage);
+    startup_notices.extend(usage_notice);
 
     // 4. Shared egui context and event channel (§1.2). Producers clone the
     //    sender and the context; the same context is handed to eframe below.
@@ -90,7 +98,7 @@ fn main() -> eframe::Result {
         viewport: egui::ViewportBuilder::default()
             .with_title("smolcast")
             .with_app_id("smolcast")
-            .with_inner_size([440.0, 200.0])
+            .with_inner_size([560.0, 420.0])
             .with_visible(false)
             .with_decorations(false)
             .with_resizable(false)
@@ -104,8 +112,8 @@ fn main() -> eframe::Result {
         options,
         Some(ctx),
         Box::new(move |cc| {
-            let model = AppModel::new(event_rx, config, startup_notice, force_visible);
-            let app = EframeApp::build(cc, model, event_tx, config_path, clipboard);
+            let model = AppModel::new(event_rx, config, usage, startup_notices, force_visible);
+            let app = EframeApp::build(cc, model, event_tx, paths, clipboard);
             Ok(Box::new(app))
         }),
     ) {
