@@ -9,7 +9,12 @@ use std::time::{Duration, Instant};
 
 use egui::{Color32, Key, Modifiers, RichText, Sense, TextureHandle, TextureOptions, Vec2};
 
-use crate::core::app_index::{AppId, Command, IndexedApp, LaunchSpec, builtin_commands};
+use std::collections::BTreeMap;
+
+use crate::core::app_index::{
+    AppId, Command, IndexedApp, LaunchSpec, builtin_commands, script_entries,
+};
+use crate::core::config::ScriptConfig;
 use crate::core::matcher::{Ranked, rank};
 use crate::core::usage::Usage;
 use crate::win::icon::IconRgba;
@@ -78,8 +83,12 @@ pub struct Launcher {
     usage: Usage,
     usage_generation: u64,
 
-    /// True once any scan delivered apps; before that only commands are listed.
+    /// True once any scan delivered apps; before that only commands and
+    /// scripts are listed.
     indexed: bool,
+    /// Latest scan result; `apps` is this plus commands and scripts.
+    scanned: Vec<IndexedApp>,
+    scripts: Vec<IndexedApp>,
     ranked: Vec<Ranked>,
     /// Query the current `ranked` was computed for; `None` forces a re-rank.
     ranked_for: Option<String>,
@@ -103,10 +112,15 @@ pub struct Launcher {
 
 impl Launcher {
     /// Starts with the persisted usage and requests the startup scan.
-    pub fn new(usage: Usage) -> Self {
+    pub fn new(usage: Usage, scripts: &BTreeMap<String, ScriptConfig>) -> Self {
+        let scripts = script_entries(scripts);
+        let mut apps = builtin_commands();
+        apps.extend(scripts.iter().cloned());
         let mut launcher = Self {
-            apps: builtin_commands(),
+            apps,
             indexed: false,
+            scanned: Vec::new(),
+            scripts,
             usage,
             usage_generation: 0,
             ranked: Vec::new(),
@@ -195,10 +209,9 @@ impl Launcher {
                     ));
                 }
                 self.last_skipped = Some(outcome.skipped_shortcuts);
-                self.apps = outcome.apps;
-                self.apps.extend(builtin_commands());
+                self.scanned = outcome.apps;
                 self.indexed = true;
-                self.ranked_for = None;
+                self.rebuild();
                 // Icons of apps that left the index are no longer requested;
                 // the LRU evicts them. Failed lookups are retried next index.
                 self.icons.failed.clear();
@@ -271,6 +284,37 @@ impl Launcher {
                 );
                 false
             }
+        }
+    }
+
+    /// Replace the configured scripts after a config reload (§10.3).
+    pub fn set_scripts(&mut self, scripts: &BTreeMap<String, ScriptConfig>) {
+        self.scripts = script_entries(scripts);
+        self.rebuild();
+    }
+
+    fn rebuild(&mut self) {
+        self.apps = self.scanned.clone();
+        self.apps.extend(builtin_commands());
+        self.apps.extend(self.scripts.iter().cloned());
+        self.ranked_for = None;
+    }
+
+    /// A script hotkey fired: run it without opening the palette (§10.3).
+    pub fn run_script(&mut self, id: &str, notices: &mut NoticeStore) {
+        let app_id = AppId::Script { id: id.to_owned() };
+        match self.scripts.iter().find(|s| s.id == app_id) {
+            Some(script) => {
+                self.launch_request = Some(LaunchRequest {
+                    app_id,
+                    spec: script.launch.clone(),
+                });
+            }
+            None => notices.push(Notice::new(
+                Severity::Warning,
+                op::LAUNCHER,
+                format!("Script \"{id}\" is no longer configured."),
+            )),
         }
     }
 
@@ -415,6 +459,9 @@ impl Launcher {
                             (None, LaunchSpec::Command(command)) => {
                                 ui.add_sized(size, egui::Label::new(command_glyph(*command)));
                             }
+                            (None, LaunchSpec::Script(_)) => {
+                                ui.add_sized(size, egui::Label::new("▶"));
+                            }
                             (None, _) => {
                                 ui.allocate_exact_size(size, Sense::hover());
                             }
@@ -479,11 +526,13 @@ fn kind_label(launch: &LaunchSpec) -> &'static str {
     match launch {
         LaunchSpec::Shortcut { .. } | LaunchSpec::Packaged { .. } => "Application",
         LaunchSpec::Command(_) => "Command",
+        LaunchSpec::Script(_) => "Script",
     }
 }
 
 fn command_glyph(command: Command) -> &'static str {
     match command {
         Command::ClipboardHistory => "📋",
+        Command::Emoji => "😀",
     }
 }

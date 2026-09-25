@@ -369,6 +369,7 @@ fn launch(spec: &LaunchSpec) -> Result<(), LaunchError> {
             unsafe { ShellExecuteExW(&mut info) }
                 .map_err(|e| LaunchError::from_win("launch shortcut", &e))
         }
+        LaunchSpec::Script(script) => crate::win::process::spawn_script(script),
         LaunchSpec::Command(_) => Err(LaunchError {
             operation: "launch",
             message: "built-in commands open in the palette".into(),

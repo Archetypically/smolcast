@@ -46,7 +46,11 @@ enum RowKey {
 /// What the paste service should put on the clipboard (§8.2 step 1).
 pub enum PasteRequest {
     Local(Payload),
-    Windows { item_id: String },
+    Windows {
+        item_id: String,
+    },
+    /// Text that is pasted but not recorded in history (an emoji sequence).
+    Text(String),
 }
 
 /// A borrowed, source-neutral row.

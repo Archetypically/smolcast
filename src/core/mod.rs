@@ -3,6 +3,9 @@
 pub mod app_index;
 pub mod config;
 pub mod dib;
+pub mod emoji;
+#[rustfmt::skip]
+pub mod emoji_data;
 pub mod history;
 pub mod matcher;
 pub mod usage;

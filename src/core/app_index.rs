@@ -17,6 +17,8 @@
 //!   Start Menu, common Start Menu, AppsFolder); discarded names become aliases.
 
 use std::collections::{BTreeMap, BTreeSet};
+
+use crate::core::config::ScriptConfig;
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
@@ -40,6 +42,10 @@ pub enum AppId {
     Command {
         name: String,
     },
+    /// A configured script, by its config table id (§10.3).
+    Script {
+        id: String,
+    },
 }
 
 /// Where an entry was enumerated. Declaration order is selection priority.
@@ -50,6 +56,8 @@ pub enum AppSource {
     AppsFolder,
     /// Built into smolcast; never deduplicated with enumerated apps.
     Builtin,
+    /// A `[scripts.<id>]` entry in config.toml.
+    Config,
 }
 
 /// How to launch an entry. Paths and AUMIDs keep their original case; the
@@ -63,20 +71,59 @@ pub enum LaunchSpec {
     Packaged { aumid: String },
     /// Opens a palette view instead of launching a process.
     Command(Command),
+    /// Spawns a configured script (§10.3).
+    Script(ScriptSpec),
+}
+
+/// The exact process a script runs: the interpreter executable, its argument
+/// vector, and the working directory, all verbatim from config. Search text is
+/// never appended, expanded, or substituted.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ScriptSpec {
+    pub interpreter: String,
+    pub args: Vec<String>,
+    pub cwd: String,
+}
+
+/// Root-list entries for configured scripts (§10.3). The script id is an
+/// alias, so it is searchable alongside the display name.
+pub fn script_entries(scripts: &BTreeMap<String, ScriptConfig>) -> Vec<IndexedApp> {
+    scripts
+        .iter()
+        .map(|(id, script)| IndexedApp {
+            id: AppId::Script { id: id.clone() },
+            display_name: script.name.clone(),
+            sort_name: script.name.to_lowercase(),
+            aliases: if id.eq_ignore_ascii_case(&script.name) {
+                Vec::new()
+            } else {
+                vec![id.clone()]
+            },
+            source: AppSource::Config,
+            launch: LaunchSpec::Script(ScriptSpec {
+                interpreter: script.interpreter.clone(),
+                args: script.args.clone(),
+                cwd: script.cwd.clone(),
+            }),
+            icon_key: String::new(),
+        })
+        .collect()
 }
 
 /// Built-in commands listed at the palette root (§5.4).
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Command {
     ClipboardHistory,
+    Emoji,
 }
 
 impl Command {
-    pub const ALL: [Command; 1] = [Command::ClipboardHistory];
+    pub const ALL: [Command; 2] = [Command::ClipboardHistory, Command::Emoji];
 
     pub fn title(self) -> &'static str {
         match self {
             Command::ClipboardHistory => "Clipboard History",
+            Command::Emoji => "Search Emoji",
         }
     }
 
@@ -84,6 +131,7 @@ impl Command {
     pub fn key(self) -> &'static str {
         match self {
             Command::ClipboardHistory => "clipboard-history",
+            Command::Emoji => "emoji",
         }
     }
 
@@ -270,6 +318,7 @@ fn launch_order_key(launch: &LaunchSpec) -> String {
         LaunchSpec::Shortcut { lnk_path } => lnk_path.to_string_lossy().into_owned(),
         LaunchSpec::Packaged { aumid } => aumid.clone(),
         LaunchSpec::Command(command) => command.key().into(),
+        LaunchSpec::Script(spec) => spec.interpreter.clone(),
     }
 }
 
@@ -518,6 +567,53 @@ mod tests {
             r#"{"kind":"command","name":"clipboard-history"}"#
         );
         assert_eq!(commands[0].source, AppSource::Builtin);
+    }
+
+    #[test]
+    fn script_entries_carry_the_exact_process_model() {
+        let mut scripts = BTreeMap::new();
+        scripts.insert(
+            "open-project".to_string(),
+            ScriptConfig {
+                name: "Open project".into(),
+                interpreter: "C:\\Program Files\\PowerShell\\7\\pwsh.exe".into(),
+                args: vec![
+                    "-NoProfile".into(),
+                    "-File".into(),
+                    "C:\\Tools\\my script \"x\" ✓.ps1".into(),
+                ],
+                cwd: "C:\\Users\\me\\Projects".into(),
+                hotkey: Some("control+alt+KeyP".into()),
+            },
+        );
+        let entries = script_entries(&scripts);
+        assert_eq!(entries.len(), 1);
+        let entry = &entries[0];
+        assert_eq!(
+            entry.id,
+            AppId::Script {
+                id: "open-project".into()
+            }
+        );
+        assert_eq!(entry.aliases, vec!["open-project"]);
+        assert_eq!(entry.source, AppSource::Config);
+        // Arguments stay one vector element each: no joining, quoting, or splitting.
+        assert_eq!(
+            entry.launch,
+            LaunchSpec::Script(ScriptSpec {
+                interpreter: "C:\\Program Files\\PowerShell\\7\\pwsh.exe".into(),
+                args: vec![
+                    "-NoProfile".into(),
+                    "-File".into(),
+                    "C:\\Tools\\my script \"x\" ✓.ps1".into(),
+                ],
+                cwd: "C:\\Users\\me\\Projects".into(),
+            })
+        );
+        assert_eq!(
+            serde_json::to_string(&entry.id).unwrap(),
+            r#"{"kind":"script","id":"open-project"}"#
+        );
     }
 
     #[test]

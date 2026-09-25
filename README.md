@@ -26,6 +26,10 @@ Manual checks passed: tray click and Quit, and hotkey-conflict recovery with a r
 
 **Milestone 3 (clipboard history + paste-back) implemented and verified on Windows 11.** Clipboard History is a root command. It uses Windows clipboard history (Win+V) when it is on, and smolcast's own DPAPI-encrypted, persisted history otherwise; `clipboard_source` and `clipboard_persist` override this. Paste-back restores the item, returns focus to the previous window, waits for modifiers and a short settle, then sends Ctrl+V. Text and image paste, persistence across restarts, and row layout are confirmed.
 
+**Milestone 4 (emoji picker) implemented and verified on Windows 11.** "Search Emoji" is a root command over a generated, pinned table: Unicode Emoji 17.0 and CLDR 48.2, 3,944 sequences. Search is deterministic by keyword and phrase. Glyphs are drawn in color by Windows' DirectWrite (Segoe UI Emoji), and paste writes the exact sequence. Country flags show as letter pairs because Segoe UI Emoji has no flag glyphs, the same as in most Windows apps.
+
+**Milestone 5 (script runner) implemented.** `[scripts.<id>]` config entries appear in the root list as **Script**. Each spawns the configured interpreter, argument vector and working directory directly, with no console and no interpolation. Optional per-script hotkeys run a script without the palette; a hotkey conflict disables only that script's key.
+
 The approved engineering plan is [plans/IMPLEMENTATION_PLAN.md](plans/IMPLEMENTATION_PLAN.md). `BRIEF.md` is the product source.
 
 ## Development setup

@@ -27,6 +27,7 @@ use crate::win::persistence::{ClipboardStoreCommand, LoadedEntry};
 use crate::win::shell::{LaunchError, ScanOutcome};
 
 use super::clipboard_view::{ClipboardView, PasteRequest};
+use super::emoji_view::{EmojiView, GlyphRequest};
 use super::launcher::{IconRequest, LaunchRequest, Launcher};
 use super::notice::{Notice, NoticeStore, Severity, op};
 
@@ -36,6 +37,8 @@ use super::notice::{Notice, NoticeStore, Severity, op};
 #[derive(Debug)]
 pub enum AppEvent {
     SummonRequested,
+    /// A script hotkey fired (§10.3).
+    RunScript(String),
     Tray(TrayCommand),
     /// Result of an off-thread config re-read. The last-known-good config stays
     /// active until the summon hotkey has been re-registered successfully.
@@ -55,6 +58,11 @@ pub enum AppEvent {
         result: Result<(), LaunchError>,
     },
     ClipboardCaptured(Payload),
+    /// A rasterized emoji glyph (§9) for table index `index`.
+    EmojiGlyph {
+        index: usize,
+        result: Result<IconRgba, String>,
+    },
     /// The clipboard changed while smolcast's own capture was off (§7.0).
     ClipboardChanged,
     /// Stored smolcast history entries, oldest first (§7.2).
@@ -76,6 +84,7 @@ pub enum AppEvent {
 enum View {
     Root,
     Clipboard,
+    Emoji,
 }
 
 /// Shared paste service state (§8.2 steps 1–5); steps 6–8 run on the host's
@@ -185,6 +194,7 @@ pub struct AppModel {
     view: View,
     launcher: Launcher,
     clipboard: ClipboardView,
+    emoji: EmojiView,
     paste: PasteState,
     next_request_id: u64,
     /// Cancel flag of the most recent finisher; a new summon sets it.
@@ -228,13 +238,14 @@ impl AppModel {
             search: String::new(),
             focus_search: false,
             view: View::Root,
-            launcher: Launcher::new(usage),
+            launcher: Launcher::new(usage, &config.scripts),
             clipboard: ClipboardView::new(
                 history_limits(&config.settings),
                 config.settings.clipboard_source,
                 config.settings.clipboard_persist,
                 loads_stored_history(&config.settings),
             ),
+            emoji: EmojiView::new(),
             paste: PasteState::Idle,
             next_request_id: 0,
             paste_cancel: None,
@@ -271,7 +282,7 @@ impl AppModel {
         {
             match self.view {
                 View::Root => self.hide(ctx),
-                View::Clipboard => self.open_view(View::Root),
+                View::Clipboard | View::Emoji => self.open_view(View::Root),
             }
         }
 
@@ -355,6 +366,10 @@ impl AppModel {
         std::mem::take(&mut self.clipboard_commands)
     }
 
+    pub fn take_glyph_requests(&mut self) -> Vec<GlyphRequest> {
+        self.emoji.take_glyph_requests()
+    }
+
     pub fn take_store_commands(&mut self) -> Vec<ClipboardStoreCommand> {
         self.clipboard.take_store_commands()
     }
@@ -401,6 +416,7 @@ impl AppModel {
         };
         self.clipboard.set_limits(history_limits(&cfg.settings));
         self.clipboard.set_setting(cfg.settings.clipboard_source);
+        self.launcher.set_scripts(&cfg.scripts);
         self.clipboard.set_persist(cfg.settings.clipboard_persist);
         self.clipboard_commands.push(ClipboardCommand::SetItemCap(
             cfg.settings.clipboard_max_item_bytes,
@@ -450,6 +466,7 @@ impl AppModel {
     fn reduce(&mut self, ctx: &Context, event: AppEvent) {
         match event {
             AppEvent::SummonRequested => self.summon(ctx),
+            AppEvent::RunScript(id) => self.launcher.run_script(&id, &mut self.notices),
             AppEvent::Tray(TrayCommand::OpenPalette) => self.summon(ctx),
             AppEvent::Tray(TrayCommand::Refresh) => {
                 self.refresh_requested = true;
@@ -481,6 +498,7 @@ impl AppModel {
                 }
             }
             AppEvent::ClipboardCaptured(payload) => self.clipboard.record(payload),
+            AppEvent::EmojiGlyph { index, result } => self.emoji.on_glyph(ctx, index, result),
             AppEvent::ClipboardHistoryLoaded(entries) => self.clipboard.on_loaded(entries),
             AppEvent::ClipboardChanged => self
                 .clipboard
@@ -520,6 +538,7 @@ impl AppModel {
                 },
                 Some(payload),
             ),
+            PasteRequest::Text(text) => (ClipboardCommand::SetText { request_id, text }, None),
             PasteRequest::Windows { item_id } => (
                 ClipboardCommand::WindowsSetContent {
                     request_id,
@@ -632,6 +651,7 @@ impl AppModel {
         match view {
             View::Root => self.launcher.reset_view(),
             View::Clipboard => self.clipboard.open(),
+            View::Emoji => self.emoji.open(),
         }
     }
 
@@ -680,8 +700,13 @@ impl AppModel {
 
         ui.horizontal(|ui| {
             ui.label(RichText::new("smolcast").heading().strong());
-            if self.view == View::Clipboard {
-                ui.label(RichText::new("›  Clipboard History").heading());
+            let crumb = match self.view {
+                View::Root => None,
+                View::Clipboard => Some(Command::ClipboardHistory.title()),
+                View::Emoji => Some(Command::Emoji.title()),
+            };
+            if let Some(title) = crumb {
+                ui.label(RichText::new(format!("›  {title}")).heading());
             }
             match &self.hotkey_status {
                 HotkeyStatus::Active { canonical } => {
@@ -709,11 +734,13 @@ impl AppModel {
             match self.view {
                 View::Root => self.launcher.handle_keys(ui),
                 View::Clipboard => self.clipboard.handle_keys(ui, paste_enabled),
+                View::Emoji => self.emoji.handle_keys(ui, paste_enabled),
             }
         }
         let hint = match self.view {
             View::Root => "Search apps and commands…",
             View::Clipboard => "Search clipboard history…",
+            View::Emoji => "Search emoji…",
         };
         let search = ui.add(
             egui::TextEdit::singleline(&mut self.search)
@@ -730,6 +757,7 @@ impl AppModel {
                 if let Some(command) = self.launcher.take_open_command() {
                     match command {
                         Command::ClipboardHistory => self.open_view(View::Clipboard),
+                        Command::Emoji => self.open_view(View::Emoji),
                     }
                 }
             }
@@ -740,6 +768,12 @@ impl AppModel {
                 }
                 if self.clipboard.take_open_settings() {
                     crate::win::shell::open_uri("ms-settings:clipboard");
+                }
+            }
+            View::Emoji => {
+                self.emoji.ui(ui, &self.search, paste_enabled);
+                if let Some(text) = self.emoji.take_paste_request() {
+                    self.start_paste(PasteRequest::Text(text.to_owned()));
                 }
             }
         }
