@@ -1,6 +1,6 @@
-//! Global summon hotkey: main-thread manager, id→action route table, and
-//! handler wakeups (plan §1.1, §1.2, §5.2). Script hotkeys join this table when
-//! milestone 5 lands; the route mechanism is the same.
+//! Global hotkeys: main-thread manager, id→action route table, and handler
+//! wakeups (plan §1.1, §1.2, §5.2) for the summon key and optional per-script
+//! keys (§10.3).
 
 use std::collections::BTreeMap;
 use std::str::FromStr;
@@ -13,9 +13,11 @@ use parking_lot::Mutex;
 use crate::app::model::{AppEvent, Wake};
 
 /// What a registered global hotkey id triggers.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum HotkeyAction {
     Summon,
+    /// Run the script with this config id.
+    Script(String),
 }
 
 /// id → action map shared with the global event handler. The handler looks the
@@ -30,7 +32,7 @@ impl Routes {
     }
 
     fn lookup(&self, id: u32) -> Option<HotkeyAction> {
-        self.0.lock().get(&id).copied()
+        self.0.lock().get(&id).cloned()
     }
 
     fn insert(&self, id: u32, action: HotkeyAction) {
@@ -76,6 +78,7 @@ pub fn install_event_handler(wake: Wake, routes: Routes) {
         {
             let app_event = match action {
                 HotkeyAction::Summon => AppEvent::SummonRequested,
+                HotkeyAction::Script(id) => AppEvent::RunScript(id),
             };
             wake.send(app_event);
         }
@@ -93,6 +96,17 @@ pub struct HotkeyManager {
     manager: GlobalHotKeyManager,
     routes: Routes,
     summon: Option<HotKey>,
+    /// Registered script keys: config id → (key string, hotkey).
+    scripts: BTreeMap<String, (String, HotKey)>,
+}
+
+/// A script hotkey that could not be registered; only that script's hotkey is
+/// disabled (§10.3).
+#[derive(Debug)]
+pub struct ScriptHotkeyFailure {
+    pub script_id: String,
+    pub key: String,
+    pub error: HotkeyError,
 }
 
 impl HotkeyManager {
@@ -103,6 +117,7 @@ impl HotkeyManager {
             manager,
             routes: Routes::new(),
             summon: None,
+            scripts: BTreeMap::new(),
         })
     }
 
@@ -135,8 +150,58 @@ impl HotkeyManager {
         Ok(hk)
     }
 
-    /// Unregister the summon key and clear the route table (shutdown).
+    /// Bring script registrations in line with `wanted` (config id → key
+    /// string). Unchanged keys stay registered; removed or changed ones are
+    /// unregistered first; new ones register individually. The summon key is
+    /// never touched.
+    pub fn set_scripts(&mut self, wanted: &BTreeMap<String, String>) -> Vec<ScriptHotkeyFailure> {
+        let stale: Vec<String> = self
+            .scripts
+            .iter()
+            .filter(|(id, (key, _))| wanted.get(*id) != Some(key))
+            .map(|(id, _)| id.clone())
+            .collect();
+        for id in stale {
+            if let Some((_, hk)) = self.scripts.remove(&id) {
+                let _ = self.manager.unregister(hk);
+                self.routes.remove(hk.id());
+            }
+        }
+        let mut failures = Vec::new();
+        for (id, key) in wanted {
+            if self.scripts.contains_key(id) {
+                continue;
+            }
+            let registered = HotKey::from_str(key)
+                .map_err(HotkeyError::Parse)
+                .and_then(|hk| {
+                    self.manager
+                        .register(hk)
+                        .map(|()| hk)
+                        .map_err(|e| HotkeyError::Register(e.to_string()))
+                });
+            match registered {
+                Ok(hk) => {
+                    self.routes
+                        .insert(hk.id(), HotkeyAction::Script(id.clone()));
+                    self.scripts.insert(id.clone(), (key.clone(), hk));
+                }
+                Err(error) => failures.push(ScriptHotkeyFailure {
+                    script_id: id.clone(),
+                    key: key.clone(),
+                    error,
+                }),
+            }
+        }
+        failures
+    }
+
+    /// Unregister script keys, then the summon key, and clear the route table
+    /// (shutdown, §1.5 step 3).
     pub fn unregister_all(&mut self) {
+        for (_, (_, hk)) in std::mem::take(&mut self.scripts) {
+            let _ = self.manager.unregister(hk);
+        }
         if let Some(hk) = self.summon.take() {
             let _ = self.manager.unregister(hk);
         }

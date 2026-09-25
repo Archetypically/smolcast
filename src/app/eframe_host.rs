@@ -3,6 +3,7 @@
 //! handlers, and drives viewport lifecycle. All UI and event reduction live in
 //! `model`.
 
+use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::Sender;
@@ -15,6 +16,7 @@ use crate::app::model::{AppEvent, AppModel, HotkeyStatus, Wake};
 use crate::app::notice::{Notice, Severity, op};
 use crate::core::config::{self, ConfigFile};
 use crate::win::clipboard::ClipboardThread;
+use crate::win::emoji_render::EmojiRenderer;
 use crate::win::hotkey::{self, HotkeyManager};
 use crate::win::paste;
 use crate::win::persistence::{ClipboardStoreCommand, StatePaths, StateWriter};
@@ -30,6 +32,7 @@ pub struct EframeApp {
     refresh_worker: Option<JoinHandle<()>>,
     state_writer: Option<StateWriter>,
     icon_worker: Option<IconWorker>,
+    emoji_renderer: Option<EmojiRenderer>,
     scan_job: Option<JoinHandle<()>>,
     /// Set during shutdown so a running scan stops between items (§1.5 step 5).
     scan_cancel: Arc<AtomicBool>,
@@ -80,6 +83,8 @@ impl EframeApp {
             if let Err(e) = h.set_summon(&key) {
                 model.report_hotkey_conflict(key, Some(e.to_string()));
             }
+            // Script keys register after the summon key (§10.3).
+            apply_script_hotkeys(h, &mut model);
             hotkey::install_event_handler(wake.clone(), h.routes());
         }
 
@@ -125,6 +130,18 @@ impl EframeApp {
             }
         };
 
+        let emoji_renderer = match EmojiRenderer::start(wake.clone()) {
+            Ok(renderer) => Some(renderer),
+            Err(e) => {
+                model.push_notice(Notice::new(
+                    Severity::Warning,
+                    op::LAUNCHER,
+                    format!("Emoji previews disabled: {e}"),
+                ));
+                None
+            }
+        };
+
         // Tray icon + menu (§5.2). Failure keeps the app running but reports a
         // visible notice; the hotkey path still works.
         let tray = match TrayHandle::build() {
@@ -150,6 +167,7 @@ impl EframeApp {
             refresh_worker: None,
             state_writer,
             icon_worker,
+            emoji_renderer,
             scan_job: None,
             scan_cancel: Arc::new(AtomicBool::new(false)),
             launch_jobs: Vec::new(),
@@ -230,6 +248,12 @@ impl EframeApp {
                 Err(e) => self.model.launch_start_failed(&e.to_string()),
             }
         }
+        let glyph_requests = self.model.take_glyph_requests();
+        if let Some(renderer) = &self.emoji_renderer {
+            for request in glyph_requests {
+                renderer.request(request.index, request.text, request.edge);
+            }
+        }
         let icon_requests = self.model.take_icon_requests();
         if let Some(worker) = &self.icon_worker {
             for request in icon_requests {
@@ -305,16 +329,27 @@ impl EframeApp {
         let changed = new_key != self.model.summon_hotkey();
         if !changed && !conflicting {
             self.model.accept_config(cfg);
+            self.refresh_script_hotkeys();
             return;
         }
         match self.hotkeys.as_mut().map(|h| h.set_summon(&new_key)) {
-            Some(Ok(_)) => self.model.accept_config(cfg),
+            Some(Ok(_)) => {
+                self.model.accept_config(cfg);
+                self.refresh_script_hotkeys();
+            }
             Some(Err(e)) => self
                 .model
                 .report_hotkey_conflict(new_key, Some(e.to_string())),
             None => self
                 .model
                 .report_hotkey_conflict(new_key, Some("no hotkey manager".into())),
+        }
+    }
+
+    /// Re-register script hotkeys for the accepted config.
+    fn refresh_script_hotkeys(&mut self) {
+        if let Some(h) = &mut self.hotkeys {
+            apply_script_hotkeys(h, &mut self.model);
         }
     }
 
@@ -366,6 +401,9 @@ impl EframeApp {
         if let Some(worker) = self.icon_worker.take() {
             worker.shutdown();
         }
+        if let Some(renderer) = self.emoji_renderer.take() {
+            renderer.shutdown();
+        }
         for job in self.launch_jobs.drain(..) {
             let _ = job.join();
         }
@@ -408,5 +446,26 @@ impl eframe::App for EframeApp {
     /// cleanup happens here so handlers are gone before the event loop stops.
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
         self.shutdown_resources();
+    }
+}
+
+/// Register the configured script hotkeys. A parse error or collision disables
+/// only that script's hotkey; the script stays searchable (§10.3).
+fn apply_script_hotkeys(hotkeys: &mut HotkeyManager, model: &mut AppModel) {
+    let wanted: BTreeMap<String, String> = model
+        .config()
+        .scripts
+        .iter()
+        .filter_map(|(id, script)| script.hotkey.clone().map(|key| (id.clone(), key)))
+        .collect();
+    for failure in hotkeys.set_scripts(&wanted) {
+        model.push_notice(Notice::new(
+            Severity::Warning,
+            op::SCRIPTS,
+            format!(
+                "Hotkey \"{}\" for script \"{}\" is disabled: {}",
+                failure.key, failure.script_id, failure.error
+            ),
+        ));
     }
 }

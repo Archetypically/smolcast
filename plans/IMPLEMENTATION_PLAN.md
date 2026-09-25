@@ -849,7 +849,34 @@ grapheme cluster via `unicode-segmentation`. Runtime paste writes the stored str
 verbatim; it never reconstructs ZWJ, modifier, variation-selector, or flag
 sequences.
 
-Egui's approved v1 preview is monochrome. No color atlas is bundled. Destination
+**Implementation notes (2026-09-24):** The generator uses only the standard
+library, so it has no extended-grapheme segmenter. The one-grapheme check
+therefore runs over the entire table, all 3,944 entries, in the core test
+`core::emoji::tests::every_entry_is_one_grapheme`, which maintainers run after
+regenerating; it is not limited to the four sample sequences. The generated
+module is `#[rustfmt::skip]` so formatting cannot break byte-for-byte
+regeneration. Search is deterministic, not fuzzy: every query word must match
+the name or a keyword, and scores are ranked (the whole-phrase match against
+the punctuation-normalized name ranks first). Skin-tone variants are listed
+only when the query mentions "tone" or "skin"; otherwise the base emoji stands
+for them. "Search Emoji" is a root Command (§5.4). Pasted emoji use the shared
+paste service and are not recorded in smolcast's clipboard history.
+
+**Rendering revision (2026-09-24, user decision, replaces the monochrome
+preview below):** In the first Windows test, egui's bundled emoji font lacked
+many common emoji, which rendered as tofu boxes. egui also has no text shaping,
+so ZWJ, flag and keycap sequences broke into their parts. The picker now draws
+glyphs with Windows' own text stack. One `smolcast-emoji` worker thread (MTA,
+created once) holds the Direct2D, DirectWrite and WIC factories. It lays out
+the exact sequence in Segoe UI Emoji (centered, 0.78 em per cell), draws it
+into a software WIC bitmap with `D2D1_DRAW_TEXT_OPTIONS_ENABLE_COLOR_FONT`, and
+returns owned premultiplied RGBA as `AppEvent::EmojiGlyph`. The UI requests
+only visible cells and the selected preview, caches at most 256 textures, and
+resets the cache when the display scale changes. No font or atlas is bundled.
+Windows features added: Graphics_Direct2D, Direct2D_Common, DirectWrite,
+Dxgi_Common and Imaging.
+
+Superseded original text: Egui's approved v1 preview is monochrome. No color atlas is bundled. Destination
 color is not guaranteed because it depends on the destination renderer/font. The
 behavioral contract is unchanged codepoints. The Windows smoke also records the
 cosmetic result in current Notepad, but a monochrome destination is not a smolcast
@@ -949,6 +976,18 @@ On Windows set `CREATE_NO_WINDOW`, null stdin/stdout/stderr, spawn, and immediat
 drop the child handle. Spawn success is success; v1 does not monitor exit status.
 Missing interpreter, invalid cwd, quoting/Unicode launch failure, and permission
 failure become notices.
+
+**Implementation notes (2026-09-24):** Scripts are root-list entries of type
+`Script` (§5.4), identified by `AppId::Script { id }`, so they share usage
+ranking; the script id is a searchable alias. `LaunchSpec::Script(ScriptSpec)`
+carries the verbatim interpreter, argument vector and working directory. A
+spawn runs on a launch thread and reports through `AppEvent::LaunchFinished`,
+the same event as applications, instead of a separate `ScriptSpawnFinished`.
+A script hotkey sends `AppEvent::RunScript(id)` and spawns without showing the
+palette; a failure notice waits for the next summon. On reload, unchanged
+script keys stay registered, removed or changed keys are unregistered, and new
+keys register one at a time. If a changed key fails to register, that script
+has no hotkey until the conflict is fixed. The summon key is never touched.
 
 Register script hotkeys after the main summon key. Map crate hotkey IDs to script
 IDs. A parse error or registration collision disables only that script hotkey; the

@@ -4,10 +4,12 @@
 //! where ownership applies.
 
 pub mod clipboard;
+pub mod emoji_render;
 pub mod hotkey;
 pub mod icon;
 pub mod paste;
 pub mod persistence;
+pub mod process;
 pub mod shell;
 pub mod single_instance;
 pub mod tray;
