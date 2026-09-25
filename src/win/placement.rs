@@ -38,6 +38,10 @@ impl PaletteWindow {
         }
     }
 
+    pub(crate) fn hwnd(&self) -> HWND {
+        self.hwnd
+    }
+
     /// Move the window to the cursor's monitor. Best effort: any failed query
     /// leaves the window where it is.
     pub fn place_on_cursor_monitor(&self) {

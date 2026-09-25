@@ -31,6 +31,7 @@ use super::clipboard_view::{ClipboardView, PasteRequest};
 use super::emoji_view::{EmojiView, GlyphRequest};
 use super::launcher::{IconRequest, LaunchRequest, Launcher};
 use super::notice::{Notice, NoticeStore, Severity, op};
+use super::settings_view::SettingsView;
 
 /// Typed application events produced by window/background components (§1.2).
 /// This is the semantic event set; it grows as later milestones add clipboard,
@@ -46,6 +47,8 @@ pub enum AppEvent {
     ConfigReload {
         result: Result<ConfigFile, ConfigError>,
     },
+    /// The settings form's write failed before any reload (§12.7).
+    SettingsSaveFailed(String),
     IndexReady {
         generation: u64,
         result: Result<ScanOutcome, LaunchError>,
@@ -86,6 +89,16 @@ enum View {
     Root,
     Clipboard,
     Emoji,
+    Settings,
+}
+
+/// What a recorded key chord is for.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum RecordTarget {
+    /// A session-only replacement from the hotkey-conflict UI (§5.2).
+    Trial,
+    /// The summon-hotkey field of the settings form.
+    Settings,
 }
 
 /// Shared paste service state (§8.2 steps 1–5); steps 6–8 run on the host's
@@ -207,6 +220,7 @@ pub struct AppModel {
     /// The conflict UI is capturing the next key chord as a session-only
     /// summon key; Escape cancels capture instead of hiding.
     recording: bool,
+    record_target: RecordTarget,
     capture_hint: Option<String>,
     trial_request: Option<String>,
     quit_requested: bool,
@@ -214,6 +228,10 @@ pub struct AppModel {
     /// Moved onto the cursor's monitor on every show (§12.7); `None` when the
     /// host could not resolve the window handle.
     palette_window: Option<PaletteWindow>,
+    settings: SettingsView,
+    /// Settings to write to config.toml; the host saves, then reloads (§12.7).
+    settings_save: Option<Settings>,
+    open_config_file: bool,
     /// The palette has held focus since it was shown; losing it afterwards
     /// dismisses the palette (click-away, §12.7).
     had_focus: bool,
@@ -261,11 +279,15 @@ impl AppModel {
             refresh_requested: false,
             pending_config: None,
             recording: false,
+            record_target: RecordTarget::Trial,
             capture_hint: None,
             trial_request: None,
             quit_requested: false,
             force_show: force_visible,
             palette_window: None,
+            settings: SettingsView::new(&config.settings),
+            settings_save: None,
+            open_config_file: false,
             had_focus: false,
             config,
         }
@@ -291,7 +313,7 @@ impl AppModel {
         {
             match self.view {
                 View::Root => self.hide(ctx),
-                View::Clipboard | View::Emoji => self.open_view(View::Root),
+                View::Clipboard | View::Emoji | View::Settings => self.open_view(View::Root),
             }
         }
 
@@ -328,6 +350,19 @@ impl AppModel {
     }
 
     // ---- host-facing accessors -------------------------------------------------
+
+    pub fn reduce_settings_save_failed(&mut self, message: String) {
+        self.settings.save_failed(message);
+    }
+
+    /// Settings from the form to write; the host saves and then reloads.
+    pub fn take_settings_save(&mut self) -> Option<Settings> {
+        self.settings_save.take()
+    }
+
+    pub fn take_open_config_file(&mut self) -> bool {
+        std::mem::take(&mut self.open_config_file)
+    }
 
     pub fn set_palette_window(&mut self, window: Option<PaletteWindow>) {
         self.palette_window = window;
@@ -448,13 +483,17 @@ impl AppModel {
         self.clipboard_commands.push(ClipboardCommand::SetItemCap(
             cfg.settings.clipboard_max_item_bytes,
         ));
+        let from_form = self.settings.config_accepted(&cfg.settings);
         self.config = cfg;
         self.clipboard_commands.push(self.capture_policy());
-        self.notices.push(Notice::new(
-            Severity::Info,
-            op::CONFIG,
-            "Configuration reloaded.",
-        ));
+        // The form reports its own "Saved."
+        if !from_form {
+            self.notices.push(Notice::new(
+                Severity::Info,
+                op::CONFIG,
+                "Configuration reloaded.",
+            ));
+        }
     }
 
     /// Apply a session-only hotkey that registered successfully; it is not
@@ -472,6 +511,9 @@ impl AppModel {
     /// A registration failure. Keep the old registration and registration state;
     /// force the palette visible so the recovery UI is observable (§5.2).
     pub fn report_hotkey_conflict(&mut self, requested: String, reason: Option<String>) {
+        self.settings.save_failed(format!(
+            "Saved, but {requested} could not be registered; the previous hotkey stays active."
+        ));
         self.capture_hint = None;
         self.hotkey_status = HotkeyStatus::Conflict {
             requested: requested.clone(),
@@ -492,7 +534,15 @@ impl AppModel {
 
     fn reduce(&mut self, ctx: &Context, event: AppEvent) {
         match event {
+            // A chord smolcast already registered never reaches the window, so
+            // while recording say why instead of acting on it.
+            AppEvent::SummonRequested if self.visible && self.recording => {
+                self.capture_hint = Some("That combination is already the summon hotkey.".into());
+            }
             AppEvent::SummonRequested => self.summon(ctx),
+            AppEvent::RunScript(_) if self.visible && self.recording => {
+                self.capture_hint = Some("That combination is used by a script.".into());
+            }
             AppEvent::RunScript(id) => self.launcher.run_script(&id, &mut self.notices),
             AppEvent::Tray(TrayCommand::OpenPalette) => self.summon(ctx),
             AppEvent::Tray(TrayCommand::Refresh) => {
@@ -502,12 +552,16 @@ impl AppModel {
             AppEvent::Tray(TrayCommand::Quit) => self.quit_requested = true,
             AppEvent::ConfigReload { result } => match result {
                 Ok(cfg) => self.pending_config = Some(cfg),
-                Err(e) => self.notices.push(Notice::new(
-                    Severity::Warning,
-                    op::CONFIG,
-                    format!("Config reload failed: {e}"),
-                )),
+                Err(e) => {
+                    self.settings.save_failed(format!("Reload failed: {e}"));
+                    self.notices.push(Notice::new(
+                        Severity::Warning,
+                        op::CONFIG,
+                        format!("Config reload failed: {e}"),
+                    ));
+                }
             },
+            AppEvent::SettingsSaveFailed(message) => self.settings.save_failed(message),
             AppEvent::IndexReady { generation, result } => {
                 self.launcher
                     .on_index_ready(generation, result, &mut self.notices);
@@ -679,6 +733,7 @@ impl AppModel {
             View::Root => self.launcher.reset_view(),
             View::Clipboard => self.clipboard.open(),
             View::Emoji => self.emoji.open(),
+            View::Settings => self.settings.open(),
         }
     }
 
@@ -736,6 +791,7 @@ impl AppModel {
                 View::Root => None,
                 View::Clipboard => Some(Command::ClipboardHistory.title()),
                 View::Emoji => Some(Command::Emoji.title()),
+                View::Settings => Some(Command::Settings.title()),
             };
             if let Some(title) = crumb {
                 ui.label(RichText::new(format!("›  {title}")).heading());
@@ -755,9 +811,11 @@ impl AppModel {
 
         ui.add_space(8.0);
         let paste_enabled = matches!(self.paste, PasteState::Idle);
-        if !self.recording {
+        if self.recording {
+            self.capture_chord(ui);
+        } else {
             // Backspace on an empty search leaves a sub-view (§5.4).
-            if self.view != View::Root
+            if !matches!(self.view, View::Root | View::Settings)
                 && self.search.is_empty()
                 && ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Backspace))
             {
@@ -767,22 +825,29 @@ impl AppModel {
                 View::Root => self.launcher.handle_keys(ui),
                 View::Clipboard => self.clipboard.handle_keys(ui, paste_enabled),
                 View::Emoji => self.emoji.handle_keys(ui, paste_enabled),
+                View::Settings => self.settings.handle_keys(ui),
             }
         }
         let hint = match self.view {
             View::Root => "Search apps and commands…",
             View::Clipboard => "Search clipboard history…",
             View::Emoji => "Search emoji…",
+            // The form has no search field.
+            View::Settings => "",
         };
-        let search = ui.add(
-            egui::TextEdit::singleline(&mut self.search)
-                .hint_text(hint)
-                .desired_width(f32::INFINITY),
-        );
-        if std::mem::take(&mut self.focus_search) {
-            search.request_focus();
+        if self.view == View::Settings {
+            self.focus_search = false;
+        } else {
+            let search = ui.add(
+                egui::TextEdit::singleline(&mut self.search)
+                    .hint_text(hint)
+                    .desired_width(f32::INFINITY),
+            );
+            if std::mem::take(&mut self.focus_search) {
+                search.request_focus();
+            }
+            ui.add_space(8.0);
         }
-        ui.add_space(8.0);
         match self.view {
             View::Root => {
                 self.launcher.results_ui(ui, &self.search);
@@ -790,6 +855,7 @@ impl AppModel {
                     match command {
                         Command::ClipboardHistory => self.open_view(View::Clipboard),
                         Command::Emoji => self.open_view(View::Emoji),
+                        Command::Settings => self.open_view(View::Settings),
                     }
                 }
             }
@@ -808,6 +874,24 @@ impl AppModel {
                     self.start_paste(PasteRequest::Text(text.to_owned()));
                 }
             }
+            View::Settings => {
+                let recording = self.recording && self.record_target == RecordTarget::Settings;
+                self.settings.ui(ui, recording);
+                if recording && let Some(hint) = &self.capture_hint {
+                    ui.label(RichText::new(hint).weak().small());
+                }
+                if self.settings.take_record_request() {
+                    self.recording = true;
+                    self.record_target = RecordTarget::Settings;
+                    self.capture_hint = None;
+                }
+                if let Some(settings) = self.settings.take_save_request() {
+                    self.settings_save = Some(settings);
+                }
+                if self.settings.take_open_file() {
+                    self.open_config_file = true;
+                }
+            }
         }
         ui.add_space(8.0);
 
@@ -821,18 +905,17 @@ impl AppModel {
     /// Session-only replacement key (§5.2): record a pressed chord rather than
     /// asking the user to type `global-hotkey` syntax.
     fn hotkey_capture_ui(&mut self, ui: &mut egui::Ui) {
-        if self.recording {
-            self.capture_chord(ui);
-        }
+        let recording = self.recording && self.record_target == RecordTarget::Trial;
         ui.horizontal(|ui| {
-            let label = if self.recording {
+            let label = if recording {
                 "Press a key combination… (Esc cancels)"
             } else {
                 "Record temporary key"
             };
-            let response = ui.add(egui::Button::new(label).selected(self.recording));
+            let response = ui.add(egui::Button::new(label).selected(recording));
             if response.clicked() {
-                self.recording = !self.recording;
+                self.recording = !recording;
+                self.record_target = RecordTarget::Trial;
                 self.capture_hint = None;
                 // Nothing may keep keyboard focus while recording: a focused
                 // button activates on Space/Enter and a text field would
@@ -841,7 +924,9 @@ impl AppModel {
                 ui.memory_mut(|m| m.stop_text_input());
             }
         });
-        if let Some(hint) = &self.capture_hint {
+        if self.record_target == RecordTarget::Trial
+            && let Some(hint) = &self.capture_hint
+        {
             ui.label(RichText::new(hint).weak().small());
         }
     }
@@ -869,6 +954,11 @@ impl AppModel {
                 continue;
             };
             let key = physical_key.unwrap_or(key);
+            // egui 0.36 reports modifiers as key presses of their own; they
+            // only build the chord.
+            if is_modifier_key(key) {
+                continue;
+            }
             if key == Key::Escape && !modifiers.any() {
                 self.recording = false;
                 self.capture_hint = None;
@@ -895,8 +985,16 @@ impl AppModel {
             }
             chord.push_str(code);
             self.recording = false;
-            self.capture_hint = Some(format!("Trying {chord}…"));
-            self.trial_request = Some(chord);
+            match self.record_target {
+                RecordTarget::Trial => {
+                    self.capture_hint = Some(format!("Trying {chord}…"));
+                    self.trial_request = Some(chord);
+                }
+                RecordTarget::Settings => {
+                    self.capture_hint = None;
+                    self.settings.set_hotkey(chord);
+                }
+            }
             return;
         }
     }
@@ -937,6 +1035,20 @@ impl AppModel {
             self.notices.clear();
         }
     }
+}
+
+fn is_modifier_key(key: Key) -> bool {
+    matches!(
+        key,
+        Key::ShiftLeft
+            | Key::ShiftRight
+            | Key::ControlLeft
+            | Key::ControlRight
+            | Key::AltLeft
+            | Key::AltRight
+            | Key::SuperLeft
+            | Key::SuperRight
+    )
 }
 
 /// Map an egui physical key to the `keyboard_types::Code` name accepted by

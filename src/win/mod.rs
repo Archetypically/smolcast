@@ -3,6 +3,8 @@
 //! clipboard ownership, COM, window classes, timers, and hooks use RAII guards
 //! where ownership applies.
 
+pub mod appearance;
+pub mod autostart;
 pub mod clipboard;
 pub mod emoji_render;
 pub mod hotkey;

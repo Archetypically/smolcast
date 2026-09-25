@@ -90,6 +90,12 @@ pub fn clear_event_handler() {
     GlobalHotKeyEvent::set_event_handler(None::<fn(GlobalHotKeyEvent)>);
 }
 
+/// Whether `key` parses as a hotkey. Registration can still fail if another
+/// app owns the chord.
+pub fn check(key: &str) -> Result<(), String> {
+    HotKey::from_str(key).map(|_| ()).map_err(|e| e.to_string())
+}
+
 /// Owns the `GlobalHotKeyManager` and current summon key. Lives on the main
 /// thread for the life of the app (§1.1).
 pub struct HotkeyManager {

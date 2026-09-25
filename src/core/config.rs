@@ -109,6 +109,9 @@ pub struct Settings {
     /// Optional for the same reason as `clipboard_source`.
     #[serde(default = "default_true")]
     pub clipboard_persist: bool,
+    /// Register smolcast in the per-user Run key (§12.7). Optional; off.
+    #[serde(default)]
+    pub start_at_login: bool,
 }
 
 fn default_true() -> bool {
@@ -136,6 +139,7 @@ impl Default for Settings {
             clipboard_max_total_bytes: DEFAULT_CLIPBOARD_MAX_TOTAL_BYTES,
             clipboard_source: ClipboardSource::Auto,
             clipboard_persist: true,
+            start_at_login: false,
         }
     }
 }
@@ -167,6 +171,11 @@ pub fn load(path: &Path) -> Result<ConfigFile, ConfigError> {
     let text = std::str::from_utf8(&bytes).map_err(|_| ConfigError::NotUtf8 {
         path: path.to_owned(),
     })?;
+    parse_str(text, path)
+}
+
+/// Parse and validate config text. `path` is used only for error reporting.
+pub fn parse_str(text: &str, path: &Path) -> Result<ConfigFile, ConfigError> {
     let parsed: ConfigFile = toml::from_str(text).map_err(|e| ConfigError::Parse {
         path: path.to_owned(),
         message: e.to_string(),
@@ -533,6 +542,14 @@ mod tests {
         assert!(!parse(&off).unwrap().settings.clipboard_persist);
         let bad = format!("{base}clipboard_source = \"Windows\"\n");
         assert!(matches!(parse(&bad), Err(ConfigError::Parse { .. })));
+    }
+
+    #[test]
+    fn start_at_login_is_optional_and_off() {
+        let base = "schema_version = 1\n[settings]\nsummon_hotkey = \"control+alt+Space\"\nclipboard_capture = true\nclipboard_max_entries = 100\nclipboard_max_item_bytes = 8388608\nclipboard_max_total_bytes = 67108864\n";
+        assert!(!parse(base).unwrap().settings.start_at_login);
+        let on = format!("{base}start_at_login = true\n");
+        assert!(parse(&on).unwrap().settings.start_at_login);
     }
 
     #[test]
