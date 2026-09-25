@@ -24,6 +24,7 @@ use crate::win::paste::{
     restore_foreground,
 };
 use crate::win::persistence::{ClipboardStoreCommand, LoadedEntry};
+use crate::win::placement::PaletteWindow;
 use crate::win::shell::{LaunchError, ScanOutcome};
 
 use super::clipboard_view::{ClipboardView, PasteRequest};
@@ -210,6 +211,12 @@ pub struct AppModel {
     trial_request: Option<String>,
     quit_requested: bool,
     force_show: bool,
+    /// Moved onto the cursor's monitor on every show (§12.7); `None` when the
+    /// host could not resolve the window handle.
+    palette_window: Option<PaletteWindow>,
+    /// The palette has held focus since it was shown; losing it afterwards
+    /// dismisses the palette (click-away, §12.7).
+    had_focus: bool,
 }
 
 impl AppModel {
@@ -258,6 +265,8 @@ impl AppModel {
             trial_request: None,
             quit_requested: false,
             force_show: force_visible,
+            palette_window: None,
+            had_focus: false,
             config,
         }
     }
@@ -286,6 +295,20 @@ impl AppModel {
             }
         }
 
+        // Clicking away dismisses, like any launcher. Only after the palette has
+        // actually held focus (the first frames after a show may still report
+        // the old state), and not while a paste awaits its write receipt: the
+        // receipt reports "focus moved" and the next frame hides.
+        if self.visible {
+            match ctx.input(|i| i.viewport().focused) {
+                Some(true) => self.had_focus = true,
+                Some(false) if self.had_focus && matches!(self.paste, PasteState::Idle) => {
+                    self.hide(ctx);
+                }
+                _ => {}
+            }
+        }
+
         // The window `X` hides rather than exits (§1.5): cancel the close and sink.
         // A pending tray Quit is the one close that must go through.
         if !self.quit_requested && ctx.input(|i| i.viewport().close_requested()) {
@@ -305,6 +328,10 @@ impl AppModel {
     }
 
     // ---- host-facing accessors -------------------------------------------------
+
+    pub fn set_palette_window(&mut self, window: Option<PaletteWindow>) {
+        self.palette_window = window;
+    }
 
     pub fn quit_requested(&self) -> bool {
         self.quit_requested
@@ -674,7 +701,12 @@ impl AppModel {
     }
 
     fn show(&mut self, ctx: &Context) {
+        // Move while still hidden so the window never appears at its old spot.
+        if let Some(window) = &self.palette_window {
+            window.place_on_cursor_monitor();
+        }
         self.visible = true;
+        self.had_focus = false;
         self.focus_search = true;
         self.launcher.reset_view();
         ctx.send_viewport_cmd(ViewportCommand::Visible(true));

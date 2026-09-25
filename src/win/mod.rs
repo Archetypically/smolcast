@@ -9,6 +9,7 @@ pub mod hotkey;
 pub mod icon;
 pub mod paste;
 pub mod persistence;
+pub mod placement;
 pub mod process;
 pub mod shell;
 pub mod single_instance;
