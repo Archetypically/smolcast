@@ -1203,6 +1203,20 @@ measurement, DPI/multi-monitor positioning, rounded corners, conditional Mica wi
 solid fallback, first-run/upgrade behavior, license notices, and checksum. UPX stays
 out unless measured antivirus/startup tradeoffs are separately approved.
 
+Positioning (implemented 2026-09-25): every show moves the still-hidden palette
+onto the monitor under the cursor, centered horizontally in its work area with
+the free vertical space split 1:2 above/below (`core::placement`). The move uses
+`SetWindowPos` in physical pixels on the HWND from eframe's creation context, not
+`ViewportCommand::OuterPosition`, which converts with the departing monitor's
+scale. The size is predicted at the target monitor's effective DPI; if winit's
+`WM_DPICHANGED` handling yields a different size, the move is re-centered once.
+
+Dismissal and height (2026-09-25): losing focus hides the palette once it has
+held focus since the show, except while a paste awaits its write receipt (the
+receipt then reports "focus moved" and the next frame hides). The window height
+grows to fit its content (notices, hotkey recovery UI), never below the 560×420
+base and never above 85% of the monitor height.
+
 Gate on a clean Windows 11 standard-user account:
 
 - executable starts without developer runtimes or PowerShell 7;

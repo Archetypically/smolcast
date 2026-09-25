@@ -19,7 +19,7 @@ use eframe::egui;
 use windows::Win32::UI::WindowsAndMessaging::{MB_ICONERROR, MB_OK, MessageBoxW};
 use windows::core::PCWSTR;
 
-use smolcast::app::eframe_host::EframeApp;
+use smolcast::app::eframe_host::{EframeApp, PALETTE_SIZE};
 use smolcast::app::model::{AppEvent, AppModel, Wake};
 use smolcast::app::notice::{Notice, Severity, op};
 use smolcast::core::config::{self, ConfigFile};
@@ -107,7 +107,7 @@ fn main() -> eframe::Result {
         viewport: egui::ViewportBuilder::default()
             .with_title("smolcast")
             .with_app_id("smolcast")
-            .with_inner_size([560.0, 420.0])
+            .with_inner_size(PALETTE_SIZE)
             .with_visible(false)
             .with_decorations(false)
             .with_resizable(false)

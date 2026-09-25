@@ -20,8 +20,12 @@ use crate::win::emoji_render::EmojiRenderer;
 use crate::win::hotkey::{self, HotkeyManager};
 use crate::win::paste;
 use crate::win::persistence::{ClipboardStoreCommand, StatePaths, StateWriter};
+use crate::win::placement::PaletteWindow;
 use crate::win::shell::{self, IconWorker};
 use crate::win::tray::{self, TrayHandle};
+
+/// Base palette size in points; the height grows to fit content.
+pub const PALETTE_SIZE: [f32; 2] = [560.0, 420.0];
 
 /// The `eframe::App` and main-thread resource owner.
 pub struct EframeApp {
@@ -67,6 +71,7 @@ impl EframeApp {
         let wake = Wake::new(event_tx.clone(), ctx.clone(), shutting_down.clone());
 
         let mut model = model;
+        model.set_palette_window(PaletteWindow::from_handle(cc));
 
         // Hotkey manager + initial summon registration (§5.2). A conflict forces
         // the visible recovery state; a missing manager leaves hotkeys off but
@@ -436,9 +441,16 @@ impl eframe::App for EframeApp {
             ctx.send_viewport_cmd(ViewportCommand::Visible(false));
         }
         if self.model.is_visible() {
-            egui::CentralPanel::default()
-                .frame(egui::Frame::window(ui.style()).inner_margin(egui::Margin::same(16)))
-                .show(ui, |ui| self.model.ui(ui));
+            let frame = egui::Frame::window(ui.style()).inner_margin(egui::Margin::same(16));
+            let content_height = egui::CentralPanel::default()
+                .frame(frame)
+                // The panel's own rect always fills the window, so measure a
+                // child that only grows with its content.
+                .show(ui, |ui| {
+                    ui.vertical(|ui| self.model.ui(ui)).response.rect.height()
+                })
+                .inner;
+            fit_height(&ctx, content_height + frame.total_margin().sum().y);
         }
     }
 
@@ -446,6 +458,26 @@ impl eframe::App for EframeApp {
     /// cleanup happens here so handlers are gone before the event loop stops.
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
         self.shutdown_resources();
+    }
+}
+
+/// Grow the palette to fit its content (§12.7): notices and the hotkey
+/// recovery UI can exceed the base height. Never shrinks below the base, so
+/// typing does not make the window jump, and never exceeds most of the monitor.
+fn fit_height(ctx: &Context, wanted: f32) {
+    let (current, monitor) = ctx.input(|i| {
+        let info = i.viewport();
+        (info.inner_rect.map(|r| r.size()), info.monitor_size)
+    });
+    let Some(current) = current else {
+        return;
+    };
+    let max = monitor.map_or(f32::INFINITY, |m| m.y * 0.85);
+    let height = wanted
+        .ceil()
+        .clamp(PALETTE_SIZE[1], max.max(PALETTE_SIZE[1]));
+    if (height - current.y).abs() >= 1.0 {
+        ctx.send_viewport_cmd(ViewportCommand::InnerSize(egui::vec2(current.x, height)));
     }
 }
 

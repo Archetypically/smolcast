@@ -8,4 +8,5 @@ pub mod emoji;
 pub mod emoji_data;
 pub mod history;
 pub mod matcher;
+pub mod placement;
 pub mod usage;
