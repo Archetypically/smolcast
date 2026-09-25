@@ -910,6 +910,7 @@ clipboard_max_entries = 100
 clipboard_max_item_bytes = 8388608
 clipboard_max_total_bytes = 67108864
 clipboard_source = "auto" # optional: "auto" | "windows" | "smolcast"
+start_at_login = false     # optional (§12.7)
 
 [scripts.open-project]
 name = "Open project"
@@ -935,6 +936,7 @@ struct Settings {
     clipboard_max_item_bytes: usize,
     clipboard_max_total_bytes: usize,
     clipboard_source: ClipboardSource, // #[serde(default)] = Auto (§7.0)
+    start_at_login: bool,              // #[serde(default)] = false (§12.7)
 }
 
 struct ScriptConfig {
@@ -1216,6 +1218,43 @@ held focus since the show, except while a paste awaits its write receipt (the
 receipt then reports "focus moved" and the next frame hides). The window height
 grows to fit its content (notices, hotkey recovery UI), never below the 560×420
 base and never above 85% of the monitor height.
+
+Login registration (2026-09-25, `win/autostart.rs`): `start_at_login` is the
+source of truth for the value `smolcast` under `HKCU\...\CurrentVersion\Run`.
+Startup with a valid config and every accepted reload reconcile it: enabled
+writes the quoted running-exe path when missing or different (a moved exe
+re-registers), disabled deletes the value; both are idempotent and quit never
+touches it. A malformed startup config skips reconciliation so falling back to
+defaults cannot unregister. Task Manager's `StartupApproved` state is left alone.
+Failures are a content-free notice (op `autostart`).
+
+Appearance (2026-09-25, `win/appearance.rs`): DWM rounded corners
+(`DWMWCP_ROUND`) and a dark/light frame (`DWMWA_USE_IMMERSIVE_DARK_MODE`) that
+follows egui's system-driven theme; egui draws no border or corner radius of
+its own. Mica (`DWMSBT_MAINWINDOW`, showing through the transparent GL surface) is
+enabled only on build ≥ 22621 with Transparency effects on and high contrast
+off, decided at startup because the GL surface must be created transparent; the
+panel is then transparent and the clear color is zero. Otherwise the panel is
+solid `panel_fill`. Segoe UI (`%WINDIR%\Fonts\segoeui.ttf`) is placed first in
+the proportional family, with egui's bundled fonts kept as symbol/emoji
+fallbacks; a missing file keeps the defaults. Adds `dwmapi.dll` to imports.
+`DwmExtendFrameIntoClientArea` is not used: on this undecorated winit window it
+made DWM draw minimize/maximize/close buttons over the palette.
+
+Settings form (2026-09-25, `app/settings_view.rs`, `core/config_edit.rs`): a
+root command "smolcast settings" (named to differ from Windows Settings) opens a structured form for every `[settings]` field
+(summon hotkey with Record, start at login, clipboard capture/source/persist,
+entry and MiB size limits). It validates inline (hotkey parse + §7.5 limits).
+Save (Ctrl+S) runs on the refresh worker: it re-reads config.toml, refuses a
+file that does not parse or validate (never overwrites, §10.2), rewrites only
+changed keys with `toml_edit` (comments, order, and `[scripts]` preserved;
+optional keys are added only when they differ from their default), verifies the
+round trip, writes atomically, then reloads through the normal `ConfigReload`
+path. An absent file is created with schema_version and the settings in
+declaration order. A registration conflict on the new hotkey keeps the old one
+active and says so in the form. Scripts stay file-edited ("Edit config file…"
+opens Notepad). `toml_edit =0.25.15` (parse+display) is a new host dependency,
+about +180 KB.
 
 Gate on a clean Windows 11 standard-user account:
 

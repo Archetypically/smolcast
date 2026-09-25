@@ -4,6 +4,7 @@
 //! `model`.
 
 use std::collections::BTreeMap;
+use std::path::Path;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::Sender;
@@ -14,15 +15,25 @@ use egui::{Context, ViewportCommand};
 use crate::app::model::loads_stored_history;
 use crate::app::model::{AppEvent, AppModel, HotkeyStatus, Wake};
 use crate::app::notice::{Notice, Severity, op};
-use crate::core::config::{self, ConfigFile};
+use crate::core::config::{self, ConfigFile, Settings};
+use crate::core::config_edit;
 use crate::win::clipboard::ClipboardThread;
 use crate::win::emoji_render::EmojiRenderer;
 use crate::win::hotkey::{self, HotkeyManager};
 use crate::win::paste;
-use crate::win::persistence::{ClipboardStoreCommand, StatePaths, StateWriter};
+use crate::win::persistence::{self, ClipboardStoreCommand, StatePaths, StateWriter};
 use crate::win::placement::PaletteWindow;
 use crate::win::shell::{self, IconWorker};
 use crate::win::tray::{self, TrayHandle};
+use crate::win::{appearance, autostart};
+
+/// Startup facts decided before the window exists.
+pub struct Startup {
+    /// The config failed to load and defaults are in use (§10.2).
+    pub config_failed: bool,
+    /// The window was created transparent for a Mica backdrop (§12.7).
+    pub mica: bool,
+}
 
 /// Base palette size in points; the height grows to fit content.
 pub const PALETTE_SIZE: [f32; 2] = [560.0, 420.0];
@@ -52,6 +63,10 @@ pub struct EframeApp {
     first_frame_seen: bool,
     /// Shared with every `Wake` producer; set first during shutdown (§1.5 step 1).
     shutting_down: Arc<AtomicBool>,
+    palette_window: Option<PaletteWindow>,
+    mica: bool,
+    /// The theme the DWM frame was last styled for.
+    frame_theme: Option<egui::Theme>,
 }
 
 impl EframeApp {
@@ -66,12 +81,24 @@ impl EframeApp {
         paths: StatePaths,
         clipboard: ClipboardThread,
         shutting_down: Arc<AtomicBool>,
+        startup: Startup,
     ) -> Self {
         let ctx = cc.egui_ctx.clone();
         let wake = Wake::new(event_tx.clone(), ctx.clone(), shutting_down.clone());
 
         let mut model = model;
-        model.set_palette_window(PaletteWindow::from_handle(cc));
+        // Login registration follows a valid startup config only: a malformed
+        // file falls back to defaults, which must not remove the entry (§12.7).
+        if !startup.config_failed {
+            let enabled = model.config().settings.start_at_login;
+            sync_autostart(&mut model, enabled);
+        }
+        let palette_window = PaletteWindow::from_handle(cc);
+        model.set_palette_window(palette_window);
+        if let Some(window) = &palette_window {
+            appearance::style_window(window, startup.mica);
+        }
+        install_system_font(&ctx);
 
         // Hotkey manager + initial summon registration (§5.2). A conflict forces
         // the visible recovery state; a missing manager leaves hotkeys off but
@@ -183,6 +210,9 @@ impl EframeApp {
             close_sent: false,
             first_frame_seen: false,
             shutting_down,
+            palette_window,
+            mica: startup.mica,
+            frame_theme: None,
         }
     }
 
@@ -205,8 +235,17 @@ impl EframeApp {
         self.run_launcher_requests();
         self.run_clipboard_requests();
 
+        // A save and a refresh share the worker slot; a save waits for it.
+        if self.refresh_worker.is_none()
+            && let Some(settings) = self.model.take_settings_save()
+        {
+            self.start_save(settings);
+        }
         if self.model.take_refresh_requested() {
             self.start_refresh();
+        }
+        if self.model.take_open_config_file() {
+            open_config_file(&self.paths.config);
         }
 
         if let Some(cfg) = self.model.take_pending_config() {
@@ -326,21 +365,46 @@ impl EframeApp {
         }
     }
 
+    /// Write the settings form to config.toml off the UI thread, then reload it
+    /// through the normal `ConfigReload` path (§12.7). Only changed keys are
+    /// rewritten, and an unreadable or invalid file is never overwritten.
+    fn start_save(&mut self, settings: Settings) {
+        let path = self.paths.config.clone();
+        let wake = self.wake();
+        let spawned = std::thread::Builder::new()
+            .name("smolcast-settings".into())
+            .spawn(move || match save_settings(&path, &settings) {
+                Ok(()) => wake.send(AppEvent::ConfigReload {
+                    result: config::load(&path),
+                }),
+                Err(message) => wake.send(AppEvent::SettingsSaveFailed(message)),
+            });
+        match spawned {
+            Ok(handle) => self.refresh_worker = Some(handle),
+            Err(e) => self
+                .model
+                .reduce_settings_save_failed(format!("Could not start saving: {e}")),
+        }
+    }
+
     /// Register a valid new summon key before unregistering the old one; on
     /// conflict retain the old registration and report (§5.2).
     fn apply_config(&mut self, cfg: ConfigFile) {
         let new_key = cfg.settings.summon_hotkey.clone();
         let conflicting = matches!(self.model.hotkey_status(), HotkeyStatus::Conflict { .. });
         let changed = new_key != self.model.summon_hotkey();
+        let start_at_login = cfg.settings.start_at_login;
         if !changed && !conflicting {
             self.model.accept_config(cfg);
             self.refresh_script_hotkeys();
+            sync_autostart(&mut self.model, start_at_login);
             return;
         }
         match self.hotkeys.as_mut().map(|h| h.set_summon(&new_key)) {
             Some(Ok(_)) => {
                 self.model.accept_config(cfg);
                 self.refresh_script_hotkeys();
+                sync_autostart(&mut self.model, start_at_login);
             }
             Some(Err(e)) => self
                 .model
@@ -440,8 +504,25 @@ impl eframe::App for EframeApp {
         if !std::mem::replace(&mut self.first_frame_seen, true) && !self.model.is_visible() {
             ctx.send_viewport_cmd(ViewportCommand::Visible(false));
         }
+        // The DWM frame (border, Mica tint) follows egui's system-driven theme.
+        let theme = ctx.theme();
+        if self.frame_theme != Some(theme)
+            && let Some(window) = &self.palette_window
+        {
+            appearance::set_dark(window, theme == egui::Theme::Dark);
+            self.frame_theme = Some(theme);
+        }
         if self.model.is_visible() {
-            let frame = egui::Frame::window(ui.style()).inner_margin(egui::Margin::same(16));
+            // DWM draws the rounded corners and border; with Mica the panel is
+            // transparent so the backdrop shows through.
+            let fill = if self.mica {
+                egui::Color32::TRANSPARENT
+            } else {
+                ui.visuals().panel_fill
+            };
+            let frame = egui::Frame::new()
+                .fill(fill)
+                .inner_margin(egui::Margin::same(16));
             let content_height = egui::CentralPanel::default()
                 .frame(frame)
                 // The panel's own rect always fills the window, so measure a
@@ -451,6 +532,14 @@ impl eframe::App for EframeApp {
                 })
                 .inner;
             fit_height(&ctx, content_height + frame.total_margin().sum().y);
+        }
+    }
+
+    fn clear_color(&self, visuals: &egui::Visuals) -> [f32; 4] {
+        if self.mica {
+            [0.0; 4]
+        } else {
+            visuals.panel_fill.to_normalized_gamma_f32()
         }
     }
 
@@ -478,6 +567,59 @@ fn fit_height(ctx: &Context, wanted: f32) {
         .clamp(PALETTE_SIZE[1], max.max(PALETTE_SIZE[1]));
     if (height - current.y).abs() >= 1.0 {
         ctx.send_viewport_cmd(ViewportCommand::InnerSize(egui::vec2(current.x, height)));
+    }
+}
+
+/// Apply the form's settings to the file's current text and write it
+/// atomically. Content-safe messages only.
+fn save_settings(path: &Path, settings: &Settings) -> Result<(), String> {
+    let existing = match std::fs::read(path) {
+        Ok(bytes) => Some(
+            String::from_utf8(bytes)
+                .map_err(|_| format!("{} is not UTF-8; not saved.", path.display()))?,
+        ),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
+        Err(e) => return Err(format!("Could not read {}: {e}", path.display())),
+    };
+    let text = config_edit::write_settings(existing.as_deref(), settings, path)
+        .map_err(|e| format!("Not saved: {e}"))?;
+    persistence::atomic_write(path, text.as_bytes()).map_err(|e| format!("Not saved: {e}"))
+}
+
+/// Open config.toml in Notepad, which exists on every Windows install and
+/// offers to create the file when it is absent.
+fn open_config_file(path: &Path) {
+    let _ = std::process::Command::new("notepad.exe").arg(path).spawn();
+}
+
+/// Put Segoe UI ahead of egui's bundled fonts, which remain as fallbacks for
+/// symbols it lacks. Missing file: keep the defaults.
+fn install_system_font(ctx: &Context) {
+    let Some(bytes) = appearance::system_font() else {
+        return;
+    };
+    let mut fonts = egui::FontDefinitions::default();
+    fonts.font_data.insert(
+        "segoe-ui".into(),
+        Arc::new(egui::FontData::from_owned(bytes)),
+    );
+    if let Some(family) = fonts.families.get_mut(&egui::FontFamily::Proportional) {
+        family.insert(0, "segoe-ui".into());
+    }
+    ctx.set_fonts(fonts);
+}
+
+/// Reconcile the Run key with `start_at_login`; failures become a notice.
+fn sync_autostart(model: &mut AppModel, enabled: bool) {
+    if let Err(e) = autostart::reconcile(enabled) {
+        model.push_notice(
+            Notice::new(
+                Severity::Warning,
+                op::AUTOSTART,
+                format!("Start at login: {e}"),
+            )
+            .with_optional_code(e.code),
+        );
     }
 }
 

@@ -19,6 +19,7 @@ parking_lot = "0.12"
 serde = { version = "=1.0.229", features = ["derive"] }
 serde_json = "=1.0.151"
 toml = "=1.1.6"
+toml_edit = { version = "=0.25.15", default-features = false, features = ["parse", "display"] }
 unicode-segmentation = "=1.13.3"
 
 # Windows-only UI/OS stack. These never compile on the Linux host; the binary
@@ -40,6 +41,7 @@ windows = { version = "=0.62.2", features = [
     "Win32_Graphics_Direct2D",
     "Win32_Graphics_Direct2D_Common",
     "Win32_Graphics_DirectWrite",
+    "Win32_Graphics_Dwm",
     "Win32_Graphics_Dxgi_Common",
     "Win32_Graphics_Gdi",
     "Win32_Graphics_Imaging",
@@ -53,6 +55,7 @@ windows = { version = "=0.62.2", features = [
     "Win32_System_Memory",
     "Win32_System_Registry",
     "Win32_System_Threading",
+    "Win32_UI_Accessibility",
     "Win32_UI_HiDpi",
     "Win32_UI_Input_KeyboardAndMouse",
     "Win32_UI_Shell",

@@ -115,15 +115,17 @@ pub fn script_entries(scripts: &BTreeMap<String, ScriptConfig>) -> Vec<IndexedAp
 pub enum Command {
     ClipboardHistory,
     Emoji,
+    Settings,
 }
 
 impl Command {
-    pub const ALL: [Command; 2] = [Command::ClipboardHistory, Command::Emoji];
+    pub const ALL: [Command; 3] = [Command::ClipboardHistory, Command::Emoji, Command::Settings];
 
     pub fn title(self) -> &'static str {
         match self {
             Command::ClipboardHistory => "Clipboard History",
             Command::Emoji => "Search Emoji",
+            Command::Settings => "smolcast settings",
         }
     }
 
@@ -132,6 +134,7 @@ impl Command {
         match self {
             Command::ClipboardHistory => "clipboard-history",
             Command::Emoji => "emoji",
+            Command::Settings => "settings",
         }
     }
 

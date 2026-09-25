@@ -55,6 +55,7 @@ pub mod op {
     pub const LAUNCHER: &str = "launcher";
     pub const USAGE: &str = "usage";
     pub const SCRIPTS: &str = "scripts";
+    pub const AUTOSTART: &str = "autostart";
 }
 
 /// Maximum number of notices retained in memory (§5.3).

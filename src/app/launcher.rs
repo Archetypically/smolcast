@@ -534,5 +534,6 @@ fn command_glyph(command: Command) -> &'static str {
     match command {
         Command::ClipboardHistory => "📋",
         Command::Emoji => "😀",
+        Command::Settings => "⚙",
     }
 }

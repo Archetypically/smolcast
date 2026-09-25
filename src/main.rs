@@ -19,10 +19,11 @@ use eframe::egui;
 use windows::Win32::UI::WindowsAndMessaging::{MB_ICONERROR, MB_OK, MessageBoxW};
 use windows::core::PCWSTR;
 
-use smolcast::app::eframe_host::{EframeApp, PALETTE_SIZE};
+use smolcast::app::eframe_host::{EframeApp, PALETTE_SIZE, Startup};
 use smolcast::app::model::{AppEvent, AppModel, Wake};
 use smolcast::app::notice::{Notice, Severity, op};
 use smolcast::core::config::{self, ConfigFile};
+use smolcast::win::appearance;
 use smolcast::win::clipboard::ClipboardThread;
 use smolcast::win::persistence::{self, StatePaths};
 use smolcast::win::single_instance::{AcquireError, SingleInstance};
@@ -64,7 +65,7 @@ fn main() -> eframe::Result {
     // 3. Config bootstrap (§2.1, §10.2): a malformed file yields safe defaults,
     //    no scripts, a visible error notice, and a forced palette.
     let mut startup_notices = Vec::new();
-    let (config, force_visible) = match config::load(&paths.config) {
+    let (config, config_failed) = match config::load(&paths.config) {
         Ok(cfg) => (cfg, false),
         Err(e) => {
             startup_notices.push(Notice::new(
@@ -102,6 +103,8 @@ fn main() -> eframe::Result {
 
     // 6. Root viewport: hidden, undecorated, always-on-top palette (§2.1). The
     //    first summon makes it visible; `X` hides; tray Quit closes.
+    //    Mica needs a transparent GL surface, so it is decided here (§12.7).
+    let mica = appearance::mica_available();
     let options = eframe::NativeOptions {
         renderer: eframe::Renderer::Glow,
         viewport: egui::ViewportBuilder::default()
@@ -112,7 +115,8 @@ fn main() -> eframe::Result {
             .with_decorations(false)
             .with_resizable(false)
             .with_always_on_top()
-            .with_taskbar(false),
+            .with_taskbar(false)
+            .with_transparent(mica),
         ..Default::default()
     };
 
@@ -121,8 +125,19 @@ fn main() -> eframe::Result {
         options,
         Some(ctx),
         Box::new(move |cc| {
-            let model = AppModel::new(event_rx, config, usage, startup_notices, force_visible);
-            let app = EframeApp::build(cc, model, event_tx, paths, clipboard, shutting_down);
+            let model = AppModel::new(event_rx, config, usage, startup_notices, config_failed);
+            let app = EframeApp::build(
+                cc,
+                model,
+                event_tx,
+                paths,
+                clipboard,
+                shutting_down,
+                Startup {
+                    config_failed,
+                    mica,
+                },
+            );
             Ok(Box::new(app))
         }),
     ) {
