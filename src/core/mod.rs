@@ -10,4 +10,5 @@ pub mod emoji_data;
 pub mod history;
 pub mod matcher;
 pub mod placement;
+pub mod snippet;
 pub mod usage;

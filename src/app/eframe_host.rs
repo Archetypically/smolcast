@@ -15,8 +15,8 @@ use egui::{Context, ViewportCommand};
 use crate::app::model::loads_stored_history;
 use crate::app::model::{AppEvent, AppModel, HotkeyStatus, Wake};
 use crate::app::notice::{Notice, Severity, op};
-use crate::core::config::{self, ConfigFile, Settings};
-use crate::core::config_edit;
+use crate::core::config::{self, ConfigFile};
+use crate::core::config_edit::{self, ConfigEdit};
 use crate::win::clipboard::ClipboardThread;
 use crate::win::emoji_render::EmojiRenderer;
 use crate::win::hotkey::{self, HotkeyManager};
@@ -237,9 +237,9 @@ impl EframeApp {
 
         // A save and a refresh share the worker slot; a save waits for it.
         if self.refresh_worker.is_none()
-            && let Some(settings) = self.model.take_settings_save()
+            && let Some(edit) = self.model.take_config_save()
         {
-            self.start_save(settings);
+            self.start_save(edit);
         }
         if self.model.take_refresh_requested() {
             self.start_refresh();
@@ -365,25 +365,26 @@ impl EframeApp {
         }
     }
 
-    /// Write the settings form to config.toml off the UI thread, then reload it
-    /// through the normal `ConfigReload` path (§12.7). Only changed keys are
-    /// rewritten, and an unreadable or invalid file is never overwritten.
-    fn start_save(&mut self, settings: Settings) {
+    /// Write a form edit (settings or a snippet) to config.toml off the UI
+    /// thread, then reload it through the normal `ConfigReload` path (§12.7,
+    /// §10.6). Only changed keys are rewritten, and an unreadable or invalid
+    /// file is never overwritten.
+    fn start_save(&mut self, edit: ConfigEdit) {
         let path = self.paths.config.clone();
         let wake = self.wake();
         let spawned = std::thread::Builder::new()
-            .name("smolcast-settings".into())
-            .spawn(move || match save_settings(&path, &settings) {
+            .name("smolcast-config-save".into())
+            .spawn(move || match save_config(&path, &edit) {
                 Ok(()) => wake.send(AppEvent::ConfigReload {
                     result: config::load(&path),
                 }),
-                Err(message) => wake.send(AppEvent::SettingsSaveFailed(message)),
+                Err(message) => wake.send(AppEvent::ConfigSaveFailed(message)),
             });
         match spawned {
             Ok(handle) => self.refresh_worker = Some(handle),
             Err(e) => self
                 .model
-                .reduce_settings_save_failed(format!("Could not start saving: {e}")),
+                .reduce_config_save_failed(format!("Could not start saving: {e}")),
         }
     }
 
@@ -570,9 +571,9 @@ fn fit_height(ctx: &Context, wanted: f32) {
     }
 }
 
-/// Apply the form's settings to the file's current text and write it
-/// atomically. Content-safe messages only.
-fn save_settings(path: &Path, settings: &Settings) -> Result<(), String> {
+/// Apply a form edit to the file's current text and write it atomically.
+/// Content-safe messages only.
+fn save_config(path: &Path, edit: &ConfigEdit) -> Result<(), String> {
     let existing = match std::fs::read(path) {
         Ok(bytes) => Some(
             String::from_utf8(bytes)
@@ -581,7 +582,7 @@ fn save_settings(path: &Path, settings: &Settings) -> Result<(), String> {
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
         Err(e) => return Err(format!("Could not read {}: {e}", path.display())),
     };
-    let text = config_edit::write_settings(existing.as_deref(), settings, path)
+    let text = config_edit::apply(existing.as_deref(), edit, path)
         .map_err(|e| format!("Not saved: {e}"))?;
     persistence::atomic_write(path, text.as_bytes()).map_err(|e| format!("Not saved: {e}"))
 }

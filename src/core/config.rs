@@ -1,4 +1,4 @@
-//! Config schema v1: settings plus named scripts, with pure validation.
+//! Config schema v1: settings plus named scripts and snippets, with pure validation.
 //!
 //! Windows-free and host-testable. Hotkey *strings* are validated at Windows
 //! runtime (the `global-hotkey` crate is a Windows-only dependency), so this
@@ -8,7 +8,7 @@
 //! - An absent file materializes `ConfigFile::default()` without creating a file.
 //! - A present file must declare every settings field; unknown fields are
 //!   rejected, and a malformed file is never overwritten by the app.
-//! - `scripts` defaults to an empty map when the `[scripts]` table is absent.
+//! - `scripts` and `snippets` default to empty maps when their tables are absent.
 
 use std::collections::BTreeMap;
 use std::io;
@@ -34,6 +34,11 @@ pub const MAX_CLIPBOARD_TOTAL_BYTES: usize = 512 * 1024 * 1024;
 pub const MAX_SCRIPT_NAME_CHARS: usize = 128;
 pub const MAX_SCRIPT_ARGS: usize = 64;
 pub const MAX_SCRIPT_ARG_BYTES: usize = 32 * 1024;
+
+/// §10.6 snippet validation limits.
+pub const MAX_SNIPPET_NAME_CHARS: usize = 128;
+pub const MAX_SNIPPET_TEXT_BYTES: usize = 64 * 1024;
+pub const MAX_SNIPPET_KEYWORD_CHARS: usize = 32;
 
 /// A parsed and validated config document, or a typed reason it could not be
 /// used. The caller chooses the recovery story (safe defaults + visible notice).
@@ -82,6 +87,8 @@ pub struct ConfigFile {
     pub settings: Settings,
     #[serde(default)]
     pub scripts: BTreeMap<String, ScriptConfig>,
+    #[serde(default)]
+    pub snippets: BTreeMap<String, SnippetConfig>,
 }
 
 impl Default for ConfigFile {
@@ -90,6 +97,7 @@ impl Default for ConfigFile {
             schema_version: SCHEMA_VERSION,
             settings: Settings::default(),
             scripts: BTreeMap::new(),
+            snippets: BTreeMap::new(),
         }
     }
 }
@@ -154,6 +162,18 @@ pub struct ScriptConfig {
     pub hotkey: Option<String>,
 }
 
+/// Saved text pasted from the palette (§10.6). The text is literal: nothing
+/// in it is expanded or substituted.
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct SnippetConfig {
+    pub name: String,
+    pub text: String,
+    /// Short searchable alias such as `;sig`. Reserved as the trigger for
+    /// future as-you-type expansion, so it is validated strictly now.
+    pub keyword: Option<String>,
+}
+
 /// Read and validate a config file (§10.2).
 ///
 /// An absent path yields `ConfigFile::default()` and never creates the file.
@@ -199,8 +219,23 @@ impl ConfigFile {
         }
         self.settings.validate(path)?;
         for (id, script) in &self.scripts {
-            validate_script_id(path, id)?;
+            validate_id(path, "script", id)?;
             script.validate(path)?;
+        }
+        // Keywords are unique ignoring case, so a future trigger map is
+        // unambiguous whatever case rule it adopts.
+        let mut keywords: BTreeMap<String, &str> = BTreeMap::new();
+        for (id, snippet) in &self.snippets {
+            validate_id(path, "snippet", id)?;
+            snippet.validate(path, id)?;
+            if let Some(keyword) = &snippet.keyword
+                && let Some(other) = keywords.insert(keyword.to_lowercase(), id)
+            {
+                return Err(validation(
+                    path,
+                    format!("snippets {other:?} and {id:?} share the keyword {keyword:?}"),
+                ));
+            }
         }
         Ok(())
     }
@@ -291,17 +326,65 @@ impl ScriptConfig {
     }
 }
 
-fn validate_script_id(path: &Path, id: &str) -> Result<(), ConfigError> {
-    let valid_len = (1..=64).contains(&id.len());
-    let valid_chars = id
-        .bytes()
-        .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-');
-    if valid_len && valid_chars {
+impl SnippetConfig {
+    pub fn validate(&self, path: &Path, id: &str) -> Result<(), ConfigError> {
+        match self.problem() {
+            Some(what) => Err(validation(path, format!("snippet {id:?}: {what}"))),
+            None => Ok(()),
+        }
+    }
+
+    /// The first rule this snippet breaks, phrased for a form field (the
+    /// snippet editor shows it as-is). Keyword uniqueness is a whole-file rule
+    /// checked by [`ConfigFile::validate`].
+    pub fn problem(&self) -> Option<String> {
+        if self.name.is_empty() {
+            return Some("name must be nonempty".into());
+        }
+        if self.name.chars().count() > MAX_SNIPPET_NAME_CHARS {
+            return Some(format!(
+                "name exceeds {MAX_SNIPPET_NAME_CHARS} Unicode scalar values"
+            ));
+        }
+        if self.text.is_empty() {
+            return Some("text must be nonempty".into());
+        }
+        if self.text.len() > MAX_SNIPPET_TEXT_BYTES {
+            return Some(format!("text exceeds {MAX_SNIPPET_TEXT_BYTES} UTF-8 bytes"));
+        }
+        if contains_nul(&self.name) || contains_nul(&self.text) {
+            return Some("field contains a NUL byte".into());
+        }
+        if let Some(keyword) = &self.keyword {
+            let chars = keyword.chars().count();
+            if !(1..=MAX_SNIPPET_KEYWORD_CHARS).contains(&chars) {
+                return Some(format!(
+                    "keyword must be 1..={MAX_SNIPPET_KEYWORD_CHARS} Unicode scalar values"
+                ));
+            }
+            if keyword.chars().any(|c| c.is_whitespace() || c.is_control()) {
+                return Some("keyword must not contain whitespace or control characters".into());
+            }
+        }
+        None
+    }
+}
+
+/// Script and snippet table keys match ASCII `[A-Za-z0-9_-]{1,64}`.
+pub fn is_valid_id(id: &str) -> bool {
+    (1..=64).contains(&id.len())
+        && id
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
+}
+
+fn validate_id(path: &Path, kind: &str, id: &str) -> Result<(), ConfigError> {
+    if is_valid_id(id) {
         Ok(())
     } else {
         Err(validation(
             path,
-            format!("script id {id:?} must match [A-Za-z0-9_-]{{1,64}}"),
+            format!("{kind} id {id:?} must match [A-Za-z0-9_-]{{1,64}}"),
         ))
     }
 }
@@ -335,6 +418,13 @@ interpreter = "pwsh.exe"
 args = ["-NoLogo", "-NoProfile", "-File", "C:\\Tools\\open-project.ps1"]
 cwd = "C:\\Users\\me\\Projects"
 hotkey = "control+alt+KeyP" # optional
+
+[snippets.signature]
+name = "Email signature"
+keyword = ";sig" # optional
+text = """
+Best,
+Me"""
 "#;
 
 #[cfg(test)]
@@ -550,6 +640,90 @@ mod tests {
         assert!(!parse(base).unwrap().settings.start_at_login);
         let on = format!("{base}start_at_login = true\n");
         assert!(parse(&on).unwrap().settings.start_at_login);
+    }
+
+    const SNIPPET_BASE: &str = "schema_version = 1\n[settings]\nsummon_hotkey = \"control+alt+Space\"\nclipboard_capture = true\nclipboard_max_entries = 100\nclipboard_max_item_bytes = 8388608\nclipboard_max_total_bytes = 67108864\n";
+
+    #[test]
+    fn sample_snippet_parses_and_table_is_optional() {
+        let cfg = parse(SAMPLE_TOML).unwrap();
+        let snippet = &cfg.snippets["signature"];
+        assert_eq!(snippet.name, "Email signature");
+        assert_eq!(snippet.keyword.as_deref(), Some(";sig"));
+        // TOML trims the newline right after the opening quotes.
+        assert_eq!(snippet.text, "Best,\nMe");
+        assert!(parse(SNIPPET_BASE).unwrap().snippets.is_empty());
+    }
+
+    #[test]
+    fn invalid_snippets_rejected() {
+        let long_name = "n".repeat(MAX_SNIPPET_NAME_CHARS + 1);
+        let long_text = "t".repeat(MAX_SNIPPET_TEXT_BYTES + 1);
+        let long_keyword = "k".repeat(MAX_SNIPPET_KEYWORD_CHARS + 1);
+        let cases: Vec<(String, &str)> = vec![
+            (
+                "[snippets.\"a.b\"]\nname = \"x\"\ntext = \"y\"\n".into(),
+                "snippet id",
+            ),
+            (
+                "[snippets.a]\nname = \"\"\ntext = \"y\"\n".into(),
+                "name must be nonempty",
+            ),
+            (
+                format!("[snippets.a]\nname = \"{long_name}\"\ntext = \"y\"\n"),
+                "name exceeds",
+            ),
+            (
+                "[snippets.a]\nname = \"x\"\ntext = \"\"\n".into(),
+                "text must be nonempty",
+            ),
+            (
+                format!("[snippets.a]\nname = \"x\"\ntext = \"{long_text}\"\n"),
+                "text exceeds",
+            ),
+            (
+                "[snippets.a]\nname = \"x\"\ntext = \"a\\u0000b\"\n".into(),
+                "NUL",
+            ),
+            (
+                "[snippets.a]\nname = \"x\"\ntext = \"y\"\nkeyword = \"\"\n".into(),
+                "keyword must be",
+            ),
+            (
+                format!("[snippets.a]\nname = \"x\"\ntext = \"y\"\nkeyword = \"{long_keyword}\"\n"),
+                "keyword must be",
+            ),
+            (
+                "[snippets.a]\nname = \"x\"\ntext = \"y\"\nkeyword = \"a b\"\n".into(),
+                "whitespace",
+            ),
+            (
+                "[snippets.a]\nname = \"x\"\ntext = \"y\"\nkeyword = \"a\\tb\"\n".into(),
+                "whitespace",
+            ),
+        ];
+        for (table, needle) in &cases {
+            let e = parse(&format!("{SNIPPET_BASE}{table}")).unwrap_err();
+            assert!(err_contains(&e, needle), "{table:?}: {e}");
+        }
+    }
+
+    #[test]
+    fn snippet_keywords_are_unique_ignoring_case() {
+        let text = format!(
+            "{SNIPPET_BASE}[snippets.a]\nname = \"A\"\ntext = \"1\"\nkeyword = \";Sig\"\n[snippets.b]\nname = \"B\"\ntext = \"2\"\nkeyword = \";sig\"\n"
+        );
+        let e = parse(&text).unwrap_err();
+        assert!(err_contains(&e, "share the keyword"), "{e}");
+        let distinct = text.replace("keyword = \";sig\"", "keyword = \";sig2\"");
+        assert_eq!(parse(&distinct).unwrap().snippets.len(), 2);
+    }
+
+    #[test]
+    fn unknown_snippet_field_rejected() {
+        let text =
+            format!("{SNIPPET_BASE}[snippets.a]\nname = \"x\"\ntext = \"y\"\nexpand = true\n");
+        assert!(matches!(parse(&text), Err(ConfigError::Parse { .. })));
     }
 
     #[test]
