@@ -17,6 +17,8 @@ use crate::core::history::{History, InsertOutcome, Limits, Payload, encode_recor
 use crate::win::clipboard::{ClipboardCommand, ClipboardError, WindowsContent, WindowsSnapshot};
 use crate::win::persistence::{ClipboardStoreCommand, LoadedEntry, unix_ms_now};
 
+use super::list;
+
 /// Thumbnail textures kept alive (§7.5: about 8 MiB RGBA worst case).
 const THUMBNAIL_CACHE_CAP: usize = 32;
 /// Thumbnail edge bound in pixels (§7.5).
@@ -466,15 +468,7 @@ impl ClipboardView {
                 i.consume_key(Modifiers::SHIFT, Key::Delete),
             )
         });
-        let count = self.filtered.len();
-        if count > 0 {
-            if down {
-                self.selected = (self.selected + 1) % count;
-            }
-            if up {
-                self.selected = (self.selected + count - 1) % count;
-            }
-        }
+        list::step_selection(&mut self.selected, self.filtered.len(), down, up);
         if enter && paste_enabled {
             self.commit();
         }
@@ -555,11 +549,7 @@ impl ClipboardView {
             }
         }
         self.selected = self.selected.min(self.filtered.len().saturating_sub(1));
-        if self.selected < self.first_row {
-            self.first_row = self.selected;
-        } else if self.selected >= self.first_row + VISIBLE_ROWS {
-            self.first_row = self.selected + 1 - VISIBLE_ROWS;
-        }
+        list::keep_visible(self.selected, &mut self.first_row, VISIBLE_ROWS);
 
         self.source_line(ui);
         if self.setting == ClipboardSource::Windows
@@ -729,38 +719,18 @@ fn row_ui(ui: &mut egui::Ui, row: &Row<'_>, selected: bool, now: i64) -> egui::R
         RowContent::Image { width, height, .. } => ("🖼", format!("Image {width} × {height}")),
         RowContent::Other => ("📦", "Other content".to_owned()),
     };
-    egui::Frame::new()
-        .fill(if selected {
-            ui.visuals().selection.bg_fill
-        } else {
-            Color32::TRANSPARENT
-        })
-        .corner_radius(4)
-        .inner_margin(egui::Margin::symmetric(6, 3))
-        .show(ui, |ui| {
-            ui.set_width(ui.available_width());
-            ui.horizontal(|ui| {
-                ui.label(glyph);
-                // The age column is placed first so the truncating text only
-                // takes the remaining width.
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.label(
-                        RichText::new(relative_age(now, row.captured_at_ms))
-                            .weak()
-                            .small(),
-                    );
-                    ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                        let mut label = RichText::new(text);
-                        if selected {
-                            label = label.color(ui.visuals().selection.stroke.color);
-                        }
-                        ui.add(egui::Label::new(label).truncate());
-                    });
-                });
-            });
-        })
-        .response
-        .interact(egui::Sense::click())
+    let age = relative_age(now, row.captured_at_ms);
+    list::row(
+        ui,
+        selected,
+        &text,
+        |ui| {
+            ui.label(glyph);
+        },
+        |ui| {
+            ui.label(RichText::new(age).weak().small());
+        },
+    )
 }
 
 fn relative_age(now_ms: i64, then_ms: i64) -> String {

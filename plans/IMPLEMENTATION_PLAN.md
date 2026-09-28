@@ -918,6 +918,11 @@ interpreter = "pwsh.exe"
 args = ["-NoLogo", "-NoProfile", "-File", "C:\\Tools\\open-project.ps1"]
 cwd = "C:\\Users\\me\\Projects"
 hotkey = "control+alt+KeyP" # optional
+
+[snippets.signature]       # optional table (§10.6)
+name = "Email signature"
+keyword = ";sig"
+text = "Best,\nMe"
 ```
 
 Rust shape:
@@ -927,6 +932,7 @@ struct ConfigFile {
     schema_version: u32,
     settings: Settings,
     scripts: BTreeMap<String, ScriptConfig>,
+    snippets: BTreeMap<String, SnippetConfig>, // §10.6
 }
 
 struct Settings {
@@ -1036,6 +1042,83 @@ to the newest generation. For each write:
 
 On startup, delete only matching smolcast temp files older than 24 hours. A temp
 file is never treated as valid state.
+
+### 10.6 Snippets (palette tier, approved 2026-09-27)
+
+Snippets are saved text in config.toml, pasted from the palette. They are the
+first tier of M6 (§12.6). As-you-type expansion is a separate later tier and
+reads the same table.
+
+```toml
+[snippets.signature]
+name = "Email signature"
+keyword = ";sig"          # optional
+text = """
+Best,
+Me"""
+```
+
+`SnippetConfig { name: String, text: String, keyword: Option<String> }` with
+`deny_unknown_fields`; the `[snippets]` table defaults to an empty map, so it
+needs no schema bump. Validation:
+
+- snippet ID matches ASCII `[A-Za-z0-9_-]{1,64}` (same rule as scripts);
+- name is nonempty and at most 128 Unicode scalar values;
+- text is nonempty and at most 64 KiB UTF-8;
+- keyword, when present, is 1–32 Unicode scalar values with no whitespace or
+  control characters, and is unique across snippets ignoring case;
+- no NUL in any string.
+
+Palette: "Search Snippets" is a root Command (`Command::Snippets`, usage key
+`snippets`) that opens a list-and-preview view like Clipboard History. Search
+(`core::snippet::search`) ranks an exact keyword match (ignoring case) first,
+then keyword prefixes, then fuzzy name/keyword matches by score, then
+case-insensitive substring matches in the text; ties sort by lowercase name,
+then id. Enter or a click pastes via `PasteRequest::Text`; nothing is recorded
+in clipboard history. Text is literal. The only transform is line-break
+normalization to CRLF (`paste_text`). Reload replaces the list. The settings
+form never touches `[snippets]`.
+
+In-palette editing (approved 2026-09-27) is the main way to manage snippets.
+Hand-editing config.toml still works, and both go through the same reload.
+
+- Keys in the list: Ctrl+N new, Ctrl+E edit, Shift+Delete asks to delete
+  (Enter confirms, Esc cancels). The root command "Create Snippet"
+  (`Command::CreateSnippet`) opens the view straight into a new-snippet form,
+  and an empty table offers "New snippet".
+- The form has Name, an optional Keyword, and a multi-line Text field. Ctrl+S
+  or Ctrl+Enter saves; Enter inserts a line break. Name and keyword are
+  trimmed, and an empty keyword means none. Problems (`draft_problem`: field
+  rules plus a keyword already used by another snippet) show inline and
+  disable Save. Esc with unsaved changes first warns, and a second Esc
+  discards. The search field is hidden while the form is open, and Backspace
+  belongs to the fields. A dirty draft survives click-away, and reopening the
+  view resumes it.
+- A new snippet's id comes from its name (`new_id`: lowercase ASCII slug of
+  at most 48 bytes, `snippet` if empty, `-2`, `-3`, … for uniqueness ignoring
+  case). A rename keeps the id.
+- Saving: the view raises `SnippetEdit::{Put{id, snippet, create}, Delete}`,
+  which the model wraps in `ConfigEdit::Snippet` for the same host save slot
+  as the settings form (`config_edit::apply` → atomic write → `ConfigReload`).
+  `write_snippet` refuses malformed or newer files, refuses a create over an
+  existing id and an edit or delete of a missing one, and rewrites only the
+  changed keys of that table (each replaced value keeps its comment). A new
+  table appends as `[snippets.<id>]` without a bare `[snippets]` header, or
+  inline when the file uses an inline `snippets = {…}`. Multi-line text is
+  written as a `'''` literal when it can be, and as an escaped string
+  otherwise. The result must parse back to exactly the expected config, or
+  nothing is written. The save completes only when the reload accepts the
+  file, and a failure keeps the form open with the draft.
+
+Room for the expansion tier (not implemented): `keyword` is the future trigger.
+It is validated strictly now because loosening a rule later keeps old configs
+valid, while tightening one would break them. Case-insensitive uniqueness
+therefore leaves the future case rule open. Prefix overlaps (`;s` and `;sig`) are
+allowed; the expansion spec decides them together with delimiter semantics.
+Expansion would add an optional `snippet_expansion` setting (off by default),
+and possibly an optional per-snippet opt-out, both as `serde(default)` fields.
+Placeholders (`{date}`, `{clipboard}`) would need an explicit opt-in field so
+existing literal braces never change meaning.
 
 ---
 
@@ -1188,7 +1271,19 @@ main summon key or searchable script action.
 
 ### 6. Optional snippets — separate approval gate
 
-Only if still wanted after core release quality. Before coding, extend this spec
+**Tier 1, palette snippets (approved and implemented 2026-09-27):** saved text
+searched and pasted from the palette, with no input hook (§10.6). Windows gate:
+a multi-line snippet pastes with CRLF line breaks into Notepad and a terminal;
+keyword search ranks the exact keyword first; a reload adds and removes
+snippets; an invalid snippet table keeps the last-known-good config with a
+notice; a settings-form save leaves `[snippets]` byte-identical. Editor:
+create (Ctrl+N and "Create Snippet"), edit, rename, keyword removal, and
+delete all update config.toml while keeping hand-written comments elsewhere;
+a duplicate keyword is refused inline; Esc on a dirty draft warns once; a
+multi-line edit round-trips exactly.
+
+**Tier 2, as-you-type expansion:** only if still wanted after core release
+quality. It reuses the §10.6 table and `keyword` as the trigger. Before coding, extend this spec
 with delimiter/case semantics and a typed input-state machine. Then implement
 `WH_KEYBOARD_LL`, excluding injected input, suspending on unsupported IME
 composition, keeping the callback short, and removing the hook reliably on disable

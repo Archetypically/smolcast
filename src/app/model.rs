@@ -13,6 +13,7 @@ use egui::{Color32, Context, Key, Modifiers, RichText, ViewportCommand};
 
 use crate::core::app_index::{AppId, Command};
 use crate::core::config::{ClipboardSource, ConfigError, ConfigFile, Settings};
+use crate::core::config_edit::ConfigEdit;
 use crate::core::history::{Limits, Payload};
 use crate::core::usage::Usage;
 use crate::win::clipboard::{
@@ -32,6 +33,7 @@ use super::emoji_view::{EmojiView, GlyphRequest};
 use super::launcher::{IconRequest, LaunchRequest, Launcher};
 use super::notice::{Notice, NoticeStore, Severity, op};
 use super::settings_view::SettingsView;
+use super::snippet_view::SnippetView;
 
 /// Typed application events produced by window/background components (§1.2).
 /// This is the semantic event set; it grows as later milestones add clipboard,
@@ -47,8 +49,8 @@ pub enum AppEvent {
     ConfigReload {
         result: Result<ConfigFile, ConfigError>,
     },
-    /// The settings form's write failed before any reload (§12.7).
-    SettingsSaveFailed(String),
+    /// A form's config.toml write failed before any reload (§12.7, §10.6).
+    ConfigSaveFailed(String),
     IndexReady {
         generation: u64,
         result: Result<ScanOutcome, LaunchError>,
@@ -89,6 +91,7 @@ enum View {
     Root,
     Clipboard,
     Emoji,
+    Snippets,
     Settings,
 }
 
@@ -209,6 +212,7 @@ pub struct AppModel {
     launcher: Launcher,
     clipboard: ClipboardView,
     emoji: EmojiView,
+    snippets: SnippetView,
     paste: PasteState,
     next_request_id: u64,
     /// Cancel flag of the most recent finisher; a new summon sets it.
@@ -229,8 +233,9 @@ pub struct AppModel {
     /// host could not resolve the window handle.
     palette_window: Option<PaletteWindow>,
     settings: SettingsView,
-    /// Settings to write to config.toml; the host saves, then reloads (§12.7).
-    settings_save: Option<Settings>,
+    /// A form edit to write to config.toml; the host saves, then reloads
+    /// (§12.7, §10.6).
+    config_save: Option<ConfigEdit>,
     open_config_file: bool,
     /// The palette has held focus since it was shown; losing it afterwards
     /// dismisses the palette (click-away, §12.7).
@@ -271,6 +276,7 @@ impl AppModel {
                 loads_stored_history(&config.settings),
             ),
             emoji: EmojiView::new(),
+            snippets: SnippetView::new(&config.snippets),
             paste: PasteState::Idle,
             next_request_id: 0,
             paste_cancel: None,
@@ -286,7 +292,7 @@ impl AppModel {
             force_show: force_visible,
             palette_window: None,
             settings: SettingsView::new(&config.settings),
-            settings_save: None,
+            config_save: None,
             open_config_file: false,
             had_focus: false,
             config,
@@ -311,9 +317,10 @@ impl AppModel {
             && !self.recording
             && ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape))
         {
-            match self.view {
-                View::Root => self.hide(ctx),
-                View::Clipboard | View::Emoji | View::Settings => self.open_view(View::Root),
+            if self.view == View::Root {
+                self.hide(ctx);
+            } else if !self.view_escape() {
+                self.open_view(View::Root);
             }
         }
 
@@ -351,13 +358,15 @@ impl AppModel {
 
     // ---- host-facing accessors -------------------------------------------------
 
-    pub fn reduce_settings_save_failed(&mut self, message: String) {
-        self.settings.save_failed(message);
+    /// Only the form whose save is in flight takes the message.
+    pub fn reduce_config_save_failed(&mut self, message: String) {
+        self.settings.save_failed(message.clone());
+        self.snippets.save_failed(message);
     }
 
-    /// Settings from the form to write; the host saves and then reloads.
-    pub fn take_settings_save(&mut self) -> Option<Settings> {
-        self.settings_save.take()
+    /// A form edit to write; the host saves and then reloads.
+    pub fn take_config_save(&mut self) -> Option<ConfigEdit> {
+        self.config_save.take()
     }
 
     pub fn take_open_config_file(&mut self) -> bool {
@@ -483,10 +492,13 @@ impl AppModel {
         self.clipboard_commands.push(ClipboardCommand::SetItemCap(
             cfg.settings.clipboard_max_item_bytes,
         ));
-        let from_form = self.settings.config_accepted(&cfg.settings);
+        // Both forms see every accepted config; at most one had a save in flight.
+        let settings_saved = self.settings.config_accepted(&cfg.settings);
+        let snippet_saved = self.snippets.config_accepted(&cfg.snippets);
+        let from_form = settings_saved || snippet_saved;
         self.config = cfg;
         self.clipboard_commands.push(self.capture_policy());
-        // The form reports its own "Saved."
+        // The forms report their own "Saved."
         if !from_form {
             self.notices.push(Notice::new(
                 Severity::Info,
@@ -553,7 +565,7 @@ impl AppModel {
             AppEvent::ConfigReload { result } => match result {
                 Ok(cfg) => self.pending_config = Some(cfg),
                 Err(e) => {
-                    self.settings.save_failed(format!("Reload failed: {e}"));
+                    self.reduce_config_save_failed(format!("Reload failed: {e}"));
                     self.notices.push(Notice::new(
                         Severity::Warning,
                         op::CONFIG,
@@ -561,7 +573,7 @@ impl AppModel {
                     ));
                 }
             },
-            AppEvent::SettingsSaveFailed(message) => self.settings.save_failed(message),
+            AppEvent::ConfigSaveFailed(message) => self.reduce_config_save_failed(message),
             AppEvent::IndexReady { generation, result } => {
                 self.launcher
                     .on_index_ready(generation, result, &mut self.notices);
@@ -733,6 +745,7 @@ impl AppModel {
             View::Root => self.launcher.reset_view(),
             View::Clipboard => self.clipboard.open(),
             View::Emoji => self.emoji.open(),
+            View::Snippets => self.snippets.open(),
             View::Settings => self.settings.open(),
         }
     }
@@ -782,6 +795,25 @@ impl AppModel {
 
     // ---- palette UI -------------------------------------------------------------
 
+    /// Forms own the keyboard: the settings form, and the snippet editor or
+    /// delete confirmation.
+    fn search_hidden(&self) -> bool {
+        match self.view {
+            View::Settings => true,
+            View::Snippets => self.snippets.is_editing(),
+            View::Root | View::Clipboard | View::Emoji => false,
+        }
+    }
+
+    /// Let the view handle Escape itself (the snippet editor cancels before
+    /// the view is left). False means Escape returns to the root.
+    fn view_escape(&mut self) -> bool {
+        match self.view {
+            View::Snippets => self.snippets.escape(),
+            View::Root | View::Clipboard | View::Emoji | View::Settings => false,
+        }
+    }
+
     fn palette_ui(&mut self, ui: &mut egui::Ui) {
         ui.set_min_width(440.0);
 
@@ -791,6 +823,7 @@ impl AppModel {
                 View::Root => None,
                 View::Clipboard => Some(Command::ClipboardHistory.title()),
                 View::Emoji => Some(Command::Emoji.title()),
+                View::Snippets => Some(self.snippets.title()),
                 View::Settings => Some(Command::Settings.title()),
             };
             if let Some(title) = crumb {
@@ -814,8 +847,10 @@ impl AppModel {
         if self.recording {
             self.capture_chord(ui);
         } else {
-            // Backspace on an empty search leaves a sub-view (§5.4).
-            if !matches!(self.view, View::Root | View::Settings)
+            // Backspace on an empty search leaves a sub-view (§5.4); forms
+            // keep it for their fields.
+            if self.view != View::Root
+                && !self.search_hidden()
                 && self.search.is_empty()
                 && ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Backspace))
             {
@@ -825,6 +860,7 @@ impl AppModel {
                 View::Root => self.launcher.handle_keys(ui),
                 View::Clipboard => self.clipboard.handle_keys(ui, paste_enabled),
                 View::Emoji => self.emoji.handle_keys(ui, paste_enabled),
+                View::Snippets => self.snippets.handle_keys(ui, paste_enabled),
                 View::Settings => self.settings.handle_keys(ui),
             }
         }
@@ -832,10 +868,11 @@ impl AppModel {
             View::Root => "Search apps and commands…",
             View::Clipboard => "Search clipboard history…",
             View::Emoji => "Search emoji…",
+            View::Snippets => "Search snippets…",
             // The form has no search field.
             View::Settings => "",
         };
-        if self.view == View::Settings {
+        if self.search_hidden() {
             self.focus_search = false;
         } else {
             let search = ui.add(
@@ -855,6 +892,11 @@ impl AppModel {
                     match command {
                         Command::ClipboardHistory => self.open_view(View::Clipboard),
                         Command::Emoji => self.open_view(View::Emoji),
+                        Command::Snippets => self.open_view(View::Snippets),
+                        Command::CreateSnippet => {
+                            self.open_view(View::Snippets);
+                            self.snippets.start_new();
+                        }
                         Command::Settings => self.open_view(View::Settings),
                     }
                 }
@@ -874,6 +916,24 @@ impl AppModel {
                     self.start_paste(PasteRequest::Text(text.to_owned()));
                 }
             }
+            View::Snippets => {
+                self.snippets.ui(ui, &self.search, paste_enabled);
+                if let Some(text) = self.snippets.take_paste_request() {
+                    self.start_paste(PasteRequest::Text(text));
+                }
+                if let Some(edit) = self.snippets.take_save_request() {
+                    self.config_save = Some(ConfigEdit::Snippet(edit));
+                }
+                if let Some(clear_search) = self.snippets.take_left_editor() {
+                    if clear_search {
+                        self.search.clear();
+                    }
+                    self.focus_search = true;
+                }
+                if self.snippets.take_open_file() {
+                    self.open_config_file = true;
+                }
+            }
             View::Settings => {
                 let recording = self.recording && self.record_target == RecordTarget::Settings;
                 self.settings.ui(ui, recording);
@@ -886,7 +946,7 @@ impl AppModel {
                     self.capture_hint = None;
                 }
                 if let Some(settings) = self.settings.take_save_request() {
-                    self.settings_save = Some(settings);
+                    self.config_save = Some(ConfigEdit::Settings(settings));
                 }
                 if self.settings.take_open_file() {
                     self.open_config_file = true;

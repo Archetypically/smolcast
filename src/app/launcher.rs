@@ -7,7 +7,7 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::time::{Duration, Instant};
 
-use egui::{Color32, Key, Modifiers, RichText, Sense, TextureHandle, TextureOptions, Vec2};
+use egui::{Key, Modifiers, RichText, Sense, TextureHandle, TextureOptions, Vec2};
 
 use std::collections::BTreeMap;
 
@@ -21,6 +21,7 @@ use crate::win::icon::IconRgba;
 use crate::win::persistence::unix_ms_now;
 use crate::win::shell::{LaunchError, ScanOutcome};
 
+use super::list;
 use super::notice::{Notice, NoticeStore, Severity, op};
 
 /// A summon rescans only when the last completed scan is older than this (§1.4).
@@ -375,15 +376,7 @@ impl Launcher {
                 i.consume_key(Modifiers::NONE, Key::Enter),
             )
         });
-        let count = self.ranked.len();
-        if count > 0 {
-            if down {
-                self.selected = (self.selected + 1) % count;
-            }
-            if up {
-                self.selected = (self.selected + count - 1) % count;
-            }
-        }
+        list::step_selection(&mut self.selected, self.ranked.len(), down, up);
         if enter {
             self.commit(self.selected);
         }
@@ -411,12 +404,7 @@ impl Launcher {
             return;
         }
 
-        // Keep the selection inside the visible window.
-        if self.selected < self.first_row {
-            self.first_row = self.selected;
-        } else if self.selected >= self.first_row + VISIBLE_ROWS {
-            self.first_row = self.selected + 1 - VISIBLE_ROWS;
-        }
+        list::keep_visible(self.selected, &mut self.first_row, VISIBLE_ROWS);
         let end = (self.first_row + VISIBLE_ROWS).min(self.ranked.len());
         let icon_px = (ICON_POINTS * ui.ctx().pixels_per_point()).round() as u32;
 
@@ -440,56 +428,33 @@ impl Launcher {
             }
 
             let launching = self.launch_pending.as_ref() == Some(&app.id);
-            let response = egui::Frame::new()
-                .fill(if selected {
-                    ui.visuals().selection.bg_fill
-                } else {
-                    Color32::TRANSPARENT
-                })
-                .corner_radius(4)
-                .inner_margin(egui::Margin::symmetric(6, 3))
-                .show(ui, |ui| {
-                    ui.set_width(ui.available_width());
-                    ui.horizontal(|ui| {
-                        let size = Vec2::splat(ICON_POINTS);
-                        match (&icon, &app.launch) {
-                            (Some(texture), _) => {
-                                ui.add(egui::Image::new(texture).fit_to_exact_size(size));
-                            }
-                            (None, LaunchSpec::Command(command)) => {
-                                ui.add_sized(size, egui::Label::new(command_glyph(*command)));
-                            }
-                            (None, LaunchSpec::Script(_)) => {
-                                ui.add_sized(size, egui::Label::new("▶"));
-                            }
-                            (None, _) => {
-                                ui.allocate_exact_size(size, Sense::hover());
-                            }
-                        }
-                        // Right column first: the entry type (§5.4).
-                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            let kind = if launching {
-                                "Launching…"
-                            } else {
-                                kind_label(&app.launch)
-                            };
-                            ui.label(RichText::new(kind).weak().small());
-                            ui.with_layout(
-                                egui::Layout::left_to_right(egui::Align::Center),
-                                |ui| {
-                                    let mut name = RichText::new(&app.display_name);
-                                    if selected {
-                                        name = name.color(ui.visuals().selection.stroke.color);
-                                    }
-                                    ui.add(egui::Label::new(name).truncate());
-                                },
-                            );
-                        });
-                    });
-                })
-                .response
-                .interact(Sense::click());
-            if response.clicked() {
+            let leading = |ui: &mut egui::Ui| {
+                let size = Vec2::splat(ICON_POINTS);
+                match (&icon, &app.launch) {
+                    (Some(texture), _) => {
+                        ui.add(egui::Image::new(texture).fit_to_exact_size(size));
+                    }
+                    (None, LaunchSpec::Command(command)) => {
+                        ui.add_sized(size, egui::Label::new(command_glyph(*command)));
+                    }
+                    (None, LaunchSpec::Script(_)) => {
+                        ui.add_sized(size, egui::Label::new("▶"));
+                    }
+                    (None, _) => {
+                        ui.allocate_exact_size(size, Sense::hover());
+                    }
+                }
+            };
+            // The right column is the entry type (§5.4).
+            let kind = if launching {
+                "Launching…"
+            } else {
+                kind_label(&app.launch)
+            };
+            let trailing = |ui: &mut egui::Ui| {
+                ui.label(RichText::new(kind).weak().small());
+            };
+            if list::row(ui, selected, &app.display_name, leading, trailing).clicked() {
                 clicked = Some(row);
             }
         }
@@ -534,6 +499,8 @@ fn command_glyph(command: Command) -> &'static str {
     match command {
         Command::ClipboardHistory => "📋",
         Command::Emoji => "😀",
+        Command::Snippets => "📝",
+        Command::CreateSnippet => "✏",
         Command::Settings => "⚙",
     }
 }
