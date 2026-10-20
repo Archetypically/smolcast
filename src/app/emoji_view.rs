@@ -16,8 +16,8 @@ use crate::win::icon::IconRgba;
 
 const COLUMNS: usize = 12;
 const VISIBLE_ROWS: usize = 6;
-const CELL: f32 = 38.0;
-const GLYPH_SIZE: f32 = 24.0;
+const CELL: f32 = 44.0;
+const GLYPH_SIZE: f32 = 28.0;
 /// Glyph textures kept alive: a few grid pages at any display scale.
 const GLYPH_CACHE_CAP: usize = 256;
 
@@ -268,10 +268,10 @@ fn cell_ui(
     let (rect, response) = ui.allocate_exact_size(Vec2::splat(CELL), egui::Sense::click());
     if selected {
         ui.painter()
-            .rect_filled(rect, 4.0, ui.visuals().selection.bg_fill);
+            .rect_filled(rect, 8.0, ui.visuals().selection.bg_fill);
     } else if response.hovered() {
         ui.painter()
-            .rect_filled(rect, 4.0, ui.visuals().widgets.hovered.weak_bg_fill);
+            .rect_filled(rect, 8.0, ui.visuals().widgets.hovered.weak_bg_fill);
     }
     // Until its bitmap arrives (a few milliseconds) the cell stays empty;
     // drawing egui's own emoji font would flash tofu boxes.

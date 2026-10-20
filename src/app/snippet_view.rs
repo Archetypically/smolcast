@@ -15,12 +15,12 @@ use crate::core::config::SnippetConfig;
 use crate::core::config_edit::SnippetEdit;
 use crate::core::snippet::{self, Snippet};
 
-use super::list;
+use super::{list, theme};
 
-const VISIBLE_ROWS: usize = 8;
+const VISIBLE_ROWS: usize = 6;
 const LIST_WIDTH: f32 = 300.0;
-/// Eight rows plus spacing; matches the clipboard view.
-const LIST_HEIGHT: f32 = 232.0;
+/// Six rows; the clipboard and snippet views match.
+const LIST_HEIGHT: f32 = VISIBLE_ROWS as f32 * theme::ROW_STRIDE;
 /// Characters of the selected snippet shown in the preview pane.
 const PREVIEW_CHARS: usize = 2000;
 

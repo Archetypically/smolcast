@@ -34,6 +34,7 @@ use super::launcher::{IconRequest, LaunchRequest, Launcher};
 use super::notice::{Notice, NoticeStore, Severity, op};
 use super::settings_view::SettingsView;
 use super::snippet_view::SnippetView;
+use super::theme;
 
 /// Typed application events produced by window/background components (§1.2).
 /// This is the semantic event set; it grows as later milestones add clipboard,
@@ -352,8 +353,9 @@ impl AppModel {
     /// Render the palette. Painting runs through `&mut egui::Ui` because egui
     /// 0.36 panel APIs take a `Ui`, not a `Context`; the model still never
     /// mentions `eframe::Frame`. The host wraps this in the root panel.
-    pub fn ui(&mut self, ui: &mut egui::Ui) {
-        self.palette_ui(ui);
+    /// Returns the slack padded above the footer (see `palette_ui`).
+    pub fn ui(&mut self, ui: &mut egui::Ui) -> f32 {
+        self.palette_ui(ui)
     }
 
     // ---- host-facing accessors -------------------------------------------------
@@ -814,35 +816,22 @@ impl AppModel {
         }
     }
 
-    fn palette_ui(&mut self, ui: &mut egui::Ui) {
+    /// Raycast layout: search bar, divider, the view, then a footer action
+    /// bar pinned to the bottom. Returns the slack added above the footer so
+    /// the host can size the window to the natural content height.
+    fn palette_ui(&mut self, ui: &mut egui::Ui) -> f32 {
         ui.set_min_width(440.0);
+        let spacing = ui.spacing().item_spacing.y;
+        // Sections butt against their dividers; each restores the spacing.
+        ui.spacing_mut().item_spacing.y = 0.0;
 
-        ui.horizontal(|ui| {
-            ui.label(RichText::new("smolcast").heading().strong());
-            let crumb = match self.view {
-                View::Root => None,
-                View::Clipboard => Some(Command::ClipboardHistory.title()),
-                View::Emoji => Some(Command::Emoji.title()),
-                View::Snippets => Some(self.snippets.title()),
-                View::Settings => Some(Command::Settings.title()),
-            };
-            if let Some(title) = crumb {
-                ui.label(RichText::new(format!("›  {title}")).heading());
-            }
-            match &self.hotkey_status {
-                HotkeyStatus::Active { canonical } => {
-                    ui.label(RichText::new(format!(" ({canonical})")).weak());
-                }
-                HotkeyStatus::Conflict { requested, .. } => {
-                    ui.label(
-                        RichText::new(format!(" (hotkey conflict: {requested})"))
-                            .color(Color32::from_rgb(220, 120, 60)),
-                    );
-                }
-            }
-        });
-
-        ui.add_space(8.0);
+        let crumb = match self.view {
+            View::Root => None,
+            View::Clipboard => Some(Command::ClipboardHistory.title()),
+            View::Emoji => Some(Command::Emoji.title()),
+            View::Snippets => Some(self.snippets.title()),
+            View::Settings => Some(Command::Settings.title()),
+        };
         let paste_enabled = matches!(self.paste, PasteState::Idle);
         if self.recording {
             self.capture_chord(ui);
@@ -872,18 +861,67 @@ impl AppModel {
             // The form has no search field.
             View::Settings => "",
         };
-        if self.search_hidden() {
-            self.focus_search = false;
-        } else {
-            let search = ui.add(
-                egui::TextEdit::singleline(&mut self.search)
-                    .hint_text(hint)
-                    .desired_width(f32::INFINITY),
-            );
-            if std::mem::take(&mut self.focus_search) {
-                search.request_focus();
-            }
-            ui.add_space(8.0);
+        let mut back = false;
+        egui::Frame::new()
+            .inner_margin(egui::Margin::symmetric(theme::GUTTER, 12))
+            .show(ui, |ui| {
+                ui.set_min_height(28.0);
+                ui.horizontal(|ui| {
+                    if crumb.is_some() {
+                        back = theme::back_button(ui).on_hover_text("Back (Esc)").clicked();
+                    }
+                    if self.search_hidden() {
+                        self.focus_search = false;
+                        ui.label(RichText::new(crumb.unwrap_or_default()).size(theme::SEARCH_SIZE));
+                    } else {
+                        let search = ui.add(
+                            egui::TextEdit::singleline(&mut self.search)
+                                .hint_text(hint)
+                                .font(egui::TextStyle::Heading)
+                                .frame(egui::Frame::NONE)
+                                .margin(egui::Margin::ZERO)
+                                .desired_width(f32::INFINITY),
+                        );
+                        if std::mem::take(&mut self.focus_search) {
+                            search.request_focus();
+                        }
+                    }
+                });
+            });
+        theme::divider(ui);
+
+        egui::Frame::new()
+            .inner_margin(egui::Margin::same(8))
+            .show(ui, |ui| {
+                ui.spacing_mut().item_spacing.y = spacing;
+                self.body_ui(ui, paste_enabled);
+            });
+        if back {
+            self.open_view(View::Root);
+        }
+
+        // Pin the footer to the bottom of the window.
+        let footer = theme::FOOTER_HEIGHT + 1.0;
+        let slack = (ui.available_height() - footer).max(0.0);
+        ui.add_space(slack);
+        theme::divider(ui);
+        self.footer_ui(ui, crumb);
+        slack
+    }
+
+    fn body_ui(&mut self, ui: &mut egui::Ui, paste_enabled: bool) {
+        if self.view == View::Root {
+            let section = if self.search.is_empty() {
+                "Suggestions"
+            } else {
+                "Results"
+            };
+            ui.add_space(2.0);
+            ui.horizontal(|ui| {
+                ui.add_space(10.0);
+                ui.label(RichText::new(section).small().weak());
+            });
+            ui.add_space(2.0);
         }
         match self.view {
             View::Root => {
@@ -953,13 +991,56 @@ impl AppModel {
                 }
             }
         }
-        ui.add_space(8.0);
 
         if matches!(self.hotkey_status, HotkeyStatus::Conflict { .. }) {
+            ui.add_space(8.0);
             self.hotkey_capture_ui(ui);
         }
 
         self.notices_ui(ui);
+    }
+
+    /// Raycast's action bar: where you are on the left, the primary action
+    /// and its keys on the right.
+    fn footer_ui(&mut self, ui: &mut egui::Ui, crumb: Option<&str>) {
+        let (action, keys): (&str, &[&str]) = match self.view {
+            View::Root => (self.launcher.primary_action(), &["Enter"]),
+            View::Snippets if self.snippets.is_editing() => ("Save", &["Ctrl", "S"]),
+            View::Settings => ("Save", &["Ctrl", "S"]),
+            View::Clipboard | View::Emoji | View::Snippets => ("Paste", &["Enter"]),
+        };
+        let size = egui::vec2(ui.available_width(), theme::FOOTER_HEIGHT);
+        ui.allocate_ui_with_layout(
+            size,
+            egui::Layout::left_to_right(egui::Align::Center),
+            |ui| {
+                ui.set_min_size(size);
+                ui.add_space(f32::from(theme::GUTTER));
+                ui.label(RichText::new(crumb.unwrap_or("smolcast")).small().weak());
+                match &self.hotkey_status {
+                    HotkeyStatus::Active { canonical } if crumb.is_none() => {
+                        theme::key_cap(ui, canonical);
+                    }
+                    HotkeyStatus::Active { .. } => {}
+                    HotkeyStatus::Conflict { requested, .. } => {
+                        ui.label(
+                            RichText::new(format!("hotkey conflict: {requested}"))
+                                .small()
+                                .color(Color32::from_rgb(220, 120, 60)),
+                        );
+                    }
+                }
+                // Right to left: the rightmost hint comes first.
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.add_space(f32::from(theme::GUTTER) - ui.spacing().item_spacing.x);
+                    if crumb.is_some() {
+                        theme::action_hint(ui, "Back", &["Esc"]);
+                        ui.label(RichText::new("|").small().color(theme::divider_color(ui)));
+                    }
+                    theme::action_hint(ui, action, keys);
+                });
+            },
+        );
     }
 
     /// Session-only replacement key (§5.2): record a pressed chord rather than

@@ -15,6 +15,7 @@ use egui::{Context, ViewportCommand};
 use crate::app::model::loads_stored_history;
 use crate::app::model::{AppEvent, AppModel, HotkeyStatus, Wake};
 use crate::app::notice::{Notice, Severity, op};
+use crate::app::theme;
 use crate::core::config::{self, ConfigFile};
 use crate::core::config_edit::{self, ConfigEdit};
 use crate::win::clipboard::ClipboardThread;
@@ -36,7 +37,7 @@ pub struct Startup {
 }
 
 /// Base palette size in points; the height grows to fit content.
-pub const PALETTE_SIZE: [f32; 2] = [560.0, 420.0];
+pub const PALETTE_SIZE: [f32; 2] = [640.0, 460.0];
 
 /// The `eframe::App` and main-thread resource owner.
 pub struct EframeApp {
@@ -99,6 +100,7 @@ impl EframeApp {
             appearance::style_window(window, startup.mica);
         }
         install_system_font(&ctx);
+        theme::install(&ctx);
 
         // Hotkey manager + initial summon registration (§5.2). A conflict forces
         // the visible recovery state; a missing manager leaves hotkeys off but
@@ -521,18 +523,18 @@ impl eframe::App for EframeApp {
             } else {
                 ui.visuals().panel_fill
             };
-            let frame = egui::Frame::new()
-                .fill(fill)
-                .inner_margin(egui::Margin::same(16));
+            // Sections draw their own margins so dividers span the window.
+            let frame = egui::Frame::new().fill(fill);
             let content_height = egui::CentralPanel::default()
                 .frame(frame)
-                // The panel's own rect always fills the window, so measure a
-                // child that only grows with its content.
+                // The panel's own rect always fills the window, and the model
+                // pads its footer to the bottom, so measure without that slack.
                 .show(ui, |ui| {
-                    ui.vertical(|ui| self.model.ui(ui)).response.rect.height()
+                    let inner = ui.vertical(|ui| self.model.ui(ui));
+                    inner.response.rect.height() - inner.inner
                 })
                 .inner;
-            fit_height(&ctx, content_height + frame.total_margin().sum().y);
+            fit_height(&ctx, content_height);
         }
     }
 

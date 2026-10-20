@@ -29,9 +29,9 @@ const RESCAN_AFTER: Duration = Duration::from_secs(5 * 60);
 /// Application icon textures kept alive (§6.4).
 const ICON_CACHE_CAP: usize = 128;
 /// Result rows shown at once.
-const VISIBLE_ROWS: usize = 8;
+const VISIBLE_ROWS: usize = 7;
 /// Row icon edge in points.
-const ICON_POINTS: f32 = 24.0;
+const ICON_POINTS: f32 = 22.0;
 
 /// A launch the host should start.
 pub struct LaunchRequest {
@@ -363,6 +363,20 @@ impl Launcher {
 
     pub fn take_usage_snapshot(&mut self) -> Option<(u64, Vec<u8>)> {
         self.usage_snapshot.take()
+    }
+
+    /// The footer's label for Enter on the selected row.
+    pub fn primary_action(&self) -> &'static str {
+        match self
+            .ranked
+            .get(self.selected)
+            .map(|r| &self.apps[r.index].launch)
+        {
+            Some(LaunchSpec::Command(_)) => "Open Command",
+            Some(LaunchSpec::Script(_)) => "Run Script",
+            Some(_) => "Open Application",
+            None => "Open",
+        }
     }
 
     // ---- UI ---------------------------------------------------------------------
