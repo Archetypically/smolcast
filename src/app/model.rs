@@ -58,6 +58,9 @@ pub enum AppEvent {
     },
     IconReady {
         app_id: AppId,
+        /// The key the icon was extracted from; a result for a key the entry
+        /// no longer has is stale and dropped.
+        icon_key: String,
         result: Result<IconRgba, LaunchError>,
     },
     LaunchFinished {
@@ -580,8 +583,12 @@ impl AppModel {
                 self.launcher
                     .on_index_ready(generation, result, &mut self.notices);
             }
-            AppEvent::IconReady { app_id, result } => {
-                self.launcher.on_icon_ready(ctx, app_id, result);
+            AppEvent::IconReady {
+                app_id,
+                icon_key,
+                result,
+            } => {
+                self.launcher.on_icon_ready(ctx, app_id, &icon_key, result);
             }
             AppEvent::LaunchFinished { app_id, result } => {
                 if self
@@ -740,6 +747,12 @@ impl AppModel {
     }
 
     fn open_view(&mut self, view: View) {
+        // Recording belongs to the view it started in; the Back button can
+        // leave without the Escape that would otherwise cancel it.
+        if self.record_target == RecordTarget::Settings {
+            self.recording = false;
+            self.capture_hint = None;
+        }
         self.view = view;
         self.search.clear();
         self.focus_search = true;
@@ -1005,6 +1018,7 @@ impl AppModel {
     fn footer_ui(&mut self, ui: &mut egui::Ui, crumb: Option<&str>) {
         let (action, keys): (&str, &[&str]) = match self.view {
             View::Root => (self.launcher.primary_action(), &["Enter"]),
+            View::Snippets if self.snippets.is_confirming_delete() => ("Delete", &["Enter"]),
             View::Snippets if self.snippets.is_editing() => ("Save", &["Ctrl", "S"]),
             View::Settings => ("Save", &["Ctrl", "S"]),
             View::Clipboard | View::Emoji | View::Snippets => ("Paste", &["Enter"]),
@@ -1019,7 +1033,12 @@ impl AppModel {
                 ui.label(RichText::new(crumb.unwrap_or("smolcast")).small().weak());
                 match &self.hotkey_status {
                     HotkeyStatus::Active { canonical } if crumb.is_none() => {
-                        theme::key_cap(ui, canonical);
+                        ui.scope(|ui| {
+                            ui.spacing_mut().item_spacing.x = 3.0;
+                            for key in crate::core::config::key_names(canonical) {
+                                theme::key_cap(ui, &key);
+                            }
+                        });
                     }
                     HotkeyStatus::Active { .. } => {}
                     HotkeyStatus::Conflict { requested, .. } => {

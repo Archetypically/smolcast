@@ -14,6 +14,8 @@ use crate::core::emoji::{self, Emoji};
 use crate::core::emoji_data::GROUPS;
 use crate::win::icon::IconRgba;
 
+use super::theme;
+
 const COLUMNS: usize = 12;
 const VISIBLE_ROWS: usize = 6;
 const CELL: f32 = 44.0;
@@ -268,7 +270,7 @@ fn cell_ui(
     let (rect, response) = ui.allocate_exact_size(Vec2::splat(CELL), egui::Sense::click());
     if selected {
         ui.painter()
-            .rect_filled(rect, 8.0, ui.visuals().selection.bg_fill);
+            .rect_filled(rect, 8.0, theme::selected_fill(ui));
     } else if response.hovered() {
         ui.painter()
             .rect_filled(rect, 8.0, ui.visuals().widgets.hovered.weak_bg_fill);

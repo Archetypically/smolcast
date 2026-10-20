@@ -12,7 +12,8 @@ reference for anyone changing the UI. The tokens live in
   hairline dividers instead of boxes. Color means status (warning, error), not
   decoration.
 - **One accent, used sparingly.** Raycast red (`#FF6363`) is used only for the
-  text cursor and links. Selection is a soft gray fill, never the accent.
+  text cursor, text selection and links. Row selection is a soft gray fill,
+  never the accent.
 - **Follow the system.** Dark and light themes follow Windows. Mica shows
   through when it is available (see plan §12.7, Appearance).
 
@@ -30,7 +31,8 @@ From top to bottom, all sections span the full window width:
 4. **Footer action bar.** A divider, then a 40-point bar pinned to the bottom
    of the window. Left: where you are ("smolcast" or the view title), plus the
    summon key as a key cap at the root. Right: the main action with its key
-   caps (`Open Application Enter`, `Paste Enter`, `Save Ctrl S`), then
+   caps (`Open Application Enter`, `Paste Enter`, `Save Ctrl S`,
+   `Delete Enter` while confirming a snippet delete), then
    `Back Esc` in sub-views.
 
 The base window is 640×460. It grows to fit notices and the hotkey recovery UI
@@ -44,7 +46,8 @@ bottom padding so that shrinking works.
 | Background | `#1C1C1E` | `#FAFAFA` |
 | Text | `#EDEDED` | `#1C1C1E` |
 | Secondary text | `#8E8E93` | `#6E6E73` |
-| Selection, key caps | white 10% | black 8% |
+| Selected row, key caps | white 10% | black 8% |
+| Text selection | `#FF6363` at 35% | `#FF6363` at 35% |
 | Hover | white 5% | black 4% |
 | Controls (buttons, form fields) | white 7% | black 5% |
 | Dividers | white 10% | black 8% |
@@ -86,7 +89,8 @@ The font is Segoe UI, with egui's bundled fonts as fallbacks.
   Windows keyboards print the names, and the fallback fonts lack some arrow
   glyphs.
 - **Draw icons, don't type them.** If a symbol is not certain to be in Segoe
-  UI, paint it with the painter instead of using a text glyph.
+  UI or Segoe UI Emoji, paint it with the painter instead of using a text
+  glyph. The existing command glyphs (📋 😀 📝 ✏ ⚙ ▶) are covered by those fonts.
 - **Size lists from the stride.** List heights are row counts times
   `theme::ROW_STRIDE`, never magic numbers.
 - **Color only for status.** Warnings are amber and errors are red, in small

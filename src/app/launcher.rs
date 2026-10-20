@@ -235,8 +235,20 @@ impl Launcher {
         &mut self,
         ctx: &egui::Context,
         app_id: AppId,
+        icon_key: &str,
         result: Result<IconRgba, LaunchError>,
     ) {
+        // A script's interpreter can change while its icon is extracted; the
+        // reissued request for the new key is the one to keep.
+        if !self
+            .apps
+            .iter()
+            .any(|a| a.id == app_id && a.icon_key == icon_key)
+        {
+            // Allow a fresh request; at worst one icon is extracted twice.
+            self.icons.pending.remove(&app_id);
+            return;
+        }
         match result {
             Ok(icon) => {
                 let image = egui::ColorImage::from_rgba_premultiplied(
@@ -290,12 +302,25 @@ impl Launcher {
 
     /// Replace the configured scripts after a config reload (§10.3).
     pub fn set_scripts(&mut self, scripts: &BTreeMap<String, ScriptConfig>) {
-        // An edited interpreter changes the icon; reload script icons lazily.
-        let is_script = |id: &AppId| matches!(id, AppId::Script { .. });
-        self.icons.textures.retain(|id, _| !is_script(id));
-        self.icons.recency.retain(|id| !is_script(id));
-        self.icons.failed.retain(|id| !is_script(id));
-        self.scripts = script_entries(scripts);
+        let scripts = script_entries(scripts);
+        // An edited interpreter changes the icon: forget only the scripts whose
+        // icon key changed (or that are gone), so unrelated saves don't flash.
+        // A result still in flight for the old key is dropped on arrival.
+        let stale: HashSet<AppId> = self
+            .scripts
+            .iter()
+            .filter(|old| {
+                !scripts
+                    .iter()
+                    .any(|new| new.id == old.id && new.icon_key == old.icon_key)
+            })
+            .map(|old| old.id.clone())
+            .collect();
+        self.icons.textures.retain(|id, _| !stale.contains(id));
+        self.icons.recency.retain(|id| !stale.contains(id));
+        self.icons.failed.retain(|id| !stale.contains(id));
+        self.icons.pending.retain(|id| !stale.contains(id));
+        self.scripts = scripts;
         self.rebuild();
     }
 

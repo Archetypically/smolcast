@@ -571,6 +571,9 @@ impl ClipboardView {
         ui.horizontal_top(|ui| {
             // Rows stack top-down inside the horizontal list | preview split,
             // and the list has a fixed height so the action row stays visible.
+            // The cap also stops the separator taking all remaining height,
+            // which grew the window every frame.
+            ui.set_max_height(LIST_HEIGHT);
             let size = Vec2::new(LIST_WIDTH, LIST_HEIGHT);
             ui.allocate_ui_with_layout(size, egui::Layout::top_down(egui::Align::Min), |ui| {
                 ui.set_min_size(size);

@@ -400,6 +400,31 @@ fn contains_nul(s: &str) -> bool {
     s.as_bytes().contains(&0)
 }
 
+/// Key cap names for a `global-hotkey` chord: `control+alt+KeyP` becomes
+/// `Ctrl`, `Alt`, `P` (docs/DESIGN.md: key names written out).
+pub fn key_names(chord: &str) -> Vec<String> {
+    chord
+        .split('+')
+        .map(|part| {
+            let named = match part.to_ascii_lowercase().as_str() {
+                "control" | "ctrl" => "Ctrl",
+                "alt" | "option" => "Alt",
+                "shift" => "Shift",
+                "super" | "meta" | "cmd" | "command" | "win" => "Win",
+                _ => "",
+            };
+            if !named.is_empty() {
+                return named.to_owned();
+            }
+            ["Key", "Digit"]
+                .iter()
+                .find_map(|prefix| part.strip_prefix(prefix).filter(|rest| rest.len() == 1))
+                .unwrap_or(part)
+                .to_owned()
+        })
+        .collect()
+}
+
 /// The canonical config sample from the plan's §10.2, used by tests.
 #[cfg(test)]
 pub(crate) const SAMPLE_TOML: &str = r#"
@@ -737,5 +762,13 @@ mod tests {
         let e = load(&path).unwrap_err();
         assert!(matches!(e, ConfigError::NotUtf8 { .. }));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn key_names_are_written_out() {
+        assert_eq!(key_names("control+alt+Space"), ["Ctrl", "Alt", "Space"]);
+        assert_eq!(key_names("control+shift+KeyP"), ["Ctrl", "Shift", "P"]);
+        assert_eq!(key_names("alt+Digit1"), ["Alt", "1"]);
+        assert_eq!(key_names("alt+F5"), ["Alt", "F5"]);
     }
 }

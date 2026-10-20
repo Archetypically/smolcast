@@ -70,7 +70,7 @@ pub fn row(
         Sense::click(),
     );
     let color = if selected {
-        ui.visuals().selection.bg_fill
+        theme::selected_fill(ui)
     } else if response.hovered() {
         theme::hover_fill(ui)
     } else {

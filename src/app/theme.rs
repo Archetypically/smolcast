@@ -23,7 +23,7 @@ pub const ROW_STRIDE: f32 = ROW_HEIGHT + SPACING;
 pub const FOOTER_HEIGHT: f32 = 40.0;
 
 const RADIUS: u8 = 8;
-/// Raycast's brand red, used only for the text cursor and links.
+/// Raycast's brand red, used only for the text cursor, text selection, and links.
 const ACCENT: Color32 = Color32::from_rgb(255, 99, 99);
 
 struct Palette {
@@ -96,7 +96,8 @@ fn apply(style: &mut egui::Style, p: &Palette) {
     v.code_bg_color = p.control;
     v.weak_text_color = Some(p.weak);
     v.hyperlink_color = ACCENT;
-    v.selection.bg_fill = p.selection;
+    // Text selection needs contrast; rows and key caps use `selected_fill`.
+    v.selection.bg_fill = ACCENT.gamma_multiply(0.35);
     v.selection.stroke = Stroke::new(1.0, p.text);
     v.text_cursor.stroke = Stroke::new(2.0, ACCENT);
     v.window_corner_radius = radius;
@@ -120,6 +121,11 @@ fn apply(style: &mut egui::Style, p: &Palette) {
         state.expansion = 0.0;
     }
     w.noninteractive.corner_radius = radius;
+}
+
+/// Selected row and key cap fill: a soft gray, unlike text selection.
+pub fn selected_fill(ui: &egui::Ui) -> Color32 {
+    ui.visuals().widgets.active.weak_bg_fill
 }
 
 pub fn divider_color(ui: &egui::Ui) -> Color32 {
@@ -155,7 +161,7 @@ pub fn key_cap(ui: &mut egui::Ui, key: &str) {
     let size = galley.size() + Vec2::new(10.0, 4.0);
     let (rect, _) = ui.allocate_exact_size(size.max(Vec2::new(20.0, 0.0)), egui::Sense::hover());
     let visuals = ui.visuals();
-    ui.painter().rect_filled(rect, 4, visuals.selection.bg_fill);
+    ui.painter().rect_filled(rect, 4, selected_fill(ui));
     let text = rect.center() - galley.size() / 2.0;
     ui.painter().galley(text, galley, visuals.weak_text_color());
 }
@@ -178,7 +184,7 @@ pub fn back_button(ui: &mut egui::Ui) -> egui::Response {
     response
 }
 
-/// An action label followed by its key caps, e.g. "Open Application ↵", in
+/// An action label followed by its key caps, e.g. "Open Application Enter", in
 /// a right-to-left layout: the caps are added first, last key first.
 pub fn action_hint(ui: &mut egui::Ui, label: &str, keys: &[&str]) {
     ui.scope(|ui| {

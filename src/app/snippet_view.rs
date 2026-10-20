@@ -168,6 +168,10 @@ impl SnippetView {
 
     /// True while the editor or a delete confirmation owns the view: the model
     /// hides the search field and leaves Backspace to the form.
+    pub fn is_confirming_delete(&self) -> bool {
+        matches!(self.mode, Mode::ConfirmDelete { .. })
+    }
+
     pub fn is_editing(&self) -> bool {
         !matches!(self.mode, Mode::List)
     }
@@ -378,6 +382,8 @@ impl SnippetView {
 
         let mut clicked = None;
         ui.horizontal_top(|ui| {
+            // A separator in a row takes all remaining height unless capped.
+            ui.set_max_height(LIST_HEIGHT);
             let size = Vec2::new(LIST_WIDTH, LIST_HEIGHT);
             ui.allocate_ui_with_layout(size, egui::Layout::top_down(egui::Align::Min), |ui| {
                 ui.set_min_size(size);
