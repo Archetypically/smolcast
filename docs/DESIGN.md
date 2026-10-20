@@ -68,6 +68,12 @@ The font is Segoe UI, with egui's bundled fonts as fallbacks.
 - **Result row** (`list::row`). Leading icon, then the name, then gray
   trailing text (the entry type, the age, or a snippet keyword). Selected:
   rounded selection fill. Hovered: hover fill. The text color does not change.
+- **Row icons.** Use the program's real icon wherever one exists. For
+  applications, it comes from the Start Menu shortcut or the packaged app. For
+  scripts, it comes from the interpreter executable, with bare names such as
+  `pwsh.exe` resolved through the search path. A glyph is used only when no
+  icon exists: built-in commands, clipboard entries, snippets, or a failed
+  lookup (▶ for scripts).
 - **Key cap** (`theme::key_cap`). Small gray text on a rounded selection fill.
   It is painted at the text's size so centered layouts cannot stretch it.
 - **Action hint** (`theme::action_hint`). A label followed by its key caps,

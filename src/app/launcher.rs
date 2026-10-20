@@ -290,6 +290,11 @@ impl Launcher {
 
     /// Replace the configured scripts after a config reload (§10.3).
     pub fn set_scripts(&mut self, scripts: &BTreeMap<String, ScriptConfig>) {
+        // An edited interpreter changes the icon; reload script icons lazily.
+        let is_script = |id: &AppId| matches!(id, AppId::Script { .. });
+        self.icons.textures.retain(|id, _| !is_script(id));
+        self.icons.recency.retain(|id| !is_script(id));
+        self.icons.failed.retain(|id| !is_script(id));
         self.scripts = script_entries(scripts);
         self.rebuild();
     }

@@ -14,6 +14,7 @@ use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread::{self, JoinHandle};
 
 use windows::Win32::Foundation::{PROPERTYKEY, SIZE};
+use windows::Win32::Storage::FileSystem::SearchPathW;
 use windows::Win32::System::Com::{
     CLSCTX_INPROC_SERVER, CLSCTX_LOCAL_SERVER, COINIT_APARTMENTTHREADED, COINIT_DISABLE_OLE1DDE,
     CoCreateInstance, CoInitializeEx, CoTaskMemFree, CoUninitialize, IPersistFile, STGM_READ,
@@ -27,7 +28,7 @@ use windows::Win32::UI::Shell::{
     SIIGBF_ICONONLY, ShellExecuteExW, ShellLink,
 };
 use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
-use windows::core::{GUID, Interface, PCWSTR, PWSTR};
+use windows::core::{GUID, Interface, PCWSTR, PWSTR, w};
 
 use crate::app::model::{AppEvent, Wake};
 use crate::core::app_index::{
@@ -467,9 +468,10 @@ fn icon_main(rx: Receiver<IconRequest>, cancel: Arc<AtomicBool>, wake: Wake) {
     }
 }
 
-/// `icon_key` is a shell parsing name: a `.lnk` path or `shell:AppsFolder\<AUMID>`.
+/// `icon_key` is a shell parsing name: a `.lnk` path, `shell:AppsFolder\<AUMID>`,
+/// or a script interpreter, which may be a bare name such as `pwsh.exe`.
 fn extract_icon(icon_key: &str, size: u32) -> Result<IconRgba, LaunchError> {
-    let key = wide(icon_key);
+    let key = resolve_executable(icon_key).unwrap_or_else(|| wide(icon_key));
     let factory: IShellItemImageFactory =
         unsafe { SHCreateItemFromParsingName(PCWSTR(key.as_ptr()), None) }
             .map_err(|e| LaunchError::from_win("load icon", &e))?;
@@ -487,6 +489,31 @@ fn extract_icon(icon_key: &str, size: u32) -> Result<IconRgba, LaunchError> {
         message: "unsupported icon bitmap".into(),
         code: None,
     })
+}
+
+/// Full path of a bare executable name, found the way `SearchPathW` looks
+/// (application directory, system directories, then `PATH`), adding `.exe`
+/// when the name has no extension. Paths and shell names are left alone.
+fn resolve_executable(name: &str) -> Option<Vec<u16>> {
+    if name.contains(['\\', '/', ':']) {
+        return None;
+    }
+    let file = wide(name);
+    let mut buffer = vec![0u16; 1024];
+    let len = unsafe {
+        SearchPathW(
+            PCWSTR::null(),
+            PCWSTR(file.as_ptr()),
+            w!(".exe"),
+            Some(&mut buffer),
+            None,
+        )
+    } as usize;
+    if len == 0 || len >= buffer.len() {
+        return None;
+    }
+    buffer.truncate(len + 1); // keep the terminator `PCWSTR` needs
+    Some(buffer)
 }
 
 /// Open a URI (for example `ms-settings:clipboard`) with the shell, off the UI
