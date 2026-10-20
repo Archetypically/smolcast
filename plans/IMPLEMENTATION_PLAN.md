@@ -1311,7 +1311,7 @@ scale. The size is predicted at the target monitor's effective DPI; if winit's
 Dismissal and height (2026-09-25): losing focus hides the palette once it has
 held focus since the show, except while a paste awaits its write receipt (the
 receipt then reports "focus moved" and the next frame hides). The window height
-grows to fit its content (notices, hotkey recovery UI), never below the 560×420
+grows to fit its content (notices, hotkey recovery UI), never below the 640×460
 base and never above 85% of the monitor height.
 
 Login registration (2026-09-25, `win/autostart.rs`): `start_at_login` is the
@@ -1335,6 +1335,11 @@ the proportional family, with egui's bundled fonts kept as symbol/emoji
 fallbacks; a missing file keeps the defaults. Adds `dwmapi.dll` to imports.
 `DwmExtendFrameIntoClientArea` is not used: on this undecorated winit window it
 made DWM draw minimize/maximize/close buttons over the palette.
+
+Raycast look (2026-10-20, `app/theme.rs`): both egui themes are restyled once
+at startup to match Raycast. The palette has a frameless search field, the
+view, and a footer action bar pinned to the bottom. The base window is 640×460.
+[`docs/DESIGN.md`](../docs/DESIGN.md) holds the layout, tokens, and rules.
 
 Settings form (2026-09-25, `app/settings_view.rs`, `core/config_edit.rs`): a
 root command "smolcast settings" (named to differ from Windows Settings) opens a structured form for every `[settings]` field
