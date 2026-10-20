@@ -17,19 +17,19 @@ use crate::core::history::{History, InsertOutcome, Limits, Payload, encode_recor
 use crate::win::clipboard::{ClipboardCommand, ClipboardError, WindowsContent, WindowsSnapshot};
 use crate::win::persistence::{ClipboardStoreCommand, LoadedEntry, unix_ms_now};
 
-use super::list;
+use super::{list, theme};
 
 /// Thumbnail textures kept alive (§7.5: about 8 MiB RGBA worst case).
 const THUMBNAIL_CACHE_CAP: usize = 32;
 /// Thumbnail edge bound in pixels (§7.5).
 const THUMBNAIL_EDGE: u32 = 256;
-const VISIBLE_ROWS: usize = 8;
+const VISIBLE_ROWS: usize = 6;
 /// Characters of text considered by search.
 const SEARCH_CHARS: usize = 512;
 const ROW_CHARS: usize = 60;
 const LIST_WIDTH: f32 = 300.0;
-/// Eight rows of about 28 points each.
-const LIST_HEIGHT: f32 = 232.0;
+/// Six rows; the clipboard and snippet views match.
+const LIST_HEIGHT: f32 = VISIBLE_ROWS as f32 * theme::ROW_STRIDE;
 
 /// Which history the view is showing.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -571,6 +571,9 @@ impl ClipboardView {
         ui.horizontal_top(|ui| {
             // Rows stack top-down inside the horizontal list | preview split,
             // and the list has a fixed height so the action row stays visible.
+            // The cap also stops the separator taking all remaining height,
+            // which grew the window every frame.
+            ui.set_max_height(LIST_HEIGHT);
             let size = Vec2::new(LIST_WIDTH, LIST_HEIGHT);
             ui.allocate_ui_with_layout(size, egui::Layout::top_down(egui::Align::Min), |ui| {
                 ui.set_min_size(size);

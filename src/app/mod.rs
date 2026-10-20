@@ -10,3 +10,4 @@ pub mod model;
 pub mod notice;
 pub mod settings_view;
 pub mod snippet_view;
+pub mod theme;

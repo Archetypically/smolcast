@@ -32,7 +32,7 @@ Manual checks passed: tray click and Quit, and hotkey-conflict recovery with a r
 
 **Milestone 6, tier 1 (palette snippets) implemented; awaiting Windows checks.** **Search Snippets** lists saved snippets with a preview and pastes them through the same paste-back path. An exact keyword match ranks first, and line breaks are pasted as CRLF. Snippets are created, edited and deleted right in the palette (Ctrl+N / Ctrl+E / Shift+Delete, or the **Create Snippet** command). Edits are stored as `[snippets.<id>]` tables (`name`, `text`, optional `keyword`) in config.toml, and comments elsewhere in the file are preserved. As-you-type expansion is a later, separately approved tier that will reuse `keyword` as its trigger.
 
-The approved engineering plan is [plans/IMPLEMENTATION_PLAN.md](plans/IMPLEMENTATION_PLAN.md). `BRIEF.md` is the product source.
+The approved engineering plan is [plans/IMPLEMENTATION_PLAN.md](plans/IMPLEMENTATION_PLAN.md). The visual design (Raycast-style) is in [docs/DESIGN.md](docs/DESIGN.md). `BRIEF.md` is the product source.
 
 ## Development setup
 

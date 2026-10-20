@@ -105,7 +105,8 @@ pub fn script_entries(scripts: &BTreeMap<String, ScriptConfig>) -> Vec<IndexedAp
                 args: script.args.clone(),
                 cwd: script.cwd.clone(),
             }),
-            icon_key: String::new(),
+            // The interpreter's own icon; the icon worker resolves bare names.
+            icon_key: script.interpreter.clone(),
         })
         .collect()
 }
@@ -605,6 +606,7 @@ mod tests {
         let entries = script_entries(&scripts);
         assert_eq!(entries.len(), 1);
         let entry = &entries[0];
+        assert_eq!(entry.icon_key, "C:\\Program Files\\PowerShell\\7\\pwsh.exe");
         assert_eq!(
             entry.id,
             AppId::Script {

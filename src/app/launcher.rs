@@ -29,9 +29,9 @@ const RESCAN_AFTER: Duration = Duration::from_secs(5 * 60);
 /// Application icon textures kept alive (§6.4).
 const ICON_CACHE_CAP: usize = 128;
 /// Result rows shown at once.
-const VISIBLE_ROWS: usize = 8;
+const VISIBLE_ROWS: usize = 7;
 /// Row icon edge in points.
-const ICON_POINTS: f32 = 24.0;
+const ICON_POINTS: f32 = 22.0;
 
 /// A launch the host should start.
 pub struct LaunchRequest {
@@ -235,8 +235,20 @@ impl Launcher {
         &mut self,
         ctx: &egui::Context,
         app_id: AppId,
+        icon_key: &str,
         result: Result<IconRgba, LaunchError>,
     ) {
+        // A script's interpreter can change while its icon is extracted; the
+        // reissued request for the new key is the one to keep.
+        if !self
+            .apps
+            .iter()
+            .any(|a| a.id == app_id && a.icon_key == icon_key)
+        {
+            // Allow a fresh request; at worst one icon is extracted twice.
+            self.icons.pending.remove(&app_id);
+            return;
+        }
         match result {
             Ok(icon) => {
                 let image = egui::ColorImage::from_rgba_premultiplied(
@@ -290,7 +302,25 @@ impl Launcher {
 
     /// Replace the configured scripts after a config reload (§10.3).
     pub fn set_scripts(&mut self, scripts: &BTreeMap<String, ScriptConfig>) {
-        self.scripts = script_entries(scripts);
+        let scripts = script_entries(scripts);
+        // An edited interpreter changes the icon: forget only the scripts whose
+        // icon key changed (or that are gone), so unrelated saves don't flash.
+        // A result still in flight for the old key is dropped on arrival.
+        let stale: HashSet<AppId> = self
+            .scripts
+            .iter()
+            .filter(|old| {
+                !scripts
+                    .iter()
+                    .any(|new| new.id == old.id && new.icon_key == old.icon_key)
+            })
+            .map(|old| old.id.clone())
+            .collect();
+        self.icons.textures.retain(|id, _| !stale.contains(id));
+        self.icons.recency.retain(|id| !stale.contains(id));
+        self.icons.failed.retain(|id| !stale.contains(id));
+        self.icons.pending.retain(|id| !stale.contains(id));
+        self.scripts = scripts;
         self.rebuild();
     }
 
@@ -363,6 +393,20 @@ impl Launcher {
 
     pub fn take_usage_snapshot(&mut self) -> Option<(u64, Vec<u8>)> {
         self.usage_snapshot.take()
+    }
+
+    /// The footer's label for Enter on the selected row.
+    pub fn primary_action(&self) -> &'static str {
+        match self
+            .ranked
+            .get(self.selected)
+            .map(|r| &self.apps[r.index].launch)
+        {
+            Some(LaunchSpec::Command(_)) => "Open Command",
+            Some(LaunchSpec::Script(_)) => "Run Script",
+            Some(_) => "Open Application",
+            None => "Open",
+        }
     }
 
     // ---- UI ---------------------------------------------------------------------
