@@ -1337,18 +1337,9 @@ fallbacks; a missing file keeps the defaults. Adds `dwmapi.dll` to imports.
 made DWM draw minimize/maximize/close buttons over the palette.
 
 Raycast look (2026-10-20, `app/theme.rs`): both egui themes are restyled once
-at startup. Neutral surfaces (dark `#1C1C1E`, light `#FAFAFA`), a soft gray
-selection instead of an accent fill, 8-point radii, and Raycast's red only for
-the text cursor and links. The palette is a frameless 18-point search field
-(with a painted back arrow in sub-views), a full-width hairline divider, the
-view, and a footer action bar pinned to the bottom: location and summon key on
-the left, the primary action and its key caps (`Enter`, `Ctrl S`, `Esc`) on the
-right. Key caps and the arrow are painted, not font glyphs, because `↵`/`←`
-may be missing from the fallback fonts. Root rows are 38 points with a
-"Suggestions"/"Results" header; seven launcher rows and six clipboard/snippet
-rows show at once; emoji cells are 44 points. The base window is 640×460. The
-host measures content height without the footer's padding so the window still
-shrinks back after growing.
+at startup to match Raycast. The palette has a frameless search field, the
+view, and a footer action bar pinned to the bottom. The base window is 640×460.
+[`docs/DESIGN.md`](../docs/DESIGN.md) holds the layout, tokens, and rules.
 
 Settings form (2026-09-25, `app/settings_view.rs`, `core/config_edit.rs`): a
 root command "smolcast settings" (named to differ from Windows Settings) opens a structured form for every `[settings]` field
