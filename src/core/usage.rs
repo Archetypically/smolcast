@@ -3,7 +3,7 @@
 //!
 //! Windows-free and host-testable. Usage is a cache, not user-authored config:
 //! a malformed or unsupported file is quarantined by the persistence layer and
-//! replaced with empty state (see `plans/IMPLEMENTATION_PLAN.md` §10.4).
+//! replaced with empty state (see `docs/systemPatterns.md` §10.4).
 //!
 //! Contract:
 //! - `schema_version` must equal 1; unknown fields are ignored.

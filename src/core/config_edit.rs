@@ -259,7 +259,7 @@ fn to_table(settings: &Settings, path: &Path) -> Result<toml::Table, ConfigError
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::config::ClipboardSource;
+    use crate::core::config::{ClipboardSource, PaletteSize};
 
     const PATH: &str = "config.toml";
 
@@ -328,9 +328,16 @@ Me'''
         assert!(!text.contains("clipboard_source"));
         assert!(!text.contains("clipboard_persist"));
 
+        assert!(!text.contains("palette_size"));
+
         settings.clipboard_source = ClipboardSource::Smolcast;
         let text = edit(Some(&text), &settings).unwrap();
         assert!(text.contains("clipboard_source = \"smolcast\""));
+        assert_eq!(current(&text).settings, settings);
+
+        settings.palette_size = PaletteSize::Large;
+        let text = edit(Some(&text), &settings).unwrap();
+        assert!(text.contains("palette_size = \"large\""));
         assert_eq!(current(&text).settings, settings);
     }
 

@@ -4,7 +4,7 @@
 //! unit-tested on the host (Linux). The shipped binary is Windows-only and lives
 //! in `src/`, importing this library as `smolcast::core`.
 //!
-//! Invariant (see `plans/IMPLEMENTATION_PLAN.md` §4): `lib.rs` and every `core`
+//! Invariant (see `docs/systemPatterns.md` §4): `lib.rs` and every `core`
 //! module compile without `cfg(windows)` and without importing the `windows`,
 //! eframe, egui, tray, or hotkey crates.
 

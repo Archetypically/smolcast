@@ -6,7 +6,7 @@
 //! comparison keys already normalized by [`path_key`] / [`aumid_key`]; this
 //! module owns identity and merging only.
 //!
-//! Contract (see `plans/IMPLEMENTATION_PLAN.md` §6.1–§6.2):
+//! Contract (see `docs/systemPatterns.md` §6.1–§6.2):
 //! - A shortcut carrying an AppUserModelID and an AppsFolder item with the same
 //!   normalized AUMID share `AppId::Packaged`.
 //! - Resolved classic shortcuts merge only when target, raw arguments, and
