@@ -309,18 +309,14 @@ impl SettingsView {
     fn actions_ui(&mut self, ui: &mut egui::Ui) {
         let problem = self.problem();
         let dirty = self.draft != self.saved;
+        let weak = ui.visuals().weak_text_color();
         let (text, color) = match (&problem, &self.status) {
             (Some(problem), _) => (problem.clone(), theme::ERROR),
-            (None, Status::Saving) => ("Saving…".to_owned(), ui.visuals().weak_text_color()),
+            (None, Status::Saving) => ("Saving…".to_owned(), weak),
             (None, Status::Failed(e)) => (e.clone(), theme::ERROR),
-            (None, Status::Saved) if !dirty => {
-                ("Saved.".to_owned(), ui.visuals().weak_text_color())
-            }
-            (None, _) if dirty => (
-                "Unsaved changes.".to_owned(),
-                ui.visuals().weak_text_color(),
-            ),
-            (None, _) => (String::new(), ui.visuals().weak_text_color()),
+            (None, Status::Saved) if !dirty => ("Saved.".to_owned(), weak),
+            (None, _) if dirty => ("Unsaved changes.".to_owned(), weak),
+            (None, _) => (String::new(), weak),
         };
         ui.horizontal(|ui| {
             let saving = matches!(self.status, Status::Saving);

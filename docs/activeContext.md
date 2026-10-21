@@ -64,7 +64,7 @@ Contents:
   selection; dead `Wake`/`Notice` methods gone; the clipboard row preview
   and search look only at the start of large items.
 
-## Motion and polish batch (2026-10-21), on a branch, unverified on Windows
+## Motion and polish batch (2026-10-21), on main, unverified on Windows
 
 Built and linted for the Windows target; host tests pass. Never run on
 Windows yet. Contents (decision 018, DESIGN.md Motion and Accessibility):
