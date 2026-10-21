@@ -28,6 +28,41 @@ pub fn keep_visible(selected: usize, first_row: &mut usize, visible_rows: usize)
     }
 }
 
+/// Mouse-wheel scrolling for the windowed lists: whole rows to move the
+/// window by while the pointer is over `ui` (positive scrolls down). The
+/// sub-row remainder carries over in `carry`, so slow trackpad scrolling
+/// still moves.
+pub fn wheel_rows(ui: &egui::Ui, row_height: f32, carry: &mut f32) -> isize {
+    if !ui.ui_contains_pointer() {
+        *carry = 0.0;
+        return 0;
+    }
+    // egui's delta is positive when content should move down (scroll up).
+    *carry -= ui.input(|i| i.smooth_scroll_delta.y);
+    let rows = (*carry / row_height).trunc();
+    *carry -= rows * row_height;
+    rows as isize
+}
+
+/// Move a `visible`-row window over `count` rows by `step` rows, then keep
+/// `selected` inside it, so the selection follows the wheel instead of
+/// pulling the window back.
+pub fn scroll_window(
+    first_row: &mut usize,
+    selected: &mut usize,
+    count: usize,
+    visible: usize,
+    step: isize,
+) {
+    if step == 0 || count == 0 {
+        return;
+    }
+    let max_first = count.saturating_sub(visible);
+    *first_row = first_row.saturating_add_signed(step).min(max_first);
+    let last = (*first_row + visible).min(count) - 1;
+    *selected = (*selected).clamp(*first_row, last);
+}
+
 /// One clickable result row: `leading` (an icon or glyph), then a truncating
 /// `name`, then `trailing` right-aligned. The trailing column is laid out first
 /// so the name only takes the remaining width. Selection is a soft rounded
@@ -48,7 +83,7 @@ pub fn row(
     // The fill depends on hover, known only once the click area exists, and
     // the click area must be added after the labels so they cannot take it.
     let fill = ui.painter().add(Shape::Noop);
-    let inner = rect.shrink2(Vec2::new(10.0, 0.0));
+    let inner = rect.shrink2(Vec2::new(theme::ROW_INSET, 0.0));
     ui.scope_builder(
         UiBuilder::new()
             .max_rect(inner)

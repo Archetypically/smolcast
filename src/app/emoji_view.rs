@@ -10,15 +10,18 @@ use std::collections::{HashMap, HashSet, VecDeque};
 
 use egui::{Key, Modifiers, RichText, TextureHandle, TextureOptions, Vec2};
 
+use crate::core::config::PaletteSize;
 use crate::core::emoji::{self, Emoji};
 use crate::core::emoji_data::GROUPS;
 use crate::win::icon::IconRgba;
 
-use super::theme;
+use super::{list, theme};
 
-const COLUMNS: usize = 12;
-const VISIBLE_ROWS: usize = 6;
+/// Grid rows shown at once in a medium palette.
+const MEDIUM_ROWS: usize = 6;
 const CELL: f32 = 44.0;
+/// Space between grid cells.
+const GRID_GAP: f32 = 2.0;
 const GLYPH_SIZE: f32 = 28.0;
 /// Glyph textures kept alive: a few grid pages at any display scale.
 const GLYPH_CACHE_CAP: usize = 256;
@@ -50,6 +53,11 @@ pub struct EmojiView {
     paste_request: Option<&'static str>,
     glyphs: Glyphs,
     requests: Vec<GlyphRequest>,
+    /// Grid shape, from the palette size.
+    columns: usize,
+    rows: usize,
+    /// Mouse-wheel distance not yet worth a whole grid row.
+    wheel: f32,
 }
 
 impl Default for EmojiView {
@@ -68,7 +76,21 @@ impl EmojiView {
             paste_request: None,
             glyphs: Glyphs::default(),
             requests: Vec::new(),
+            columns: 12,
+            rows: MEDIUM_ROWS,
+            wheel: 0.0,
         }
+    }
+
+    /// Columns fill the window's width; rows follow the list rows.
+    pub fn set_palette_size(&mut self, size: PaletteSize) {
+        self.columns = match size {
+            PaletteSize::Small => 11,
+            PaletteSize::Medium => 12,
+            PaletteSize::Large => 15,
+        };
+        self.rows = theme::visible_rows(MEDIUM_ROWS, size);
+        self.first_row = 0;
     }
 
     pub fn take_glyph_requests(&mut self) -> Vec<GlyphRequest> {
@@ -157,10 +179,10 @@ impl EmojiView {
                 self.selected = self.selected.saturating_sub(1);
             }
             if down {
-                self.selected = (self.selected + COLUMNS).min(count - 1);
+                self.selected = (self.selected + self.columns).min(count - 1);
             }
             if up {
-                self.selected = self.selected.saturating_sub(COLUMNS);
+                self.selected = self.selected.saturating_sub(self.columns);
             }
         }
         if enter && paste_enabled {
@@ -183,16 +205,26 @@ impl EmojiView {
             self.first_row = 0;
         }
         if self.results.is_empty() {
-            ui.label(RichText::new("No matching emoji.").weak());
+            theme::inset(ui, |ui| {
+                ui.label(RichText::new("No matching emoji.").weak())
+            });
             return;
         }
         self.selected = self.selected.min(self.results.len() - 1);
 
-        let row = self.selected / COLUMNS;
+        // The wheel scrolls whole grid rows; the selection keeps its column.
+        let step = list::wheel_rows(ui, CELL + GRID_GAP, &mut self.wheel);
+        let grid_rows = self.results.len().div_ceil(self.columns);
+        let column = self.selected % self.columns;
+        let mut row = self.selected / self.columns;
+        list::scroll_window(&mut self.first_row, &mut row, grid_rows, self.rows, step);
+        self.selected = (row * self.columns + column).min(self.results.len() - 1);
+
+        let row = self.selected / self.columns;
         if row < self.first_row {
             self.first_row = row;
-        } else if row >= self.first_row + VISIBLE_ROWS {
-            self.first_row = row + 1 - VISIBLE_ROWS;
+        } else if row >= self.first_row + self.rows {
+            self.first_row = row + 1 - self.rows;
         }
 
         let edge = ((GLYPH_SIZE * ui.ctx().pixels_per_point()).round() as u32).clamp(16, 128);
@@ -204,11 +236,11 @@ impl EmojiView {
         }
 
         let table = emoji::all();
-        let start = self.first_row * COLUMNS;
-        let end = (start + VISIBLE_ROWS * COLUMNS).min(self.results.len());
+        let start = self.first_row * self.columns;
+        let end = (start + self.rows * self.columns).min(self.results.len());
         let mut clicked = None;
         egui::Grid::new("emoji-grid")
-            .spacing(Vec2::splat(2.0))
+            .spacing(Vec2::splat(GRID_GAP))
             .show(ui, |ui| {
                 for offset in 0..end - start {
                     let index = start + offset;
@@ -218,7 +250,7 @@ impl EmojiView {
                     {
                         clicked = Some(index);
                     }
-                    if (offset + 1) % COLUMNS == 0 {
+                    if (offset + 1) % self.columns == 0 {
                         ui.end_row();
                     }
                 }
@@ -230,33 +262,35 @@ impl EmojiView {
             }
         }
 
-        ui.add_space(6.0);
+        ui.add_space(theme::SECTION_GAP);
         let selected_index = self.results[self.selected];
         let selected = &table[selected_index];
         let selected_glyph = self.glyph(selected_index);
-        ui.horizontal(|ui| {
-            let size = Vec2::splat(GLYPH_SIZE * 1.5);
-            match &selected_glyph {
-                Some(texture) => {
-                    ui.add(egui::Image::new(texture).fit_to_exact_size(size));
+        theme::inset(ui, |ui| {
+            ui.horizontal(|ui| {
+                let size = Vec2::splat(GLYPH_SIZE * 1.5);
+                match &selected_glyph {
+                    Some(texture) => {
+                        ui.add(egui::Image::new(texture).fit_to_exact_size(size));
+                    }
+                    None => {
+                        ui.allocate_exact_size(size, egui::Sense::hover());
+                    }
                 }
-                None => {
-                    ui.allocate_exact_size(size, egui::Sense::hover());
-                }
-            }
-            ui.vertical(|ui| {
-                ui.label(RichText::new(selected.name).strong());
-                ui.label(
-                    RichText::new(format!(
-                        "{} · {} of {}",
-                        GROUPS[selected.group as usize],
-                        self.selected + 1,
-                        self.results.len()
-                    ))
-                    .weak()
-                    .small(),
-                );
-            });
+                ui.vertical(|ui| {
+                    ui.label(RichText::new(selected.name).strong());
+                    ui.label(
+                        RichText::new(format!(
+                            "{} · {} of {}",
+                            GROUPS[selected.group as usize],
+                            self.selected + 1,
+                            self.results.len()
+                        ))
+                        .weak()
+                        .small(),
+                    );
+                });
+            })
         });
     }
 }
