@@ -67,7 +67,7 @@ Contents:
 ## Motion and polish batch (2026-10-21), on a branch, unverified on Windows
 
 Built and linted for the Windows target; host tests pass. Never run on
-Windows yet. Contents (decision 018, DESIGN.md Motion):
+Windows yet. Contents (decision 018, DESIGN.md Motion and Accessibility):
 
 - Summon fades/scales content in (160 ms, clock starts after uncloak);
   Esc/click-away/close fade out (90 ms) then hide; summon during the fade
@@ -77,6 +77,8 @@ Windows yet. Contents (decision 018, DESIGN.md Motion):
   held; the back arrow leans on hover.
 - `reduce_motion` setting (`system` follows `SPI_GETCLIENTAREAANIMATION`,
   re-read on each show): fades only. Settings > Palette > Reduce motion.
+- Accessibility: visible 1 pt focus ring on buttons/checkboxes/menus (egui's
+  active style); stronger fills and gray text under high contrast.
 
 ## Pending Windows checks
 
@@ -85,7 +87,8 @@ Windows yet. Contents (decision 018, DESIGN.md Motion):
   during the fade (keeps destination: paste still works), paste/launch still
   instant, view slides, glide in each list and the emoji grid, typing during
   the appear animation, reduced motion via the setting and via Windows'
-  Animation effects switch, idle CPU 0 after animations end.
+  Animation effects switch, high-contrast theme, Tab focus ring in Settings,
+  idle CPU 0 after animations end.
 
 - 2026-10-21 batch: icon sharpness at 100/150/200%; spacing in every view;
   window/text size switching; keep-state and fresh start after launch/paste;
@@ -127,6 +130,9 @@ Windows yet. Contents (decision 018, DESIGN.md Motion):
   Twemoji, CC-BY/MIT with notice) costs ~1–2 MB. Also rank the Flags group
   above "flag in hole" for the bare query `flag`.
 - **Snippet expansion** tier 2 stays unapproved (decision 009).
+- **Screen readers**: eframe's `accesskit` feature would expose the palette
+  to Narrator, but adds dependencies and size, and the painted rows need
+  `widget_info` labels. Not started; needs the user's call.
 
 ## Standing rules
 

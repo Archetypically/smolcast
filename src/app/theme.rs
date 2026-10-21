@@ -2,8 +2,9 @@
 //! selection instead of an accent fill, 8-point corner radii, a large frameless
 //! search field, hairline dividers, and a footer action bar with key caps.
 //!
-//! Both egui themes are styled at startup and again when the text size or
-//! reduced motion changes; egui keeps following the system theme.
+//! Both egui themes are styled at startup and again when the text size,
+//! reduced motion, or high contrast changes; egui keeps following the system
+//! theme.
 
 use std::time::{Duration, Instant};
 
@@ -113,19 +114,43 @@ fn palette(dark: bool) -> &'static Palette {
     if dark { &DARK } else { &LIGHT }
 }
 
+/// Under a Windows high-contrast theme the soft fills and gray text are too
+/// faint: strengthen them, keeping the same look.
+fn high_contrast(p: &Palette, dark: bool) -> Palette {
+    let (overlay, weak) = if dark {
+        (Color32::WHITE, Color32::from_rgb(200, 200, 205))
+    } else {
+        (Color32::BLACK, Color32::from_rgb(60, 60, 65))
+    };
+    let alpha = |opacity: f32| overlay.gamma_multiply(opacity);
+    Palette {
+        weak,
+        selection: alpha(0.28),
+        hover: alpha(0.14),
+        control: alpha(0.16),
+        divider: alpha(0.4),
+        ..*p
+    }
+}
+
 /// How the palette is styled beyond its text size.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Look {
     pub text: TextSize,
     /// egui's own animations (menus, toggles) are turned off too.
     pub reduced_motion: bool,
+    pub high_contrast: bool,
 }
 
 /// Style both egui themes. Called again when the look changes.
 pub fn install(ctx: &Context, look: Look) {
     for theme in [Theme::Dark, Theme::Light] {
+        let dark = theme == Theme::Dark;
+        let base = palette(dark);
+        let contrast = look.high_contrast.then(|| high_contrast(base, dark));
+        let p = contrast.as_ref().unwrap_or(base);
         ctx.style_mut_of(theme, |style| {
-            apply(style, palette(theme == Theme::Dark), look.text);
+            apply(style, p, look.text);
             // Set both ways: the style persists, so turning reduced motion
             // off again must restore egui's own animations.
             style.animation_time = if look.reduced_motion {
@@ -192,6 +217,10 @@ fn apply(style: &mut egui::Style, p: &Palette, text: TextSize) {
         state.corner_radius = CornerRadius::same(6);
         state.expansion = 0.0;
     }
+    // egui styles a keyboard-focused control as active, whose fill is barely
+    // darker than at rest: a hairline ring makes Tab focus visible. Text
+    // fields are exempt (their cursor shows focus).
+    w.active.bg_stroke = Stroke::new(1.0, p.weak);
     w.noninteractive.corner_radius = radius;
 }
 
@@ -316,6 +345,9 @@ pub fn back_button(ui: &mut egui::Ui) -> egui::Response {
     let (rect, response) = ui.allocate_exact_size(Vec2::splat(28.0), egui::Sense::click());
     let visuals = ui.style().interact(&response);
     ui.painter().rect_filled(rect, 6, visuals.bg_fill);
+    // The focus ring other controls get from the active style.
+    ui.painter()
+        .rect_stroke(rect, 6, visuals.bg_stroke, egui::StrokeKind::Inside);
     // On hover the arrow leans the way it points.
     let lean = super::motion::movement(
         ui,

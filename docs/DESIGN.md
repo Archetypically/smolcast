@@ -63,6 +63,7 @@ bottom padding so that shrinking works.
 | Selected row, key caps | white 10% | black 8% |
 | Text selection | `#FF6363` at 35% | `#FF6363` at 35% |
 | Hover | white 5% | black 4% |
+| Keyboard focus ring (buttons, checkboxes, menus) | 1 pt secondary text | 1 pt secondary text |
 | Controls (buttons, form fields) | white 7% | black 5% |
 | Dividers | white 10% | black 8% |
 
@@ -161,6 +162,16 @@ starts a new motion epoch, so highlights appear in place instead of gliding in
 from a stale spot. Animations request repaints only while they run; a resting
 palette is idle.
 
+## Accessibility
+
+- **Reduced motion**, as above.
+- **Keyboard focus** on buttons, checkboxes and menus shows a 1-point ring
+  (egui draws keyboard focus with the active style, whose fill alone was
+  nearly invisible). Text fields keep their cursor instead.
+- **High contrast.** Under a Windows high-contrast theme (re-read on each
+  show) the selection, hover, control and divider fills are stronger and the
+  secondary text is closer to the primary text. Mica is off then (§12.7).
+
 ## Rules
 
 - **Write key names out.** Use "Enter", "Esc" and "Ctrl", not `↵` or `⌘`.
@@ -183,7 +194,7 @@ palette is idle.
 - **Color only for status.** Warnings are amber and errors are red, in small
   text. Nothing else gets color.
 - **Check new views in both themes.** Also check them at 100%, 150% and 200%
-  scaling, and with reduced motion on.
+  scaling, with reduced motion on, and under a high-contrast theme.
 - **Animate paint, never input.** New motion goes through `core::motion`
   tokens and `app::motion` helpers, stays under 200 ms, and has a reduced
   form with no movement.
