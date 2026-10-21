@@ -518,7 +518,9 @@ impl EframeApp {
             self.reveal_settled = false;
         } else {
             // This frame is presented after `ui` returns; uncloak on the next
-            // one. A resize this frame repaints at the new size first.
+            // one. A resize this frame repaints at the new size first. The
+            // appear animation waits until it can be seen.
+            self.model.hold_appear();
             self.reveal_frames += 1;
             self.reveal_settled = !resized;
             ctx.request_repaint();
@@ -611,7 +613,7 @@ impl eframe::App for EframeApp {
             appearance::set_dark(window, theme == egui::Theme::Dark);
             self.frame_theme = Some(theme);
         }
-        if self.model.is_visible() {
+        if self.model.is_painted() {
             // DWM draws the rounded corners and border; with Mica the panel is
             // transparent so the backdrop shows through.
             let fill = if self.mica {

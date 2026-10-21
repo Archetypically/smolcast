@@ -10,6 +10,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver};
 use std::time::{Duration, Instant};
 
+use egui::emath::TSTransform;
 use egui::{Color32, Context, Key, Modifiers, RichText, ViewportCommand};
 
 use crate::core::app_index::{AppId, Command};
@@ -17,6 +18,7 @@ use crate::core::config::{ClipboardSource, ConfigError, ConfigFile, PaletteSize,
 use crate::core::config_edit::ConfigEdit;
 use crate::core::favorites::Favorites;
 use crate::core::history::{Limits, Payload};
+use crate::core::motion::{self as timing, Tween};
 use crate::core::usage::Usage;
 use crate::win::clipboard::{
     ClipboardCommand, ClipboardError, ClipboardWriteReceipt, WindowsSnapshot,
@@ -247,6 +249,16 @@ pub struct AppModel {
     /// When the palette was dismissed with its state kept; `None` after a
     /// completed action, so the next summon starts fresh.
     hidden_at: Option<Instant>,
+    /// How present the palette is, from 0 (gone) to 1 (shown): it fades and
+    /// settles in on a show, and fades out on a dismiss.
+    presence: Tween,
+    /// A dismissed palette is fading out; it is hidden when the fade ends.
+    /// A summon meanwhile brings it straight back.
+    dismissing: bool,
+    /// The view and form mode last painted, to animate moving between them.
+    scene: Option<(View, bool)>,
+    /// The body is sliding in since then, forward (deeper) or back.
+    navigating: Option<(Instant, bool)>,
 }
 
 impl AppModel {
@@ -305,6 +317,10 @@ impl AppModel {
             open_config_file: false,
             had_focus: false,
             hidden_at: None,
+            presence: Tween::at(0.0, Instant::now()),
+            dismissing: false,
+            scene: None,
+            navigating: None,
             config,
         };
         model.set_palette_size(palette_size);
@@ -341,7 +357,7 @@ impl AppModel {
             && ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape))
         {
             if self.view == View::Root {
-                self.hide(ctx);
+                self.dismiss();
             } else if !self.view_escape() {
                 self.open_view(View::Root);
             }
@@ -355,7 +371,7 @@ impl AppModel {
             match ctx.input(|i| i.viewport().focused) {
                 Some(true) => self.had_focus = true,
                 Some(false) if self.had_focus && matches!(self.paste, PasteState::Idle) => {
-                    self.hide(ctx);
+                    self.dismiss();
                 }
                 _ => {}
             }
@@ -365,6 +381,12 @@ impl AppModel {
         // A pending tray Quit is the one close that must go through.
         if !self.quit_requested && ctx.input(|i| i.viewport().close_requested()) {
             ctx.send_viewport_cmd(ViewportCommand::CancelClose);
+            if self.visible {
+                self.dismiss();
+            }
+        }
+
+        if self.dismissing && self.presence.done(Instant::now()) {
             self.hide(ctx);
         }
 
@@ -377,7 +399,42 @@ impl AppModel {
     /// mentions `eframe::Frame`. The host wraps this in the root panel.
     /// Returns the slack padded above the footer (see `palette_ui`).
     pub fn ui(&mut self, ui: &mut egui::Ui) -> f32 {
-        self.palette_ui(ui)
+        let now = Instant::now();
+        if !self.presence.done(now) {
+            ui.ctx().request_repaint();
+        }
+        let (scale, opacity) = timing::presence_look(self.presence.value(now));
+        // Scaled about the window's center. Always wrapped, even at rest, so
+        // widget ids (and the search field's focus) stay the same.
+        let center = ui.clip_rect().center().to_vec2();
+        let transform = TSTransform::from_translation(center)
+            * TSTransform::from_scaling(scale)
+            * TSTransform::from_translation(-center);
+        ui.with_visual_transform(transform, |ui| {
+            ui.multiply_opacity(opacity);
+            if self.dismissing {
+                // Fading out: nothing may be clicked. Keep the fade as is.
+                ui.visuals_mut().disabled_alpha = 1.0;
+                ui.disable();
+            }
+            self.palette_ui(ui)
+        })
+        .inner
+    }
+
+    /// Whether the palette is on screen: shown, or fading out.
+    pub fn is_painted(&self) -> bool {
+        self.visible || self.dismissing
+    }
+
+    /// The host keeps a fast-path summon cloaked for its first frames; the
+    /// appear animation starts once it is uncloaked.
+    pub fn hold_appear(&mut self) {
+        if self.visible {
+            let now = Instant::now();
+            self.presence = Tween::at(0.0, now);
+            self.presence.retarget(1.0, timing::APPEAR, now);
+        }
     }
 
     // ---- host-facing accessors -------------------------------------------------
@@ -831,7 +888,11 @@ impl AppModel {
     /// Summon is idempotent (§5.2): show and focus when hidden, only focus when
     /// already visible, and never replace the captured destination while showing.
     fn summon(&mut self, ctx: &Context) {
-        if !self.visible {
+        if self.dismissing {
+            // Still fading out: come back as it was, with the destination it
+            // had (the palette itself is the foreground window now).
+            self.show(ctx);
+        } else if !self.visible {
             // A new summon cancels any stale paste before capturing a new
             // destination (§8.2).
             if let Some(cancel) = self.paste_cancel.take() {
@@ -847,10 +908,18 @@ impl AppModel {
     }
 
     fn show(&mut self, ctx: &Context) {
-        // Move while still hidden so the window never appears at its old spot.
-        if let Some(window) = &self.palette_window {
+        let returning = std::mem::take(&mut self.dismissing);
+        // Move while still hidden so the window never appears at its old
+        // spot; one still fading out stays put.
+        if !returning && let Some(window) = &self.palette_window {
             window.place_on_cursor_monitor();
         }
+        let now = Instant::now();
+        if !returning {
+            self.presence = Tween::at(0.0, now);
+            self.scene = None;
+        }
+        self.presence.retarget(1.0, timing::APPEAR, now);
         self.visible = true;
         self.had_focus = false;
         self.focus_search = true;
@@ -864,15 +933,29 @@ impl AppModel {
         ctx.send_viewport_cmd(ViewportCommand::Focus);
     }
 
-    /// Dismiss, keeping the palette's state for `keep_state_secs`.
-    fn hide(&mut self, ctx: &Context) {
+    /// Dismiss with a quick fade, keeping the palette's state for
+    /// `keep_state_secs`. `step` hides the window when the fade ends.
+    fn dismiss(&mut self) {
         self.visible = false;
+        self.dismissing = true;
         self.recording = false;
         // Escape before the receipt cancels injection; the clipboard content,
         // if already written, stays (§8.2).
         self.paste = PasteState::Idle;
-        self.destination = None;
         self.hidden_at = Some(Instant::now());
+        self.presence.retarget(0.0, timing::DISMISS, Instant::now());
+    }
+
+    /// Hide at once, keeping the palette's state for `keep_state_secs`. A
+    /// completed action hides without a fade so its window is not kept
+    /// waiting (paste-back restores the destination next).
+    fn hide(&mut self, ctx: &Context) {
+        if !self.dismissing {
+            self.dismiss();
+        }
+        self.dismissing = false;
+        self.presence = Tween::at(0.0, Instant::now());
+        self.destination = None;
         ctx.send_viewport_cmd(ViewportCommand::Visible(false));
     }
 
@@ -920,7 +1003,9 @@ impl AppModel {
             View::Settings => Some(Command::Settings.title()),
         };
         let paste_enabled = matches!(self.paste, PasteState::Idle);
-        if self.recording {
+        if self.dismissing {
+            // Fading out: paint only.
+        } else if self.recording {
             self.capture_chord(ui);
         } else {
             // Backspace on an empty search leaves a sub-view (§5.4); forms
@@ -948,6 +1033,7 @@ impl AppModel {
                 View::Settings => self.settings.handle_keys(ui),
             }
         }
+        let (nav_offset, nav_opacity) = self.navigation(ui.ctx());
         let hint = match self.view {
             View::Root => "Search apps and commands…",
             View::Clipboard => "Search clipboard history…",
@@ -960,6 +1046,7 @@ impl AppModel {
         egui::Frame::new()
             .inner_margin(egui::Margin::symmetric(theme::GUTTER, 12))
             .show(ui, |ui| {
+                ui.multiply_opacity(nav_opacity);
                 // A fixed 28-point line (the back button's height) so the
                 // query sits at the same height with or without the button.
                 let line = egui::vec2(ui.available_width(), 28.0);
@@ -996,7 +1083,12 @@ impl AppModel {
             .inner_margin(egui::Margin::same(theme::BODY_MARGIN))
             .show(ui, |ui| {
                 ui.spacing_mut().item_spacing.y = spacing;
-                self.body_ui(ui, paste_enabled);
+                // Paint only: clicks land where the rows will settle.
+                let slide = TSTransform::from_translation(egui::vec2(nav_offset, 0.0));
+                ui.with_visual_transform(slide, |ui| {
+                    ui.multiply_opacity(nav_opacity);
+                    self.body_ui(ui, paste_enabled);
+                });
             });
         if back {
             self.open_view(View::Root);
@@ -1009,6 +1101,29 @@ impl AppModel {
         theme::divider(ui);
         self.footer_ui(ui, crumb);
         slack
+    }
+
+    /// Slide the body in after moving to another view or form, deeper from
+    /// the right and back from the left. Returns its offset and opacity.
+    fn navigation(&mut self, ctx: &Context) -> (f32, f32) {
+        let depth = |(view, form): (View, bool)| u8::from(view != View::Root) + u8::from(form);
+        let scene = (self.view, self.search_hidden());
+        if let Some(previous) = self.scene.replace(scene)
+            && previous != scene
+        {
+            self.navigating = Some((Instant::now(), depth(scene) > depth(previous)));
+        }
+        let Some((since, forward)) = self.navigating else {
+            return (0.0, 1.0);
+        };
+        let duration = timing::NAVIGATE.as_secs_f32();
+        let t = (since.elapsed().as_secs_f32() / duration).min(1.0);
+        if t < 1.0 {
+            ctx.request_repaint();
+        } else {
+            self.navigating = None;
+        }
+        timing::navigate_look(t, forward)
     }
 
     fn body_ui(&mut self, ui: &mut egui::Ui, paste_enabled: bool) {

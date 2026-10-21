@@ -64,7 +64,23 @@ Contents:
   selection; dead `Wake`/`Notice` methods gone; the clipboard row preview
   and search look only at the start of large items.
 
+## Motion and polish batch (2026-10-21), on a branch, unverified on Windows
+
+Built and linted for the Windows target; host tests pass. Never run on
+Windows yet. Contents (decision 018, DESIGN.md Motion):
+
+- Summon fades/scales content in (160 ms, clock starts after uncloak);
+  Esc/click-away/close fade out (90 ms) then hide; summon during the fade
+  returns in place; launch/paste/web search still hide at once.
+- View and form changes slide the body in (150 ms).
+
 ## Pending Windows checks
+
+- Motion batch: summon feel with and without the fast path (no stale frame,
+  animation visible from its start), Esc and click-away fades, re-summon
+  during the fade (keeps destination: paste still works), paste/launch still
+  instant, view slides, typing during
+  the appear animation, idle CPU 0 after animations end.
 
 - 2026-10-21 batch: icon sharpness at 100/150/200%; spacing in every view;
   window/text size switching; keep-state and fresh start after launch/paste;
@@ -79,7 +95,7 @@ Contents:
 
 ## Next, in order
 
-1. User's Windows pass over the batch above, including the review fixes;
+1. User's Windows pass over both batches above, including the review fixes;
    fix findings.
 2. Decide the deferred review items above, and the structural refactors the
    review proposed (one texture LRU, a list cursor, a worker abstraction,
