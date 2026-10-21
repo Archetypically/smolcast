@@ -120,15 +120,18 @@ pub enum Command {
     /// Opens the snippet view straight into a new-snippet form (§10.6).
     CreateSnippet,
     Settings,
+    /// The version and credits.
+    About,
 }
 
 impl Command {
-    pub const ALL: [Command; 5] = [
+    pub const ALL: [Command; 6] = [
         Command::ClipboardHistory,
         Command::Emoji,
         Command::Snippets,
         Command::CreateSnippet,
         Command::Settings,
+        Command::About,
     ];
 
     pub fn title(self) -> &'static str {
@@ -138,6 +141,15 @@ impl Command {
             Command::Snippets => "Search Snippets",
             Command::CreateSnippet => "Create Snippet",
             Command::Settings => "smolcast settings",
+            Command::About => "About smolcast",
+        }
+    }
+
+    /// Other names a command is found by.
+    pub fn aliases(self) -> &'static [&'static str] {
+        match self {
+            Command::About => &["Credits"],
+            _ => &[],
         }
     }
 
@@ -149,6 +161,7 @@ impl Command {
             Command::Snippets => "snippets",
             Command::CreateSnippet => "create-snippet",
             Command::Settings => "settings",
+            Command::About => "about",
         }
     }
 
@@ -167,7 +180,7 @@ pub fn builtin_commands() -> Vec<IndexedApp> {
             id: command.id(),
             display_name: command.title().into(),
             sort_name: command.title().to_lowercase(),
-            aliases: Vec::new(),
+            aliases: command.aliases().iter().map(|&a| a.to_owned()).collect(),
             source: AppSource::Builtin,
             launch: LaunchSpec::Command(command),
             icon_key: String::new(),
@@ -595,6 +608,9 @@ mod tests {
             r#"{"kind":"command","name":"clipboard-history"}"#
         );
         assert_eq!(commands[0].source, AppSource::Builtin);
+        let about = commands.last().unwrap();
+        assert_eq!(about.display_name, "About smolcast");
+        assert_eq!(about.aliases, vec!["Credits"]);
     }
 
     #[test]
