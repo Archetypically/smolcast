@@ -126,9 +126,11 @@ The font is Segoe UI, with egui's bundled fonts as fallbacks.
   "Edit config file…" is on the right.
 - **Key cap** (`theme::key_cap`). Small gray text on a rounded selection fill.
   It is painted at the text's size so centered layouts cannot stretch it.
+  While its key is held, the cap lights up (brighter fill, full-strength text).
 - **Action hint** (`theme::action_hint`). A label followed by its key caps,
   for right-to-left footer layouts.
 - **Back button** (`theme::back_button`). A painted arrow, not a font glyph.
+  On hover the arrow leans 1.5 points to the left.
 - **Busy indicator** (`theme::busy`, `busy_small`, `action_busy`). A small
   egui spinner beside weak text. Gate it with `theme::busy_due`, which applies
   the 150 ms delay. Spinners animate only while drawn, so a hidden palette
@@ -146,11 +148,18 @@ and keys always act on final positions, and typing works from the first frame.
 | Dismiss (Esc, click-away) | Content fades out and scales to 97%, input off, then the window hides; a summon meanwhile reverses it | 90 ms | ease in (cubic) |
 | Completed action (launch, paste, web search) | Nothing: the window hides at once | — | — |
 | View change, form open or close | Body slides 12 pt in (from the right going deeper, from the left going back) and fades in; the search line fades | 150 ms | ease out (cubic) |
+| Selection | The row or emoji cell fill glides to its new place | 80 ms | linear |
+| Hover | Row and cell hover fills fade in and out | 80 ms | linear |
+| Emoji cell | The selected glyph lifts to 108% | 120 ms | ease out (cubic) |
+| Back button | The arrow leans 1.5 pt left on hover | 100 ms | linear |
+| Key cap | Lights up while its key is held | 60 ms | linear |
 
 Reduced motion (`reduce_motion`, following Windows' Animation effects by
-default) keeps the fades and drops all movement: no scaling or sliding, and
-egui's own animations are off. Animations request repaints only while they
-run; a resting palette is idle.
+default) keeps the fades and drops all movement: no scaling, sliding, gliding,
+lifting or leaning, and egui's own animations are off. A new summon or view
+starts a new motion epoch, so highlights appear in place instead of gliding in
+from a stale spot. Animations request repaints only while they run; a resting
+palette is idle.
 
 ## Rules
 
