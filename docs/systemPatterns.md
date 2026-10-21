@@ -1376,7 +1376,7 @@ window close) fades it out (90 ms) with input disabled, then hides the window.
 A summon during that fade brings the palette back in place with its captured
 destination. Completed actions (launch, paste, web search) hide at once, so
 paste-back timing (§8.2) is unchanged. Moving between views or into a form
-slides the body in (150 ms). `reduce_motion`
+slides the body in (150 ms); selections glide between rows. `reduce_motion`
 resolves against `SPI_GETCLIENTAREAANIMATION`, re-read on each show: reduced
 motion keeps fades and drops movement and scaling, and sets egui's own
 `animation_time` to 0. Details in [`docs/DESIGN.md`](DESIGN.md).

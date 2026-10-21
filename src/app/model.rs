@@ -920,6 +920,7 @@ impl AppModel {
         if !returning {
             self.presence = Tween::at(0.0, now);
             self.scene = None;
+            motion::new_epoch(ctx);
         }
         self.presence.retarget(1.0, timing::APPEAR, now);
         self.visible = true;
@@ -1114,6 +1115,7 @@ impl AppModel {
             && previous != scene
         {
             self.navigating = Some((Instant::now(), depth(scene) > depth(previous)));
+            motion::new_epoch(ctx);
         }
         let Some((since, forward)) = self.navigating else {
             return (0.0, 1.0);

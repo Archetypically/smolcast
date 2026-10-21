@@ -12,7 +12,7 @@ tags: [ui, motion, accessibility]
 
 ## Decision
 
-Spawn, dismiss and navigation animations transform and fade what
+Spawn, dismiss, navigation and selection animations transform and fade what
 egui paints (`Ui::with_visual_transform`, opacity); the OS window is shown and
 hidden at once, as before. Dismissals fade out for 90 ms before hiding;
 completed actions hide immediately. A `reduce_motion` setting (default:
@@ -52,8 +52,8 @@ vanish at once while the content animates inside them.
 ## Consequences
 
 - `core::motion` owns the timing tokens and the interruptible `Tween`
-  (host-tested); `app::motion` holds the reduced-motion flag. DESIGN.md has
-  the Motion table.
+  (host-tested); `app::motion` holds the reduced-motion flag, highlight glides
+  and hover fades. DESIGN.md has the Motion table.
 - `AppModel::dismiss` fades and keeps the paste destination until the window
   hides, so a summon during the fade returns in place; `hide` is immediate.
   The host paints while `is_painted()` and starts the appear clock after a

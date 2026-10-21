@@ -72,7 +72,9 @@ Windows yet. Contents (decision 018, DESIGN.md Motion):
 - Summon fades/scales content in (160 ms, clock starts after uncloak);
   Esc/click-away/close fade out (90 ms) then hide; summon during the fade
   returns in place; launch/paste/web search still hide at once.
-- View and form changes slide the body in (150 ms).
+- View and form changes slide the body in (150 ms); row and emoji selection
+  glides; hover fills fade; the selected emoji lifts; key caps light up while
+  held; the back arrow leans on hover.
 - `reduce_motion` setting (`system` follows `SPI_GETCLIENTAREAANIMATION`,
   re-read on each show): fades only. Settings > Palette > Reduce motion.
 
@@ -81,7 +83,7 @@ Windows yet. Contents (decision 018, DESIGN.md Motion):
 - Motion batch: summon feel with and without the fast path (no stale frame,
   animation visible from its start), Esc and click-away fades, re-summon
   during the fade (keeps destination: paste still works), paste/launch still
-  instant, view slides, typing during
+  instant, view slides, glide in each list and the emoji grid, typing during
   the appear animation, reduced motion via the setting and via Windows'
   Animation effects switch, idle CPU 0 after animations end.
 

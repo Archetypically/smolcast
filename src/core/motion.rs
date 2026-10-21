@@ -10,6 +10,15 @@ pub const APPEAR: Duration = Duration::from_millis(160);
 pub const DISMISS: Duration = Duration::from_millis(90);
 /// The body sliding in after moving between views.
 pub const NAVIGATE: Duration = Duration::from_millis(150);
+/// A selection highlight gliding to its new place, and a hover fill fading
+/// in or out, in seconds.
+pub const GLIDE_SECS: f32 = 0.08;
+/// The selected emoji lifting to its larger size, in seconds.
+pub const POP_SECS: f32 = 0.12;
+/// The back arrow leaning toward the pointer, in seconds.
+pub const LEAN_SECS: f32 = 0.10;
+/// A key cap lighting up while its key is held, in seconds.
+pub const KEY_HELD_SECS: f32 = 0.06;
 
 /// A value moving from `from` to `to` over `duration`. Retargeting starts
 /// from wherever the value is now, so a reversed animation never jumps.

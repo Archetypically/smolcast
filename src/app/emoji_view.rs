@@ -13,9 +13,10 @@ use egui::{Key, Modifiers, RichText, TextureHandle, TextureOptions, Vec2};
 use crate::core::config::PaletteSize;
 use crate::core::emoji::{self, Emoji};
 use crate::core::emoji_data::GROUPS;
+use crate::core::motion::POP_SECS;
 use crate::win::icon::IconRgba;
 
-use super::{list, theme};
+use super::{list, motion, theme};
 
 /// Grid rows shown at once in a medium palette.
 const MEDIUM_ROWS: usize = 6;
@@ -303,17 +304,30 @@ fn cell_ui(
     selected: bool,
 ) -> egui::Response {
     let (rect, response) = ui.allocate_exact_size(Vec2::splat(CELL), egui::Sense::click());
+    // Tracked every frame, so a cell the keyboard leaves does not flash a
+    // stale hover.
+    let hover = motion::hover(ui, response.id, response.hovered() && !selected);
     if selected {
+        let at = motion::glide(ui, ui.id().with("selection"), rect);
+        ui.painter().rect_filled(at, 8.0, theme::selected_fill(ui));
+    } else {
+        let fill = ui.visuals().widgets.hovered.weak_bg_fill;
         ui.painter()
-            .rect_filled(rect, 8.0, theme::selected_fill(ui));
-    } else if response.hovered() {
-        ui.painter()
-            .rect_filled(rect, 8.0, ui.visuals().widgets.hovered.weak_bg_fill);
+            .rect_filled(rect, 8.0, fill.gamma_multiply(hover));
     }
     // Until its bitmap arrives (a few milliseconds) the cell stays empty;
     // drawing egui's own emoji font would flash tofu boxes.
     if let Some(texture) = glyph {
-        let rect = egui::Rect::from_center_size(rect.center(), Vec2::splat(GLYPH_SIZE));
+        // The selected glyph lifts a little.
+        let pop = motion::movement(
+            ui,
+            response.id.with("pop"),
+            selected,
+            POP_SECS,
+            egui::emath::easing::cubic_out,
+        );
+        let edge = GLYPH_SIZE * (1.0 + 0.08 * pop);
+        let rect = egui::Rect::from_center_size(rect.center(), Vec2::splat(edge));
         egui::Image::new(texture).paint_at(ui, rect);
     }
     response.on_hover_text(emoji.name)

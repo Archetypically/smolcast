@@ -19,7 +19,7 @@ those natively, in one small executable that is idle when hidden.
 - **Honest.** Anything still running says so ("Indexing apps…", "Pasting…")
   instead of looking frozen. Failures are short notices, never dialogs.
 - **Alive, never slow.** Short animations (the palette settling in, views
-  sliding) add warmth, but none of them delays input:
+  sliding, the selection gliding) add warmth, but none of them delays input:
   typing works from the first frame. Reduced motion keeps only fades.
 - **Private.** Clipboard contents and script text never leave the device or
   enter logs.

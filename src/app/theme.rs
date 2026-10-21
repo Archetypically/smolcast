@@ -12,6 +12,7 @@ use egui::{
 };
 
 use crate::core::config::{PaletteSize, SearchEngine, TextSize};
+use crate::core::motion::{KEY_HELD_SECS, LEAN_SECS};
 
 /// Horizontal inset of content shared by the search bar, list, and footer.
 pub const GUTTER: i8 = 16;
@@ -272,8 +273,19 @@ pub fn hover_fill(ui: &egui::Ui) -> Color32 {
     ui.visuals().faint_bg_color
 }
 
+/// Whether the key a cap names is held down, so the cap can light up.
+fn key_held(ui: &egui::Ui, name: &str) -> bool {
+    ui.input(|i| match name {
+        "Ctrl" => i.modifiers.ctrl,
+        "Alt" => i.modifiers.alt,
+        "Shift" => i.modifiers.shift,
+        _ => egui::Key::from_name(name).is_some_and(|key| i.key_down(key)),
+    })
+}
+
 /// A rounded key cap such as `Enter` or `Ctrl`, as in Raycast's action bar.
-/// Painted at its text size so centered layouts cannot stretch it.
+/// Painted at its text size so centered layouts cannot stretch it. It lights
+/// up while its key is held.
 pub fn key_cap(ui: &mut egui::Ui, key: &str) {
     let galley = egui::WidgetText::from(RichText::new(key).small()).into_galley(
         ui,
@@ -282,11 +294,20 @@ pub fn key_cap(ui: &mut egui::Ui, key: &str) {
         TextStyle::Small,
     );
     let size = galley.size() + Vec2::new(10.0, 4.0);
-    let (rect, _) = ui.allocate_exact_size(size.max(Vec2::new(20.0, 0.0)), egui::Sense::hover());
+    let (rect, response) =
+        ui.allocate_exact_size(size.max(Vec2::new(20.0, 0.0)), egui::Sense::hover());
+    let down = key_held(ui, key);
+    let held = ui
+        .ctx()
+        .animate_bool_with_time(response.id.with("held"), down, KEY_HELD_SECS);
     let visuals = ui.visuals();
-    ui.painter().rect_filled(rect, 4, selected_fill(ui));
+    let fill = selected_fill(ui).lerp_to_gamma(visuals.weak_text_color(), 0.35 * held);
+    let color = visuals
+        .weak_text_color()
+        .lerp_to_gamma(visuals.text_color(), held);
+    ui.painter().rect_filled(rect, 4, fill);
     let text = rect.center() - galley.size() / 2.0;
-    ui.painter().galley(text, galley, visuals.weak_text_color());
+    ui.painter().galley(text, galley, color);
 }
 
 /// Raycast's back control: a left arrow in a rounded square. Painted so it
@@ -295,7 +316,15 @@ pub fn back_button(ui: &mut egui::Ui) -> egui::Response {
     let (rect, response) = ui.allocate_exact_size(Vec2::splat(28.0), egui::Sense::click());
     let visuals = ui.style().interact(&response);
     ui.painter().rect_filled(rect, 6, visuals.bg_fill);
-    let c = rect.center();
+    // On hover the arrow leans the way it points.
+    let lean = super::motion::movement(
+        ui,
+        response.id.with("lean"),
+        response.hovered(),
+        LEAN_SECS,
+        egui::emath::easing::linear,
+    );
+    let c = rect.center() - Vec2::new(1.5 * lean, 0.0);
     let stroke = Stroke::new(1.5, visuals.fg_stroke.color);
     let painter = ui.painter();
     painter.line_segment([c + Vec2::new(-5.0, 0.0), c + Vec2::new(5.0, 0.0)], stroke);
