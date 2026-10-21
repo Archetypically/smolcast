@@ -32,6 +32,7 @@ use crate::win::persistence::{ClipboardStoreCommand, LoadedEntry, Stored};
 use crate::win::placement::PaletteWindow;
 use crate::win::shell::{LaunchError, ScanOutcome};
 
+use super::about_view::AboutView;
 use super::clipboard_view::{ClipboardView, PasteRequest, ThumbnailRequest};
 use super::emoji_view::{EmojiView, GlyphRequest};
 use super::launcher::{IconRequest, LaunchRequest, Launcher};
@@ -112,6 +113,7 @@ enum View {
     Emoji,
     Snippets,
     Settings,
+    About,
 }
 
 /// What a recorded key chord is for.
@@ -240,6 +242,7 @@ pub struct AppModel {
     /// host could not resolve the window handle.
     palette_window: Option<PaletteWindow>,
     settings: SettingsView,
+    about: AboutView,
     /// A form edit to write to config.toml; the host saves, then reloads
     /// (§12.7, §10.6).
     config_save: Option<ConfigEdit>,
@@ -314,6 +317,7 @@ impl AppModel {
             force_show: force_visible,
             palette_window: None,
             settings: SettingsView::new(&config.settings),
+            about: AboutView::default(),
             config_save: None,
             open_config_file: false,
             had_focus: false,
@@ -884,6 +888,7 @@ impl AppModel {
             View::Emoji => self.emoji.open(),
             View::Snippets => self.snippets.open(),
             View::Settings => self.settings.open(),
+            View::About => self.about.open(),
         }
     }
 
@@ -974,7 +979,7 @@ impl AppModel {
     /// delete confirmation.
     fn search_hidden(&self) -> bool {
         match self.view {
-            View::Settings => true,
+            View::Settings | View::About => true,
             View::Snippets => self.snippets.is_editing(),
             View::Root | View::Clipboard | View::Emoji => false,
         }
@@ -985,7 +990,7 @@ impl AppModel {
     fn view_escape(&mut self) -> bool {
         match self.view {
             View::Snippets => self.snippets.escape(),
-            View::Root | View::Clipboard | View::Emoji | View::Settings => false,
+            View::Root | View::Clipboard | View::Emoji | View::Settings | View::About => false,
         }
     }
 
@@ -1004,6 +1009,7 @@ impl AppModel {
             View::Emoji => Some(Command::Emoji.title()),
             View::Snippets => Some(self.snippets.title()),
             View::Settings => Some(Command::Settings.title()),
+            View::About => Some(Command::About.title()),
         };
         let paste_enabled = matches!(self.paste, PasteState::Idle);
         if self.dismissing {
@@ -1034,6 +1040,7 @@ impl AppModel {
                 View::Emoji => self.emoji.handle_keys(ui, paste_enabled),
                 View::Snippets => self.snippets.handle_keys(ui, paste_enabled),
                 View::Settings => self.settings.handle_keys(ui),
+                View::About => {}
             }
         }
         let (nav_offset, nav_opacity) = self.navigation(ui.ctx());
@@ -1042,8 +1049,8 @@ impl AppModel {
             View::Clipboard => "Search clipboard history…",
             View::Emoji => "Search emoji…",
             View::Snippets => "Search snippets…",
-            // The form has no search field.
-            View::Settings => "",
+            // Forms have no search field.
+            View::Settings | View::About => "",
         };
         let mut back = false;
         egui::Frame::new()
@@ -1172,6 +1179,7 @@ impl AppModel {
                             self.snippets.start_new();
                         }
                         Command::Settings => self.open_view(View::Settings),
+                        Command::About => self.open_view(View::About),
                     }
                 }
                 theme::inset(ui, |ui| self.launcher.broken_shortcuts_ui(ui));
@@ -1209,6 +1217,7 @@ impl AppModel {
                     self.open_config_file = true;
                 }
             }
+            View::About => theme::inset(ui, |ui| self.about.ui(ui)),
             View::Settings => {
                 let recording = self.recording && self.record_target == RecordTarget::Settings;
                 theme::inset(ui, |ui| {
@@ -1242,12 +1251,13 @@ impl AppModel {
     /// Raycast's action bar: where you are on the left, the primary action
     /// and its keys on the right.
     fn footer_ui(&mut self, ui: &mut egui::Ui, crumb: Option<&str>) {
-        let (action, keys): (&str, &[&str]) = match self.view {
-            View::Root => (self.launcher.primary_action(), &["Enter"]),
-            View::Snippets if self.snippets.is_confirming_delete() => ("Delete", &["Enter"]),
-            View::Snippets if self.snippets.is_editing() => ("Save", &["Ctrl", "S"]),
-            View::Settings => ("Save", &["Ctrl", "S"]),
-            View::Clipboard | View::Emoji | View::Snippets => ("Paste", &["Enter"]),
+        let action: Option<(&str, &[&str])> = match self.view {
+            View::Root => Some((self.launcher.primary_action(), &["Enter"])),
+            View::Snippets if self.snippets.is_confirming_delete() => Some(("Delete", &["Enter"])),
+            View::Snippets if self.snippets.is_editing() => Some(("Save", &["Ctrl", "S"])),
+            View::Settings => Some(("Save", &["Ctrl", "S"])),
+            View::Clipboard | View::Emoji | View::Snippets => Some(("Paste", &["Enter"])),
+            View::About => None,
         };
         // An action in flight replaces its key hint until it finishes.
         let busy = match (self.view, &self.paste) {
@@ -1288,11 +1298,14 @@ impl AppModel {
                     ui.add_space(f32::from(theme::GUTTER));
                     if crumb.is_some() {
                         theme::action_hint(ui, "Back", &["Esc"]);
-                        ui.label(RichText::new("|").small().color(theme::divider_color(ui)));
+                        if action.is_some() {
+                            ui.label(RichText::new("|").small().color(theme::divider_color(ui)));
+                        }
                     }
-                    match busy {
-                        Some(label) => theme::action_busy(ui, label),
-                        None => theme::action_hint(ui, action, keys),
+                    match (busy, action) {
+                        (Some(label), _) => theme::action_busy(ui, label),
+                        (None, Some((action, keys))) => theme::action_hint(ui, action, keys),
+                        (None, None) => {}
                     }
                 });
             },

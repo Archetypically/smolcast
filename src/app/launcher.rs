@@ -1107,5 +1107,6 @@ fn command_glyph(command: Command) -> &'static str {
         Command::Snippets => "📝",
         Command::CreateSnippet => "✏",
         Command::Settings => "⚙",
+        Command::About => "ℹ",
     }
 }

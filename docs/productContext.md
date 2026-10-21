@@ -36,6 +36,7 @@ those natively, in one small executable that is idle when hidden.
 | Scripts | Named commands from `config.toml`, run from the palette or their own hotkey. |
 | Snippets | Saved text searched by name or keyword and pasted; created and edited in the palette. |
 | Settings | "smolcast settings" edits hotkey, startup, window and text size, reduced motion, keep-state time, web search engine, and clipboard options, preserving hand-written comments in `config.toml`. |
+| About | "About smolcast" (also found as "Credits") shows the version, the author, and what smolcast is built with. |
 
 ## Where user data lives
 

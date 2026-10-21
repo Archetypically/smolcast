@@ -12,8 +12,8 @@ reference for anyone changing the UI. The tokens live in
   hairline dividers instead of boxes. Color means status (warning, error), not
   decoration.
 - **One accent, used sparingly.** Raycast red (`#FF6363`) is used only for the
-  text cursor, text selection and links. Row selection is a soft gray fill,
-  never the accent.
+  text cursor, text selection and links, plus one grace note: the heart on the
+  About page. Row selection is a soft gray fill, never the accent.
 - **Follow the system.** Dark and light themes follow Windows. Mica shows
   through when it is available (see plan §12.7, Appearance).
 - **Quick, and honest about work.** The palette never blocks on work. Anything
@@ -119,6 +119,12 @@ The font is Segoe UI, with egui's bundled fonts as fallbacks.
   `pwsh.exe` resolved through the search path. A glyph is used only when no
   icon exists: built-in commands, clipboard entries, snippets, or a failed
   lookup (▶ for scripts).
+- **About page** (`about_view`). "About smolcast" (also found by "Credits")
+  is a centered column: the name at 1.6× the search size, the version,
+  a one-line tagline, "Made with ♥ by Evan Lee" (the heart is painted in the
+  accent and beats once, lub-dub, when the page opens; hovering it beats
+  again), then the "Built with" credits and the license in small text. The
+  footer shows only `Back Esc`.
 - **Settings form.** Sections (General, Palette, Clipboard), each headed by
   `theme::section_label` (the same small gray style as "Suggestions"). Labels
   sit in a shared 112-point column so controls align across sections. Rows
@@ -192,7 +198,8 @@ palette is idle.
 - **Size lists from the stride.** List heights are row counts times
   `theme::ROW_STRIDE`, never magic numbers.
 - **Color only for status.** Warnings are amber and errors are red, in small
-  text. Nothing else gets color.
+  text. Nothing else gets color, except the accent where Principles allow it
+  (the About page's heart).
 - **Check new views in both themes.** Also check them at 100%, 150% and 200%
   scaling, with reduced motion on, and under a high-contrast theme.
 - **Animate paint, never input.** New motion goes through `core::motion`

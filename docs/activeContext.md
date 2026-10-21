@@ -79,6 +79,8 @@ Windows yet. Contents (decision 018, DESIGN.md Motion and Accessibility):
   re-read on each show): fades only. Settings > Palette > Reduce motion.
 - Accessibility: visible 1 pt focus ring on buttons/checkboxes/menus (egui's
   active style); stronger fills and gray text under high contrast.
+- "About smolcast" command (alias "Credits"): version, "Made with ♥ by Evan
+  Lee" (heart beats once), built-with credits, license.
 
 ## Pending Windows checks
 
@@ -88,7 +90,8 @@ Windows yet. Contents (decision 018, DESIGN.md Motion and Accessibility):
   instant, view slides, glide in each list and the emoji grid, typing during
   the appear animation, reduced motion via the setting and via Windows'
   Animation effects switch, high-contrast theme, Tab focus ring in Settings,
-  idle CPU 0 after animations end.
+  About page layout at every window and text size, idle CPU 0 after
+  animations end.
 
 - 2026-10-21 batch: icon sharpness at 100/150/200%; spacing in every view;
   window/text size switching; keep-state and fresh start after launch/paste;
