@@ -257,25 +257,24 @@ pub fn decode_unicode_text(bytes: &[u8], item_cap: usize) -> Result<String, Text
 const RECORD_MAGIC: &[u8; 5] = b"SCLP1";
 
 pub fn encode_record(payload: &Payload, captured_at_ms: i64) -> Vec<u8> {
-    let mut body = Vec::with_capacity(payload.byte_len() + 8);
-    let kind = match payload {
-        Payload::Text(text) => {
-            body.extend_from_slice(text.as_bytes());
-            0
-        }
-        Payload::Image(image) => {
-            body.extend_from_slice(&image.width.to_le_bytes());
-            body.extend_from_slice(&image.height.to_le_bytes());
-            body.extend_from_slice(&image.rgba);
-            1
-        }
+    let (kind, body_len) = match payload {
+        Payload::Text(text) => (0, text.len()),
+        Payload::Image(image) => (1, image.rgba.len() + 8),
     };
-    let mut out = Vec::with_capacity(body.len() + 22);
+    // One allocation and one copy of the payload: images reach 8 MiB.
+    let mut out = Vec::with_capacity(body_len + 22);
     out.extend_from_slice(RECORD_MAGIC);
     out.push(kind);
     out.extend_from_slice(&captured_at_ms.to_le_bytes());
-    out.extend_from_slice(&(body.len() as u64).to_le_bytes());
-    out.extend_from_slice(&body);
+    out.extend_from_slice(&(body_len as u64).to_le_bytes());
+    match payload {
+        Payload::Text(text) => out.extend_from_slice(text.as_bytes()),
+        Payload::Image(image) => {
+            out.extend_from_slice(&image.width.to_le_bytes());
+            out.extend_from_slice(&image.height.to_le_bytes());
+            out.extend_from_slice(&image.rgba);
+        }
+    }
     out
 }
 

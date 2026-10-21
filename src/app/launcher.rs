@@ -104,7 +104,8 @@ pub struct Launcher {
 
     scan_request: Option<u64>,
     launch_request: Option<LaunchRequest>,
-    launch_pending: Option<AppId>,
+    /// The app being launched, and since when.
+    launch_pending: Option<(AppId, Instant)>,
     open_command: Option<Command>,
     icon_requests: Vec<IconRequest>,
     usage_snapshot: Option<(u64, Vec<u8>)>,
@@ -272,7 +273,11 @@ impl Launcher {
         result: Result<(), LaunchError>,
         notices: &mut NoticeStore,
     ) -> bool {
-        if self.launch_pending.as_ref() == Some(&app_id) {
+        if self
+            .launch_pending
+            .as_ref()
+            .is_some_and(|(id, _)| *id == app_id)
+        {
             self.launch_pending = None;
         }
         match result {
@@ -395,6 +400,20 @@ impl Launcher {
         self.usage_snapshot.take()
     }
 
+    /// What a running scan is doing, for the section header.
+    pub fn scan_status(&self) -> Option<&'static str> {
+        match (self.scan_active, self.indexed) {
+            (false, _) => None,
+            (true, false) => Some("Indexing apps…"),
+            (true, true) => Some("Refreshing apps…"),
+        }
+    }
+
+    /// When the launch the shell has not answered yet started.
+    pub fn launching_since(&self) -> Option<Instant> {
+        self.launch_pending.as_ref().map(|(_, since)| *since)
+    }
+
     /// The footer's label for Enter on the selected row.
     pub fn primary_action(&self) -> &'static str {
         match self
@@ -439,8 +458,9 @@ impl Launcher {
         self.selected = self.selected.min(self.ranked.len().saturating_sub(1));
 
         if self.ranked.is_empty() {
+            // The header already shows a running scan.
             let text = if !self.indexed && self.scan_active {
-                "Indexing apps…"
+                "No matches yet."
             } else {
                 "No matches."
             };
@@ -471,7 +491,10 @@ impl Launcher {
                 });
             }
 
-            let launching = self.launch_pending.as_ref() == Some(&app.id);
+            let launching = self
+                .launch_pending
+                .as_ref()
+                .is_some_and(|(id, _)| *id == app.id);
             let leading = |ui: &mut egui::Ui| {
                 let size = Vec2::splat(ICON_POINTS);
                 match (&icon, &app.launch) {
@@ -523,7 +546,7 @@ impl Launcher {
             self.record_usage(&id);
             return;
         }
-        self.launch_pending = Some(app.id.clone());
+        self.launch_pending = Some((app.id.clone(), Instant::now()));
         self.launch_request = Some(LaunchRequest {
             app_id: app.id.clone(),
             spec: app.launch.clone(),

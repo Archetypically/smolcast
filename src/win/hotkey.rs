@@ -4,13 +4,12 @@
 
 use std::collections::BTreeMap;
 use std::str::FromStr;
-use std::sync::Arc;
-
-use global_hotkey::hotkey::{HotKey, HotKeyParseError};
-use global_hotkey::{GlobalHotKeyEvent, GlobalHotKeyManager, HotKeyState};
-use parking_lot::Mutex;
+use std::sync::{Arc, Mutex, MutexGuard};
 
 use crate::app::model::{AppEvent, Wake};
+use crate::win::placement::PaletteWindow;
+use global_hotkey::hotkey::{HotKey, HotKeyParseError};
+use global_hotkey::{GlobalHotKeyEvent, GlobalHotKeyManager, HotKeyState};
 
 /// What a registered global hotkey id triggers.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -31,20 +30,27 @@ impl Routes {
         Self(Arc::new(Mutex::new(BTreeMap::new())))
     }
 
+    /// The map holds no invariant a panicking writer could break.
+    fn map(&self) -> MutexGuard<'_, BTreeMap<u32, HotkeyAction>> {
+        self.0
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
     fn lookup(&self, id: u32) -> Option<HotkeyAction> {
-        self.0.lock().get(&id).cloned()
+        self.map().get(&id).cloned()
     }
 
     fn insert(&self, id: u32, action: HotkeyAction) {
-        self.0.lock().insert(id, action);
+        self.map().insert(id, action);
     }
 
     fn remove(&self, id: u32) {
-        self.0.lock().remove(&id);
+        self.map().remove(&id);
     }
 
     fn clear(&self) {
-        self.0.lock().clear();
+        self.map().clear();
     }
 }
 
@@ -70,14 +76,20 @@ impl std::error::Error for HotkeyError {}
 
 /// Install the global hotkey event handler. Must run on the main thread after
 /// the manager exists. On shutdown, call [`clear_event_handler`] before dropping
-/// senders or the manager (§1.5 step 2).
-pub fn install_event_handler(wake: Wake, routes: Routes) {
+/// senders or the manager (§1.5 step 2). The summon key shows `window` through
+/// the fast path before its event is queued.
+pub fn install_event_handler(wake: Wake, routes: Routes, window: Option<PaletteWindow>) {
     GlobalHotKeyEvent::set_event_handler(Some(move |event: GlobalHotKeyEvent| {
         if event.state == HotKeyState::Pressed
             && let Some(action) = routes.lookup(event.id())
         {
             let app_event = match action {
-                HotkeyAction::Summon => AppEvent::SummonRequested,
+                HotkeyAction::Summon => {
+                    if let Some(window) = &window {
+                        window.begin_reveal();
+                    }
+                    AppEvent::SummonRequested
+                }
                 HotkeyAction::Script(id) => AppEvent::RunScript(id),
             };
             wake.send(app_event);

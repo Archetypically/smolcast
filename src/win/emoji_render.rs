@@ -98,6 +98,9 @@ impl Drop for EmojiRenderer {
     }
 }
 
+/// Glyph edge used to warm the renderer up; the font load is size-independent.
+const WARM_EDGE: u32 = 32;
+
 /// Thread-local drawing objects, created once.
 struct Stack {
     d2d: ID2D1Factory,
@@ -214,6 +217,12 @@ impl Stack {
 fn render_main(rx: Receiver<Request>, cancel: Arc<AtomicBool>, wake: Wake) {
     let com = unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) }.ok();
     let mut stack = com.as_ref().ok().map(|_| Stack::new());
+    // Warm up before the picker first opens: search keys, and the emoji font
+    // that DirectWrite otherwise loads for the first visible glyph.
+    crate::core::emoji::prepare();
+    if let Some(Ok(stack)) = &mut stack {
+        let _ = stack.render("\u{1F600}", WARM_EDGE);
+    }
     while let Ok(request) = rx.recv() {
         if cancel.load(Ordering::Acquire) {
             break;

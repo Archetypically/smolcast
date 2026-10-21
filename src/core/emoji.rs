@@ -15,6 +15,8 @@
 //! - Skin-tone variants (about half the table) are listed only when the query
 //!   mentions "tone" or "skin"; otherwise the base emoji stands for them.
 
+use std::sync::OnceLock;
+
 use super::emoji_data::EMOJI;
 
 /// One fully-qualified emoji sequence.
@@ -43,6 +45,31 @@ fn normalize(text: &str) -> String {
         .filter(|w| !w.is_empty())
         .collect::<Vec<_>>()
         .join(" ")
+}
+
+/// Per-entry search keys, computed once: the lowercased name and its
+/// punctuation-free form. Typing then allocates nothing per entry.
+struct Keys {
+    name: String,
+    normalized: String,
+}
+
+fn keys() -> &'static [Keys] {
+    static KEYS: OnceLock<Vec<Keys>> = OnceLock::new();
+    KEYS.get_or_init(|| {
+        EMOJI
+            .iter()
+            .map(|e| Keys {
+                name: e.name.to_lowercase(),
+                normalized: normalize(e.name),
+            })
+            .collect()
+    })
+}
+
+/// Build the search keys ahead of the first query (on a background thread).
+pub fn prepare() {
+    keys();
 }
 
 fn word_score(emoji: &Emoji, name: &str, word: &str) -> u32 {
@@ -79,11 +106,11 @@ pub fn search(query: &str) -> Vec<usize> {
 
     let mut hits: Vec<(u32, usize)> = EMOJI
         .iter()
+        .zip(keys())
         .enumerate()
-        .filter(|(_, e)| wants_tones || !e.skin_tone)
-        .filter_map(|(index, emoji)| {
-            let name = emoji.name.to_lowercase();
-            let normalized = normalize(emoji.name);
+        .filter(|(_, (e, _))| wants_tones || !e.skin_tone)
+        .filter_map(|(index, (emoji, keys))| {
+            let (name, normalized) = (keys.name.as_str(), keys.normalized.as_str());
             let mut total = if phrase.is_empty() {
                 0
             } else if normalized == phrase {
@@ -94,7 +121,7 @@ pub fn search(query: &str) -> Vec<usize> {
                 0
             };
             for word in &words {
-                let score = word_score(emoji, &name, word);
+                let score = word_score(emoji, name, word);
                 if score == 0 {
                     return None;
                 }

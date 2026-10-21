@@ -407,15 +407,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f27ae1dd37df86211c42e150270f82743308803d90a6f6e6651cd730d5e1732f"
 
 [[package]]
-name = "directories"
-version = "6.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "16f5094c54661b38d03bd7e50df373292118db60b585c08a411c6d840017fe7d"
-dependencies = [
- "dirs-sys",
-]
-
-[[package]]
 name = "dirs"
 version = "7.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2474,13 +2465,11 @@ dependencies = [
 name = "smolcast"
 version = "0.1.0"
 dependencies = [
- "directories",
  "eframe",
  "egui",
  "fuzzy-matcher",
  "global-hotkey",
  "image",
- "parking_lot",
  "raw-window-handle",
  "serde",
  "serde_json",

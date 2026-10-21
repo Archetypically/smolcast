@@ -8,6 +8,7 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver};
+use std::time::Instant;
 
 use egui::{Color32, Context, Key, Modifiers, RichText, ViewportCommand};
 
@@ -28,7 +29,7 @@ use crate::win::persistence::{ClipboardStoreCommand, LoadedEntry};
 use crate::win::placement::PaletteWindow;
 use crate::win::shell::{LaunchError, ScanOutcome};
 
-use super::clipboard_view::{ClipboardView, PasteRequest};
+use super::clipboard_view::{ClipboardView, PasteRequest, ThumbnailRequest};
 use super::emoji_view::{EmojiView, GlyphRequest};
 use super::launcher::{IconRequest, LaunchRequest, Launcher};
 use super::notice::{Notice, NoticeStore, Severity, op};
@@ -68,6 +69,11 @@ pub enum AppEvent {
         result: Result<(), LaunchError>,
     },
     ClipboardCaptured(Payload),
+    /// A stored clipboard image downscaled off the UI thread.
+    ThumbnailReady {
+        id: u64,
+        image: egui::ColorImage,
+    },
     /// A rasterized emoji glyph (§9) for table index `index`.
     EmojiGlyph {
         index: usize,
@@ -117,6 +123,7 @@ enum PasteState {
     Writing {
         request_id: u64,
         payload: Option<Payload>,
+        since: Instant,
     },
 }
 
@@ -450,6 +457,10 @@ impl AppModel {
         self.clipboard.take_store_commands()
     }
 
+    pub fn take_thumbnail_requests(&mut self) -> Vec<ThumbnailRequest> {
+        self.clipboard.take_thumbnail_requests()
+    }
+
     pub fn clipboard_store_unavailable(&mut self) {
         self.clipboard.store_unavailable();
     }
@@ -600,6 +611,7 @@ impl AppModel {
                 }
             }
             AppEvent::ClipboardCaptured(payload) => self.clipboard.record(payload),
+            AppEvent::ThumbnailReady { id, image } => self.clipboard.on_thumbnail(ctx, id, image),
             AppEvent::EmojiGlyph { index, result } => self.emoji.on_glyph(ctx, index, result),
             AppEvent::ClipboardHistoryLoaded(entries) => self.clipboard.on_loaded(entries),
             AppEvent::ClipboardChanged => self
@@ -653,6 +665,7 @@ impl AppModel {
         self.paste = PasteState::Writing {
             request_id,
             payload,
+            since: Instant::now(),
         };
     }
 
@@ -668,6 +681,7 @@ impl AppModel {
             PasteState::Writing {
                 request_id: pending,
                 payload,
+                ..
             } if pending == request_id => payload,
             // A stale receipt (Escape or a new summon cancelled the paste).
             other => {
@@ -933,6 +947,13 @@ impl AppModel {
             ui.horizontal(|ui| {
                 ui.add_space(10.0);
                 ui.label(RichText::new(section).small().weak());
+                // The list is usable while apps are (re)indexed; say so.
+                if let Some(status) = self.launcher.scan_status() {
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        ui.add_space(10.0);
+                        theme::action_busy(ui, status);
+                    });
+                }
             });
             ui.add_space(2.0);
         }
@@ -1023,6 +1044,16 @@ impl AppModel {
             View::Settings => ("Save", &["Ctrl", "S"]),
             View::Clipboard | View::Emoji | View::Snippets => ("Paste", &["Enter"]),
         };
+        // An action in flight replaces its key hint until it finishes.
+        let busy = match (self.view, &self.paste) {
+            (View::Root, _) => self.launcher.launching_since().map(|t| (t, "Launching…")),
+            (View::Clipboard | View::Emoji | View::Snippets, PasteState::Writing { since, .. }) => {
+                Some((*since, "Pasting…"))
+            }
+            _ => None,
+        }
+        .filter(|(since, _)| theme::busy_due(ui, *since))
+        .map(|(_, label)| label);
         let size = egui::vec2(ui.available_width(), theme::FOOTER_HEIGHT);
         ui.allocate_ui_with_layout(
             size,
@@ -1056,7 +1087,10 @@ impl AppModel {
                         theme::action_hint(ui, "Back", &["Esc"]);
                         ui.label(RichText::new("|").small().color(theme::divider_color(ui)));
                     }
-                    theme::action_hint(ui, action, keys);
+                    match busy {
+                        Some(label) => theme::action_busy(ui, label),
+                        None => theme::action_hint(ui, action, keys),
+                    }
                 });
             },
         );
