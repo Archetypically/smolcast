@@ -216,16 +216,17 @@ impl EmojiView {
         let step = list::wheel_rows(ui, CELL + GRID_GAP, &mut self.wheel);
         let grid_rows = self.results.len().div_ceil(self.columns);
         let column = self.selected % self.columns;
-        let mut row = self.selected / self.columns;
-        list::scroll_window(&mut self.first_row, &mut row, grid_rows, self.rows, step);
+        let row = list::scroll_window(
+            &mut self.first_row,
+            self.selected / self.columns,
+            grid_rows,
+            self.rows,
+            step,
+        );
         self.selected = (row * self.columns + column).min(self.results.len() - 1);
 
         let row = self.selected / self.columns;
-        if row < self.first_row {
-            self.first_row = row;
-        } else if row >= self.first_row + self.rows {
-            self.first_row = row + 1 - self.rows;
-        }
+        list::keep_visible(row, &mut self.first_row, self.rows);
 
         let edge = ((GLYPH_SIZE * ui.ctx().pixels_per_point()).round() as u32).clamp(16, 128);
         if edge != self.glyphs.edge {

@@ -34,11 +34,6 @@ impl Notice {
         }
     }
 
-    pub fn with_code(mut self, code: u32) -> Self {
-        self.code = Some(code);
-        self
-    }
-
     pub fn with_optional_code(mut self, code: Option<u32>) -> Self {
         self.code = code;
         self

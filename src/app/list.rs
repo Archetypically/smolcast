@@ -46,24 +46,24 @@ pub fn wheel_rows(ui: &egui::Ui, row_height: f32, carry: &mut f32) -> isize {
 
 /// Move a `visible`-row window over `count` rows by `step` rows, then keep
 /// `selected` inside it, so the selection follows the wheel instead of
-/// pulling the window back.
+/// pulling the window back. Returns the selection to use.
 pub fn scroll_window(
     first_row: &mut usize,
-    selected: &mut usize,
+    selected: usize,
     count: usize,
     visible: usize,
     step: isize,
-) {
+) -> usize {
     // Clamp even without a scroll: a list that shrank under the window
     // would otherwise leave blank rows below its end.
     let max_first = count.saturating_sub(visible);
     *first_row = (*first_row).min(max_first);
     if step == 0 || count == 0 {
-        return;
+        return selected;
     }
     *first_row = first_row.saturating_add_signed(step).min(max_first);
     let last = (*first_row + visible).min(count) - 1;
-    *selected = (*selected).clamp(*first_row, last);
+    selected.clamp(*first_row, last)
 }
 
 /// One clickable result row: `leading` (an icon or glyph), then a truncating

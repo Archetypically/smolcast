@@ -188,27 +188,14 @@ impl Wake {
             self.ctx.request_repaint();
         }
     }
-
-    pub fn sender(&self) -> mpsc::Sender<AppEvent> {
-        self.tx.clone()
-    }
-
-    pub fn ctx(&self) -> &Context {
-        &self.ctx
-    }
 }
 
 /// Summon hotkey registration outcome (§5.2). `Conflict` keeps the palette
 /// usable and offers a session-only replacement key.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum HotkeyStatus {
-    Active {
-        canonical: String,
-    },
-    Conflict {
-        requested: String,
-        reason: Option<String>,
-    },
+    Active { canonical: String },
+    Conflict { requested: String },
 }
 
 /// The number of most-recent notices rendered in the palette at once. The store
@@ -601,17 +588,17 @@ impl AppModel {
         self.capture_hint = None;
         self.hotkey_status = HotkeyStatus::Conflict {
             requested: requested.clone(),
-            reason,
         };
         // Already visible (a failed trial or settings save): nothing to force,
         // and a stale flag would undo the next dismissal.
         self.force_show = !self.visible;
+        let reason = reason.map(|r| format!(" ({r})")).unwrap_or_default();
         self.notices.push(Notice::new(
             Severity::Error,
             op::SUMMON_HOTKEY,
             format!(
-                "Hotkey \"{requested}\" could not be registered. Open the palette and apply a \
-                 temporary key, or edit summon_hotkey = \"{requested}\" in config.toml."
+                "Hotkey \"{requested}\" could not be registered{reason}. Open the palette and \
+                 apply a temporary key, or edit summon_hotkey = \"{requested}\" in config.toml."
             ),
         ));
     }
@@ -1300,8 +1287,8 @@ impl AppModel {
         for notice in self.notices.iter().skip(total - shown) {
             let color = match notice.severity {
                 Severity::Info => Color32::from_gray(150),
-                Severity::Warning => Color32::from_rgb(230, 180, 60),
-                Severity::Error => Color32::from_rgb(230, 90, 90),
+                Severity::Warning => theme::WARNING,
+                Severity::Error => theme::ERROR,
             };
             ui.horizontal_wrapped(|ui| {
                 if let Some(code) = notice.code {

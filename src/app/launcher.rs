@@ -176,10 +176,8 @@ impl Launcher {
         scripts: &BTreeMap<String, ScriptConfig>,
     ) -> Self {
         let scripts = script_entries(scripts);
-        let mut apps = builtin_commands();
-        apps.extend(scripts.iter().cloned());
         let mut launcher = Self {
-            apps,
+            apps: Vec::new(),
             usage_writable: usage.writable,
             favorites_writable: favorites.writable,
             favorites: favorites.value,
@@ -219,6 +217,8 @@ impl Launcher {
             web_query: None,
             open_url: None,
         };
+        // No scan has run yet, so the list is just commands and scripts.
+        launcher.rebuild();
         launcher.request_scan();
         launcher
     }
@@ -520,22 +520,22 @@ impl Launcher {
         }
         ui.separator();
         let count = paths.len();
-        let names: Vec<&str> = self.broken.iter().map(|b| b.name.as_str()).collect();
-        let shown = names.iter().take(3).copied().collect::<Vec<_>>().join(", ");
+        let shown = self
+            .broken
+            .iter()
+            .take(3)
+            .map(|b| b.name.as_str())
+            .collect::<Vec<_>>()
+            .join(", ");
         let more = if count > 3 {
             format!(" and {} more", count - 3)
         } else {
             String::new()
         };
-        let what = if count == 1 {
-            "1 Start Menu shortcut points to an app that is no longer installed"
-        } else {
-            "Start Menu shortcuts point to apps that are no longer installed"
-        };
         let lead = if count == 1 {
-            what.to_owned()
+            "1 Start Menu shortcut points to an app that is no longer installed".to_owned()
         } else {
-            format!("{count} {what}")
+            format!("{count} Start Menu shortcuts point to apps that are no longer installed")
         };
         let detail = paths
             .iter()
@@ -828,10 +828,9 @@ impl Launcher {
         };
         let step = list::wheel_rows(ui, theme::ROW_STRIDE, &mut self.wheel);
         if self.selected >= offset {
-            let mut app = self.selected - offset;
-            list::scroll_window(
+            let app = list::scroll_window(
                 &mut self.first_row,
-                &mut app,
+                self.selected - offset,
                 self.ranked.len(),
                 app_rows,
                 step,
@@ -840,10 +839,9 @@ impl Launcher {
             list::keep_visible(self.selected - offset, &mut self.first_row, app_rows);
         } else {
             // The calculator card stays selected; only the apps scroll.
-            let mut unused = self.first_row;
             list::scroll_window(
                 &mut self.first_row,
-                &mut unused,
+                self.selected,
                 self.ranked.len(),
                 app_rows,
                 step,

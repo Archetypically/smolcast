@@ -6,7 +6,7 @@
 
 use std::path::Path;
 
-use egui::{Color32, Key, Modifiers, RichText};
+use egui::{Key, Modifiers, RichText};
 
 use crate::core::config::{
     ClipboardSource, MAX_CLIPBOARD_ENTRIES, MAX_CLIPBOARD_ITEM_BYTES, MAX_CLIPBOARD_TOTAL_BYTES,
@@ -292,9 +292,9 @@ impl SettingsView {
         let problem = self.problem();
         let dirty = self.draft != self.saved;
         let (text, color) = match (&problem, &self.status) {
-            (Some(problem), _) => (problem.clone(), Color32::from_rgb(230, 90, 90)),
+            (Some(problem), _) => (problem.clone(), theme::ERROR),
             (None, Status::Saving) => ("Saving…".to_owned(), ui.visuals().weak_text_color()),
-            (None, Status::Failed(e)) => (e.clone(), Color32::from_rgb(230, 90, 90)),
+            (None, Status::Failed(e)) => (e.clone(), theme::ERROR),
             (None, Status::Saved) if !dirty => {
                 ("Saved.".to_owned(), ui.visuals().weak_text_color())
             }
@@ -358,8 +358,9 @@ fn section_gap(ui: &mut egui::Ui) {
     ui.add_space(2.0 * theme::SECTION_GAP);
 }
 
+/// A gray note beside a setting; styled like a section label.
 fn hint(ui: &mut egui::Ui, text: &str) {
-    ui.label(RichText::new(text).weak().small());
+    theme::section_label(ui, text);
 }
 
 fn source_label(source: ClipboardSource) -> &'static str {

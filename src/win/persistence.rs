@@ -32,6 +32,7 @@ use crate::app::notice::{Notice, Severity, op};
 use crate::core::favorites::Favorites;
 use crate::core::history::{Payload, decode_record};
 use crate::core::usage::Usage;
+use crate::win::wide_path;
 
 /// Temp files older than this are leftovers from a crashed write (§10.5).
 const STALE_TEMP_AGE: Duration = Duration::from_secs(24 * 60 * 60);
@@ -137,8 +138,8 @@ fn write_synced(temp: &Path, bytes: &[u8]) -> Result<(), PersistError> {
 }
 
 fn move_replace(from: &Path, to: &Path) -> io::Result<()> {
-    let from = wide(from);
-    let to = wide(to);
+    let from = wide_path(from);
+    let to = wide_path(to);
     unsafe {
         MoveFileExW(
             PCWSTR(from.as_ptr()),
@@ -147,11 +148,6 @@ fn move_replace(from: &Path, to: &Path) -> io::Result<()> {
         )
     }
     .map_err(io::Error::from)
-}
-
-fn wide(path: &Path) -> Vec<u16> {
-    use std::os::windows::ffi::OsStrExt;
-    path.as_os_str().encode_wide().chain(Some(0)).collect()
 }
 
 fn next_counter() -> u64 {

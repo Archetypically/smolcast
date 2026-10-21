@@ -8,7 +8,7 @@
 
 use std::collections::BTreeMap;
 
-use egui::{Color32, Key, Modifiers, RichText, Vec2};
+use egui::{Key, Modifiers, RichText, Vec2};
 
 use crate::core::app_index::Command;
 use crate::core::config::{PaletteSize, SnippetConfig};
@@ -30,7 +30,7 @@ enum Mode {
 }
 
 /// The form's fields as typed. `id` is `None` for a new snippet.
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Default, PartialEq)]
 struct Draft {
     name: String,
     keyword: String,
@@ -245,21 +245,15 @@ impl SnippetView {
     }
 
     fn begin_edit(&mut self, id: Option<String>) {
-        let original = match id
+        let original = id
             .as_deref()
             .and_then(|id| self.snippets.iter().find(|s| s.id == id))
-        {
-            Some(s) => Draft {
+            .map(|s| Draft {
                 name: s.name.clone(),
                 keyword: s.keyword.clone().unwrap_or_default(),
                 text: s.text.clone(),
-            },
-            None => Draft {
-                name: String::new(),
-                keyword: String::new(),
-                text: String::new(),
-            },
-        };
+            })
+            .unwrap_or_default();
         self.mode = Mode::Edit(Editor {
             id,
             draft: original.clone(),
@@ -404,13 +398,8 @@ impl SnippetView {
 
         let step = list::wheel_rows(ui, theme::ROW_STRIDE, &mut self.wheel);
         let count = self.results.len();
-        list::scroll_window(
-            &mut self.first_row,
-            &mut self.selected,
-            count,
-            self.rows,
-            step,
-        );
+        self.selected =
+            list::scroll_window(&mut self.first_row, self.selected, count, self.rows, step);
 
         let mut clicked = None;
         let list_height = self.list_height();
@@ -605,12 +594,11 @@ impl SnippetView {
 
     /// One status line: a form problem or hint wins over the save status.
     fn status_ui(&self, ui: &mut egui::Ui, problem: Option<&str>) {
-        let red = Color32::from_rgb(230, 90, 90);
         let weak = ui.visuals().weak_text_color();
         let (text, color) = match (problem, &self.status) {
-            (Some(problem), _) => (problem.to_owned(), red),
+            (Some(problem), _) => (problem.to_owned(), theme::ERROR),
             (None, Status::Saving) => ("Saving…".to_owned(), weak),
-            (None, Status::Failed(e)) => (e.clone(), red),
+            (None, Status::Failed(e)) => (e.clone(), theme::ERROR),
             (None, Status::Done(done)) => ((*done).to_owned(), weak),
             (None, Status::Idle) => return,
         };

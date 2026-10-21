@@ -12,6 +12,7 @@
 
 use std::collections::BTreeMap;
 use std::io;
+use std::ops::RangeInclusive;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
@@ -309,24 +310,19 @@ impl ConfigFile {
 
 impl Settings {
     pub fn validate(&self, path: &Path) -> Result<(), ConfigError> {
-        let entries = self.clipboard_max_entries;
-        if !(MIN_CLIPBOARD_ENTRIES..=MAX_CLIPBOARD_ENTRIES).contains(&entries) {
-            return Err(validation(
-                path,
-                format!(
-                    "clipboard_max_entries {entries} outside {MIN_CLIPBOARD_ENTRIES}..={MAX_CLIPBOARD_ENTRIES}"
-                ),
-            ));
-        }
+        check_range(
+            path,
+            "clipboard_max_entries",
+            self.clipboard_max_entries,
+            MIN_CLIPBOARD_ENTRIES..=MAX_CLIPBOARD_ENTRIES,
+        )?;
         let item = self.clipboard_max_item_bytes;
-        if !(MIN_CLIPBOARD_ITEM_BYTES..=MAX_CLIPBOARD_ITEM_BYTES).contains(&item) {
-            return Err(validation(
-                path,
-                format!(
-                    "clipboard_max_item_bytes {item} outside {MIN_CLIPBOARD_ITEM_BYTES}..={MAX_CLIPBOARD_ITEM_BYTES}"
-                ),
-            ));
-        }
+        check_range(
+            path,
+            "clipboard_max_item_bytes",
+            item,
+            MIN_CLIPBOARD_ITEM_BYTES..=MAX_CLIPBOARD_ITEM_BYTES,
+        )?;
         let total = self.clipboard_max_total_bytes;
         if total < item || total > MAX_CLIPBOARD_TOTAL_BYTES {
             return Err(validation(
@@ -336,15 +332,12 @@ impl Settings {
                 ),
             ));
         }
-        if self.keep_state_secs > MAX_KEEP_STATE_SECS {
-            return Err(validation(
-                path,
-                format!(
-                    "keep_state_secs {} outside 0..={MAX_KEEP_STATE_SECS}",
-                    self.keep_state_secs
-                ),
-            ));
-        }
+        check_range(
+            path,
+            "keep_state_secs",
+            self.keep_state_secs,
+            0..=MAX_KEEP_STATE_SECS,
+        )?;
         if let Some(problem) = crate::core::web::template_problem(&self.web_search_url) {
             return Err(validation(path, format!("web_search_url {problem}")));
         }
@@ -474,6 +467,26 @@ fn validation(path: &Path, message: String) -> ConfigError {
     }
 }
 
+/// Reject `value` unless it lies in `range`. The message names the setting.
+fn check_range<T>(
+    path: &Path,
+    name: &str,
+    value: T,
+    range: RangeInclusive<T>,
+) -> Result<(), ConfigError>
+where
+    T: PartialOrd + std::fmt::Display + Copy,
+{
+    if range.contains(&value) {
+        return Ok(());
+    }
+    let (start, end) = (*range.start(), *range.end());
+    Err(validation(
+        path,
+        format!("{name} {value} outside {start}..={end}"),
+    ))
+}
+
 fn contains_nul(s: &str) -> bool {
     s.as_bytes().contains(&0)
 }
@@ -535,6 +548,9 @@ mod tests {
     use super::*;
     use std::path::Path;
 
+    /// A valid config with settings only; tests append their own tables.
+    const BASE_SETTINGS: &str = "schema_version = 1\n[settings]\nsummon_hotkey = \"control+alt+Space\"\nclipboard_capture = true\nclipboard_max_entries = 100\nclipboard_max_item_bytes = 8388608\nclipboard_max_total_bytes = 67108864\n";
+
     fn parse(text: &str) -> Result<ConfigFile, ConfigError> {
         let cfg = toml::from_str::<ConfigFile>(text).map_err(|e| ConfigError::Parse {
             path: PathBuf::from("test.toml"),
@@ -588,10 +604,7 @@ mod tests {
 
     #[test]
     fn scripts_table_is_optional() {
-        let cfg = parse(
-            "schema_version = 1\n[settings]\nsummon_hotkey = \"control+alt+Space\"\nclipboard_capture = true\nclipboard_max_entries = 100\nclipboard_max_item_bytes = 8388608\nclipboard_max_total_bytes = 67108864\n",
-        )
-        .unwrap();
+        let cfg = parse(BASE_SETTINGS).unwrap();
         assert!(cfg.scripts.is_empty());
     }
 
@@ -606,19 +619,16 @@ mod tests {
 
     #[test]
     fn unknown_field_rejected() {
-        let e = parse(
-            "schema_version = 1\n[settings]\nsummon_hotkey = \"control+alt+Space\"\nclipboard_capture = true\nclipboard_max_entries = 100\nclipboard_max_item_bytes = 8388608\nclipboard_max_total_bytes = 67108864\nmystery = 1\n",
-        )
-        .unwrap_err();
+        let e = parse(&format!("{BASE_SETTINGS}mystery = 1\n")).unwrap_err();
         assert!(matches!(e, ConfigError::Parse { .. }));
     }
 
     #[test]
     fn invalid_script_id_rejected() {
         // A quoted dotted key is valid TOML but fails the script-id charset rule.
-        let e = parse(
-            "schema_version = 1\n[settings]\nsummon_hotkey = \"control+alt+Space\"\nclipboard_capture = true\nclipboard_max_entries = 100\nclipboard_max_item_bytes = 8388608\nclipboard_max_total_bytes = 67108864\n[scripts.\"bad.id\"]\nname = \"x\"\ninterpreter = \"exe\"\nargs = []\ncwd = \"C:\\\\x\"\n",
-        )
+        let e = parse(&format!(
+            "{BASE_SETTINGS}[scripts.\"bad.id\"]\nname = \"x\"\ninterpreter = \"exe\"\nargs = []\ncwd = \"C:\\\\x\"\n"
+        ))
         .unwrap_err();
         assert!(err_contains(&e, "script id"));
     }
@@ -640,9 +650,7 @@ mod tests {
             ),
         ];
         for (field, script) in texts.drain(..) {
-            let text = format!(
-                "schema_version = 1\n[settings]\nsummon_hotkey = \"control+alt+Space\"\nclipboard_capture = true\nclipboard_max_entries = 100\nclipboard_max_item_bytes = 8388608\nclipboard_max_total_bytes = 67108864\n[scripts.a]\n{script}\n"
-            );
+            let text = format!("{BASE_SETTINGS}[scripts.a]\n{script}\n");
             let e = parse(&text).unwrap_err();
             assert!(
                 err_contains(&e, &format!("{field} must be nonempty")),
@@ -653,9 +661,9 @@ mod tests {
 
     #[test]
     fn nul_in_script_field_rejected() {
-        let e = parse(
-            "schema_version = 1\n[settings]\nsummon_hotkey = \"control+alt+Space\"\nclipboard_capture = true\nclipboard_max_entries = 100\nclipboard_max_item_bytes = 8388608\nclipboard_max_total_bytes = 67108864\n[scripts.a]\nname = \"x\"\ninterpreter = \"exe\"\nargs = [\"has\\u0000nul\"]\ncwd = \"C:\\\\x\"\n",
-        )
+        let e = parse(&format!(
+            "{BASE_SETTINGS}[scripts.a]\nname = \"x\"\ninterpreter = \"exe\"\nargs = [\"has\\u0000nul\"]\ncwd = \"C:\\\\x\"\n"
+        ))
         .unwrap_err();
         assert!(err_contains(&e, "NUL"));
     }
@@ -664,7 +672,7 @@ mod tests {
     fn name_over_limit_rejected() {
         let long = "a".repeat(129);
         let e = parse(&format!(
-            "schema_version = 1\n[settings]\nsummon_hotkey = \"control+alt+Space\"\nclipboard_capture = true\nclipboard_max_entries = 100\nclipboard_max_item_bytes = 8388608\nclipboard_max_total_bytes = 67108864\n[scripts.a]\nname = \"{long}\"\ninterpreter = \"exe\"\nargs = []\ncwd = \"C:\\\\x\"\n"
+            "{BASE_SETTINGS}[scripts.a]\nname = \"{long}\"\ninterpreter = \"exe\"\nargs = []\ncwd = \"C:\\\\x\"\n"
         ))
         .unwrap_err();
         assert!(err_contains(&e, "Unicode scalar values"));
@@ -674,7 +682,7 @@ mod tests {
     fn too_many_args_rejected() {
         let args = vec!["a".to_string(); 65].join("\", \"");
         let e = parse(&format!(
-            "schema_version = 1\n[settings]\nsummon_hotkey = \"control+alt+Space\"\nclipboard_capture = true\nclipboard_max_entries = 100\nclipboard_max_item_bytes = 8388608\nclipboard_max_total_bytes = 67108864\n[scripts.a]\nname = \"x\"\ninterpreter = \"exe\"\nargs = [\"{args}\"]\ncwd = \"C:\\\\x\"\n"
+            "{BASE_SETTINGS}[scripts.a]\nname = \"x\"\ninterpreter = \"exe\"\nargs = [\"{args}\"]\ncwd = \"C:\\\\x\"\n"
         ))
         .unwrap_err();
         assert!(err_contains(&e, "arguments"));
@@ -707,9 +715,9 @@ mod tests {
 
     #[test]
     fn hotkey_is_optional_and_passthrough() {
-        let cfg = parse(
-            "schema_version = 1\n[settings]\nsummon_hotkey = \"control+alt+Space\"\nclipboard_capture = true\nclipboard_max_entries = 100\nclipboard_max_item_bytes = 8388608\nclipboard_max_total_bytes = 67108864\n[scripts.a]\nname = \"x\"\ninterpreter = \"exe\"\nargs = []\ncwd = \"C:\\\\x\"\n",
-        )
+        let cfg = parse(&format!(
+            "{BASE_SETTINGS}[scripts.a]\nname = \"x\"\ninterpreter = \"exe\"\nargs = []\ncwd = \"C:\\\\x\"\n"
+        ))
         .unwrap();
         assert_eq!(cfg.scripts["a"].hotkey, None);
         assert_eq!(cfg.settings.summon_hotkey, "control+alt+Space");
@@ -717,7 +725,7 @@ mod tests {
 
     #[test]
     fn clipboard_source_is_optional_and_validated() {
-        let base = "schema_version = 1\n[settings]\nsummon_hotkey = \"control+alt+Space\"\nclipboard_capture = true\nclipboard_max_entries = 100\nclipboard_max_item_bytes = 8388608\nclipboard_max_total_bytes = 67108864\n";
+        let base = BASE_SETTINGS;
         assert_eq!(
             parse(base).unwrap().settings.clipboard_source,
             ClipboardSource::Auto
@@ -739,7 +747,7 @@ mod tests {
 
     #[test]
     fn start_at_login_is_optional_and_off() {
-        let base = "schema_version = 1\n[settings]\nsummon_hotkey = \"control+alt+Space\"\nclipboard_capture = true\nclipboard_max_entries = 100\nclipboard_max_item_bytes = 8388608\nclipboard_max_total_bytes = 67108864\n";
+        let base = BASE_SETTINGS;
         assert!(!parse(base).unwrap().settings.start_at_login);
         let on = format!("{base}start_at_login = true\n");
         assert!(parse(&on).unwrap().settings.start_at_login);
@@ -747,7 +755,7 @@ mod tests {
 
     #[test]
     fn palette_size_is_optional_and_validated() {
-        let base = "schema_version = 1\n[settings]\nsummon_hotkey = \"control+alt+Space\"\nclipboard_capture = true\nclipboard_max_entries = 100\nclipboard_max_item_bytes = 8388608\nclipboard_max_total_bytes = 67108864\n";
+        let base = BASE_SETTINGS;
         assert_eq!(
             parse(base).unwrap().settings.palette_size,
             PaletteSize::Medium
@@ -770,7 +778,7 @@ mod tests {
 
     #[test]
     fn keep_state_secs_is_optional_and_bounded() {
-        let base = "schema_version = 1\n[settings]\nsummon_hotkey = \"control+alt+Space\"\nclipboard_capture = true\nclipboard_max_entries = 100\nclipboard_max_item_bytes = 8388608\nclipboard_max_total_bytes = 67108864\n";
+        let base = BASE_SETTINGS;
         assert_eq!(parse(base).unwrap().settings.keep_state_secs, 30);
         let off = format!("{base}keep_state_secs = 0\n");
         assert_eq!(parse(&off).unwrap().settings.keep_state_secs, 0);
@@ -780,7 +788,7 @@ mod tests {
 
     #[test]
     fn web_search_url_is_optional_and_validated() {
-        let base = "schema_version = 1\n[settings]\nsummon_hotkey = \"control+alt+Space\"\nclipboard_capture = true\nclipboard_max_entries = 100\nclipboard_max_item_bytes = 8388608\nclipboard_max_total_bytes = 67108864\n";
+        let base = BASE_SETTINGS;
         assert_eq!(
             parse(base).unwrap().settings.web_search_url,
             crate::core::web::DEFAULT_SEARCH_URL
@@ -807,8 +815,6 @@ mod tests {
         assert!(parse(&format!("{base}search_engine = \"altavista\"\n")).is_err());
     }
 
-    const SNIPPET_BASE: &str = "schema_version = 1\n[settings]\nsummon_hotkey = \"control+alt+Space\"\nclipboard_capture = true\nclipboard_max_entries = 100\nclipboard_max_item_bytes = 8388608\nclipboard_max_total_bytes = 67108864\n";
-
     #[test]
     fn sample_snippet_parses_and_table_is_optional() {
         let cfg = parse(SAMPLE_TOML).unwrap();
@@ -817,7 +823,7 @@ mod tests {
         assert_eq!(snippet.keyword.as_deref(), Some(";sig"));
         // TOML trims the newline right after the opening quotes.
         assert_eq!(snippet.text, "Best,\nMe");
-        assert!(parse(SNIPPET_BASE).unwrap().snippets.is_empty());
+        assert!(parse(BASE_SETTINGS).unwrap().snippets.is_empty());
     }
 
     #[test]
@@ -868,7 +874,7 @@ mod tests {
             ),
         ];
         for (table, needle) in &cases {
-            let e = parse(&format!("{SNIPPET_BASE}{table}")).unwrap_err();
+            let e = parse(&format!("{BASE_SETTINGS}{table}")).unwrap_err();
             assert!(err_contains(&e, needle), "{table:?}: {e}");
         }
     }
@@ -876,7 +882,7 @@ mod tests {
     #[test]
     fn snippet_keywords_are_unique_ignoring_case() {
         let text = format!(
-            "{SNIPPET_BASE}[snippets.a]\nname = \"A\"\ntext = \"1\"\nkeyword = \";Sig\"\n[snippets.b]\nname = \"B\"\ntext = \"2\"\nkeyword = \";sig\"\n"
+            "{BASE_SETTINGS}[snippets.a]\nname = \"A\"\ntext = \"1\"\nkeyword = \";Sig\"\n[snippets.b]\nname = \"B\"\ntext = \"2\"\nkeyword = \";sig\"\n"
         );
         let e = parse(&text).unwrap_err();
         assert!(err_contains(&e, "share the keyword"), "{e}");
@@ -887,7 +893,7 @@ mod tests {
     #[test]
     fn unknown_snippet_field_rejected() {
         let text =
-            format!("{SNIPPET_BASE}[snippets.a]\nname = \"x\"\ntext = \"y\"\nexpand = true\n");
+            format!("{BASE_SETTINGS}[snippets.a]\nname = \"x\"\ntext = \"y\"\nexpand = true\n");
         assert!(matches!(parse(&text), Err(ConfigError::Parse { .. })));
     }
 

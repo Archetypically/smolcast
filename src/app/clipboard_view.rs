@@ -8,7 +8,7 @@
 use std::collections::{HashMap, VecDeque};
 use std::time::Instant;
 
-use egui::{Color32, Key, Modifiers, RichText, TextureHandle, TextureOptions, Vec2};
+use egui::{Key, Modifiers, RichText, TextureHandle, TextureOptions, Vec2};
 use fuzzy_matcher::FuzzyMatcher;
 use fuzzy_matcher::skim::SkimMatcherV2;
 
@@ -29,6 +29,8 @@ const MEDIUM_ROWS: usize = 6;
 /// Characters of text considered by search.
 const SEARCH_CHARS: usize = 512;
 const ROW_CHARS: usize = 60;
+/// Bytes at the start of an item that a row's preview line is taken from.
+const PREVIEW_SCAN_BYTES: usize = 4096;
 const LIST_WIDTH: f32 = 300.0;
 
 /// Which history the view is showing.
@@ -419,15 +421,14 @@ impl ClipboardView {
             return;
         };
         let record = encode_record(&entry.payload, entry.captured_at_ms);
-        let token = match self.tokens.get(&id) {
-            Some(token) => token.clone(),
-            None => {
+        let token = self
+            .tokens
+            .entry(id)
+            .or_insert_with(|| {
                 self.token_counter = self.token_counter.wrapping_add(1);
-                let token = format!("{:013}-{:05}", unix_ms_now().max(0), self.token_counter);
-                self.tokens.insert(id, token.clone());
-                token
-            }
-        };
+                format!("{:013}-{:05}", unix_ms_now().max(0), self.token_counter)
+            })
+            .clone();
         self.store
             .push(ClipboardStoreCommand::Save { token, record });
     }
@@ -582,9 +583,9 @@ impl ClipboardView {
                     snapshot.items.retain(|i| &i.id != item_id);
                 }
                 self.refresh_windows();
+                self.thumbnails.forget(&key);
             }
         }
-        self.thumbnails.forget(&key);
         self.filtered_for = None;
     }
 
@@ -628,13 +629,8 @@ impl ClipboardView {
         let list_height = visible as f32 * theme::ROW_STRIDE;
         let step = list::wheel_rows(ui, theme::ROW_STRIDE, &mut self.wheel);
         let count = self.filtered.len();
-        list::scroll_window(
-            &mut self.first_row,
-            &mut self.selected,
-            count,
-            visible,
-            step,
-        );
+        self.selected =
+            list::scroll_window(&mut self.first_row, self.selected, count, visible, step);
         list::keep_visible(self.selected, &mut self.first_row, visible);
 
         theme::inset(ui, |ui| self.source_line(ui));
@@ -734,8 +730,11 @@ impl ClipboardView {
                 query.is_empty()
                     || match &row.content {
                         RowContent::Text(text) => {
-                            let head: String = text.chars().take(SEARCH_CHARS).collect();
-                            matcher.fuzzy_match(&head, query).is_some()
+                            let end = text
+                                .char_indices()
+                                .nth(SEARCH_CHARS)
+                                .map_or(text.len(), |(i, _)| i);
+                            matcher.fuzzy_match(&text[..end], query).is_some()
                         }
                         RowContent::Image { .. } => matcher.fuzzy_match("image", query).is_some(),
                         RowContent::Other => matcher.fuzzy_match("other", query).is_some(),
@@ -757,13 +756,14 @@ impl ClipboardView {
         }
         let text = match (self.active, self.setting) {
             (Some(Active::Windows), _) => "Windows clipboard history".to_owned(),
-            (Some(Active::Smolcast), ClipboardSource::Auto) => format!(
-                "smolcast history · {} (Windows clipboard history is off)",
-                human_bytes(self.history.total_bytes())
-            ),
-            (Some(Active::Smolcast), _) => {
+            (Some(Active::Smolcast), setting) => {
+                let off = if matches!(setting, ClipboardSource::Auto) {
+                    " (Windows clipboard history is off)"
+                } else {
+                    ""
+                };
                 format!(
-                    "smolcast history · {}",
+                    "smolcast history · {}{off}",
                     human_bytes(self.history.total_bytes())
                 )
             }
@@ -775,7 +775,7 @@ impl ClipboardView {
         if let Some(error) = &self.windows_error {
             ui.label(
                 RichText::new(format!("Windows clipboard history unavailable: {error}"))
-                    .color(Color32::from_rgb(230, 180, 60))
+                    .color(theme::WARNING)
                     .small(),
             );
         }
@@ -824,8 +824,9 @@ fn row_ui(ui: &mut egui::Ui, row: &Row<'_>, selected: bool, now: i64) -> egui::R
     let (glyph, text) = match &row.content {
         RowContent::Text(text) => {
             // Runs every frame for every visible row over items of up to
-            // 8 MiB, so it stops at the second non-blank line.
-            let mut lines = text.lines().map(str::trim).filter(|l| !l.is_empty());
+            // 8 MiB, so it looks only at the start of the item.
+            let head = &text[..text.floor_char_boundary(PREVIEW_SCAN_BYTES)];
+            let mut lines = head.lines().map(str::trim).filter(|l| !l.is_empty());
             let first = lines.next().unwrap_or("");
             let mut chars = first.chars();
             let mut shown: String = chars.by_ref().take(ROW_CHARS).collect();

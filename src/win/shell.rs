@@ -39,6 +39,7 @@ use crate::core::app_index::{
 };
 use crate::core::icon_scale;
 use crate::win::icon::{IconRgba, OwnedBitmap, bitmap_to_rgba};
+use crate::win::{from_wide_nul, wide, wide_path, win_error_parts};
 
 /// `System.AppUserModel.ID` ({9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3}, 5).
 const PKEY_APP_USER_MODEL_ID: PROPERTYKEY = PROPERTYKEY {
@@ -63,10 +64,11 @@ pub struct LaunchError {
 
 impl LaunchError {
     fn from_win(operation: &'static str, e: &windows::core::Error) -> Self {
+        let (message, code) = win_error_parts(e);
         Self {
             operation,
-            message: e.message(),
-            code: Some(e.code().0 as u32),
+            message,
+            code: Some(code),
         }
     }
 }
@@ -113,13 +115,16 @@ impl Drop for ComApartment {
     }
 }
 
-fn wide(s: &str) -> Vec<u16> {
-    s.encode_utf16().chain(Some(0)).collect()
-}
-
-fn wide_path(path: &Path) -> Vec<u16> {
-    use std::os::windows::ffi::OsStrExt;
-    path.as_os_str().encode_wide().chain(Some(0)).collect()
+/// Run `ShellExecuteExW` with `SW_SHOWNORMAL`. `file` must be NUL-terminated.
+fn shell_execute(file: &[u16]) -> windows::core::Result<()> {
+    let mut info = SHELLEXECUTEINFOW {
+        cbSize: size_of::<SHELLEXECUTEINFOW>() as u32,
+        fMask: SEE_MASK_NOASYNC | SEE_MASK_FLAG_NO_UI,
+        lpFile: PCWSTR(file.as_ptr()),
+        nShow: SW_SHOWNORMAL.0,
+        ..Default::default()
+    };
+    unsafe { ShellExecuteExW(&mut info) }
 }
 
 /// Take ownership of a COM-allocated string.
@@ -130,11 +135,6 @@ fn take_pwstr(p: PWSTR) -> String {
     let s = unsafe { p.to_string() }.unwrap_or_default();
     unsafe { CoTaskMemFree(Some(p.0 as *const _)) };
     s
-}
-
-fn from_buf(buf: &[u16]) -> String {
-    let len = buf.iter().position(|&c| c == 0).unwrap_or(buf.len());
-    String::from_utf16_lossy(&buf[..len])
 }
 
 // ---- scan ---------------------------------------------------------------------
@@ -321,15 +321,15 @@ fn read_shortcut(
 
     let mut buf = vec![0u16; LINK_BUF];
     let target = unsafe { link.GetPath(&mut buf, std::ptr::null_mut(), 0) }
-        .map(|()| from_buf(&buf))
+        .map(|()| from_wide_nul(&buf))
         .unwrap_or_default();
     buf.fill(0);
     let arguments = unsafe { link.GetArguments(&mut buf) }
-        .map(|()| from_buf(&buf))
+        .map(|()| from_wide_nul(&buf))
         .unwrap_or_default();
     buf.fill(0);
     let working_dir = unsafe { link.GetWorkingDirectory(&mut buf) }
-        .map(|()| from_buf(&buf))
+        .map(|()| from_wide_nul(&buf))
         .unwrap_or_default();
 
     // A local absolute target that is gone is a broken shortcut (§6.4). UNC
@@ -450,15 +450,7 @@ fn launch(spec: &LaunchSpec) -> Result<(), LaunchError> {
             // The original .lnk goes to the shell so its arguments and working
             // directory apply exactly as Explorer would apply them.
             let file = wide_path(lnk_path);
-            let mut info = SHELLEXECUTEINFOW {
-                cbSize: size_of::<SHELLEXECUTEINFOW>() as u32,
-                fMask: SEE_MASK_NOASYNC | SEE_MASK_FLAG_NO_UI,
-                lpFile: PCWSTR(file.as_ptr()),
-                nShow: SW_SHOWNORMAL.0,
-                ..Default::default()
-            };
-            unsafe { ShellExecuteExW(&mut info) }
-                .map_err(|e| LaunchError::from_win("launch shortcut", &e))
+            shell_execute(&file).map_err(|e| LaunchError::from_win("launch shortcut", &e))
         }
         LaunchSpec::Script(script) => crate::win::process::spawn_script(script),
         LaunchSpec::Command(_) => Err(LaunchError {
@@ -630,13 +622,6 @@ pub fn open_uri(uri: impl Into<String>) {
                 return;
             };
             let file = wide(&uri);
-            let mut info = SHELLEXECUTEINFOW {
-                cbSize: size_of::<SHELLEXECUTEINFOW>() as u32,
-                fMask: SEE_MASK_NOASYNC | SEE_MASK_FLAG_NO_UI,
-                lpFile: PCWSTR(file.as_ptr()),
-                nShow: SW_SHOWNORMAL.0,
-                ..Default::default()
-            };
-            let _ = unsafe { ShellExecuteExW(&mut info) };
+            let _ = shell_execute(&file);
         });
 }
