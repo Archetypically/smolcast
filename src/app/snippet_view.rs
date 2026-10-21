@@ -120,6 +120,9 @@ impl SnippetView {
     /// Returns whether this completed a save from the view.
     pub fn config_accepted(&mut self, snippets: &BTreeMap<String, SnippetConfig>) -> bool {
         self.snippets = snippet::from_config(snippets);
+        // The old indices may point at other snippets now; keys act on
+        // nothing until the list is ranked again.
+        self.results.clear();
         self.results_for = None;
         if !self.saving() {
             return false;
@@ -236,7 +239,9 @@ impl SnippetView {
     }
 
     fn selected_snippet(&self) -> Option<&Snippet> {
-        self.results.get(self.selected).map(|&i| &self.snippets[i])
+        self.results
+            .get(self.selected)
+            .and_then(|&i| self.snippets.get(i))
     }
 
     fn begin_edit(&mut self, id: Option<String>) {

@@ -25,7 +25,7 @@ use crate::core::matcher::{Ranked, rank};
 use crate::core::usage::Usage;
 use crate::core::web;
 use crate::win::icon::IconRgba;
-use crate::win::persistence::unix_ms_now;
+use crate::win::persistence::{Stored, unix_ms_now};
 use crate::win::shell::{BrokenShortcut, LaunchError, ScanOutcome};
 
 use super::notice::{Notice, NoticeStore, Severity, op};
@@ -137,6 +137,10 @@ pub struct Launcher {
     usage_snapshot: Option<(u64, Vec<u8>)>,
     /// Pinned entries, listed first under "Favorites" on an empty query.
     favorites: Favorites,
+    /// False when the file on disk could not be read: changes stay in
+    /// memory rather than replace it (`persistence::Stored`).
+    usage_writable: bool,
+    favorites_writable: bool,
     /// The favorites document to save after a change.
     favorites_snapshot: Option<Vec<u8>>,
     /// How many of `ranked`'s leading entries are favorites (empty query
@@ -167,8 +171,8 @@ pub struct Launcher {
 impl Launcher {
     /// Starts with the persisted usage and requests the startup scan.
     pub fn new(
-        usage: Usage,
-        favorites: Favorites,
+        usage: Stored<Usage>,
+        favorites: Stored<Favorites>,
         scripts: &BTreeMap<String, ScriptConfig>,
     ) -> Self {
         let scripts = script_entries(scripts);
@@ -176,14 +180,16 @@ impl Launcher {
         apps.extend(scripts.iter().cloned());
         let mut launcher = Self {
             apps,
-            favorites,
+            usage_writable: usage.writable,
+            favorites_writable: favorites.writable,
+            favorites: favorites.value,
             favorites_snapshot: None,
             favorite_rows: 0,
             notice: None,
             indexed: false,
             scanned: Vec::new(),
             scripts,
-            usage,
+            usage: usage.value,
             usage_generation: 0,
             ranked: Vec::new(),
             ranked_for: None,
@@ -266,6 +272,8 @@ impl Launcher {
             return;
         }
         self.scan_active = false;
+        // Re-rank even on failure: the web fallback waits on the first scan.
+        self.ranked_for = None;
         self.last_scan_finished = Some(Instant::now());
         match result {
             Ok(outcome) => {
@@ -414,6 +422,13 @@ impl Launcher {
     pub fn run_script(&mut self, id: &str, notices: &mut NoticeStore) {
         let app_id = AppId::Script { id: id.to_owned() };
         match self.scripts.iter().find(|s| s.id == app_id) {
+            // One request slot: replacing a launch the host has not taken yet
+            // would drop it and leave `launch_pending` set for good.
+            Some(_) if self.launch_request.is_some() => notices.push(Notice::new(
+                Severity::Info,
+                op::LAUNCHER,
+                format!("Script \"{id}\" did not run: another launch was starting. Try again."),
+            )),
             Some(script) => {
                 self.launch_request = Some(LaunchRequest {
                     app_id,
@@ -431,7 +446,9 @@ impl Launcher {
     fn record_usage(&mut self, app_id: &AppId) {
         self.usage.record_launch(app_id, unix_ms_now());
         self.usage_generation += 1;
-        self.usage_snapshot = Some((self.usage_generation, self.usage.encode()));
+        if self.usage_writable {
+            self.usage_snapshot = Some((self.usage_generation, self.usage.encode()));
+        }
         self.ranked_for = None;
     }
 
@@ -589,7 +606,7 @@ impl Launcher {
             return None;
         }
         let ranked = self.ranked.get(row.checked_sub(self.answer_rows())?)?;
-        Some(&self.apps[ranked.index])
+        self.apps.get(ranked.index)
     }
 
     /// Favorites whose app is in the index right now.
@@ -626,15 +643,17 @@ impl Launcher {
         let apps = &self.apps;
         let shown = |x: &AppId| apps.iter().any(|a| &a.id == x);
         if self.favorites.shift(&id, up, shown) {
-            self.selected = if up { row - 1 } else { row + 1 };
+            self.selected = if up { row.saturating_sub(1) } else { row + 1 };
             self.favorites_changed();
         }
     }
 
     fn favorites_changed(&mut self) {
-        self.favorites_snapshot = Some(self.favorites.encode());
+        if self.favorites_writable {
+            self.favorites_snapshot = Some(self.favorites.encode());
+        }
         // Re-rank in place: the query is unchanged, so keep the selection.
-        let query = self.ranked_for.take().unwrap_or_default();
+        let query = self.ranked_for.clone().unwrap_or_default();
         self.rank_now(&query);
     }
 
@@ -654,18 +673,13 @@ impl Launcher {
 
     /// The footer's label for Enter on the selected row.
     pub fn primary_action(&self) -> &'static str {
-        let offset = self.answer_rows();
-        if offset == 1 && self.selected == 0 {
+        if self.answer.is_some() && self.selected == 0 {
             return "Paste Answer";
         }
         if self.web_query.is_some() {
             return "Search Web";
         }
-        match self
-            .ranked
-            .get(self.selected.wrapping_sub(offset))
-            .map(|r| &self.apps[r.index].launch)
-        {
+        match self.app_at(self.selected).map(|a| &a.launch) {
             Some(LaunchSpec::Command(_)) => "Open Command",
             Some(LaunchSpec::Script(_)) => "Run Script",
             Some(_) => "Open Application",
@@ -753,9 +767,12 @@ impl Launcher {
         }
         self.answer = calc::evaluate(query);
         // Nothing matched: offer the query to the web, like Raycast's
-        // fallback commands.
-        self.web_query = (self.ranked.is_empty() && self.answer.is_none() && !trimmed.is_empty())
-            .then(|| trimmed.to_owned());
+        // fallback commands. Not during the first scan, when the app may
+        // simply not be indexed yet.
+        let first_scan = !self.indexed && self.scan_active;
+        self.web_query =
+            (self.ranked.is_empty() && self.answer.is_none() && !trimmed.is_empty() && !first_scan)
+                .then(|| trimmed.to_owned());
         self.ranked_for = Some(query.to_owned());
     }
 
@@ -964,7 +981,6 @@ impl Launcher {
         if self.launch_pending.is_some() {
             return; // one launch at a time; the result is on its way
         }
-        let offset = self.answer_rows();
         if let Some(answer) = &self.answer
             && row == 0
         {
@@ -976,22 +992,18 @@ impl Launcher {
             self.open_url = Some(web::search_url(template, query));
             return;
         }
-        let Some(ranked) = self.ranked.get(row.wrapping_sub(offset)) else {
+        let Some(app) = self.app_at(row) else {
             return;
         };
-        let app = &self.apps[ranked.index];
-        if let LaunchSpec::Command(command) = app.launch {
+        let (app_id, spec) = (app.id.clone(), app.launch.clone());
+        if let LaunchSpec::Command(command) = spec {
             // Opening a command view counts as a use for ranking.
-            let id = app.id.clone();
             self.open_command = Some(command);
-            self.record_usage(&id);
+            self.record_usage(&app_id);
             return;
         }
-        self.launch_pending = Some((app.id.clone(), Instant::now()));
-        self.launch_request = Some(LaunchRequest {
-            app_id: app.id.clone(),
-            spec: app.launch.clone(),
-        });
+        self.launch_pending = Some((app_id.clone(), Instant::now()));
+        self.launch_request = Some(LaunchRequest { app_id, spec });
     }
 }
 

@@ -149,6 +149,12 @@ fn eval_expr(text: &str) -> Option<(f64, bool)> {
     (parser.pos == parser.chars.len() && value.is_finite()).then_some((value, parser.had_operator))
 }
 
+/// Every intermediate must be finite: `1/(1/0)` would otherwise cancel an
+/// infinity back to a plausible-looking `0`.
+fn finite(value: f64) -> Option<f64> {
+    value.is_finite().then_some(value)
+}
+
 struct Parser {
     chars: Vec<char>,
     pos: usize,
@@ -175,7 +181,7 @@ impl Parser {
             self.pos += 1;
             self.had_operator = true;
             let rhs = self.product()?;
-            value = if op == '+' { value + rhs } else { value - rhs };
+            value = finite(if op == '+' { value + rhs } else { value - rhs })?;
         }
         Some(value)
     }
@@ -187,11 +193,11 @@ impl Parser {
             self.pos += 1;
             self.had_operator = true;
             let rhs = self.unary()?;
-            value = if matches!(op, '/' | '÷') {
+            value = finite(if matches!(op, '/' | '÷') {
                 value / rhs
             } else {
                 value * rhs
-            };
+            })?;
         }
         Some(value)
     }
@@ -218,7 +224,7 @@ impl Parser {
             self.pos += 1;
             self.had_operator = true;
             let exponent = self.unary()?;
-            return Some(base.powf(exponent));
+            return finite(base.powf(exponent));
         }
         Some(base)
     }
@@ -732,6 +738,8 @@ mod tests {
             "1password",
             "",
             "1/0",
+            "1/(1/0)",
+            "1/(2^1024)",
         ] {
             assert_eq!(result(query), None, "{query}");
         }

@@ -41,6 +41,11 @@ pub struct Favorites {
     ids: Vec<AppId>,
 }
 
+#[derive(Deserialize)]
+struct VersionProbe {
+    schema_version: u32,
+}
+
 #[derive(Serialize, Deserialize)]
 struct FavoritesFile {
     schema_version: u32,
@@ -48,12 +53,16 @@ struct FavoritesFile {
 }
 
 impl Favorites {
+    /// Decode a favorites document. The version is checked before the entry
+    /// shape so a future schema reports `UnsupportedVersion`, not `Malformed`.
     pub fn decode(bytes: &[u8]) -> Result<Self, FavoritesError> {
+        let probe: VersionProbe =
+            serde_json::from_slice(bytes).map_err(|e| FavoritesError::Malformed(e.to_string()))?;
+        if probe.schema_version != FAVORITES_SCHEMA_VERSION {
+            return Err(FavoritesError::UnsupportedVersion(probe.schema_version));
+        }
         let file: FavoritesFile =
             serde_json::from_slice(bytes).map_err(|e| FavoritesError::Malformed(e.to_string()))?;
-        if file.schema_version != FAVORITES_SCHEMA_VERSION {
-            return Err(FavoritesError::UnsupportedVersion(file.schema_version));
-        }
         let mut favorites = Self::default();
         for id in file.favorites {
             if !favorites.ids.contains(&id) {
@@ -152,6 +161,11 @@ mod tests {
         ));
         assert_eq!(
             Favorites::decode(br#"{"schema_version":2,"favorites":[]}"#),
+            Err(FavoritesError::UnsupportedVersion(2))
+        );
+        // A future schema's entries do not make it look malformed.
+        assert_eq!(
+            Favorites::decode(br#"{"schema_version":2,"favorites":[{"kind":"future"}]}"#),
             Err(FavoritesError::UnsupportedVersion(2))
         );
     }

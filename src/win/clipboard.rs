@@ -680,7 +680,11 @@ impl Worker {
             Err(_) if self.attempts < RETRY_DELAYS_MS.len() => {
                 let delay = RETRY_DELAYS_MS[self.attempts];
                 self.attempts += 1;
-                unsafe { SetTimer(Some(self.hwnd), RETRY_TIMER, delay, None) };
+                // Without a timer no retry would ever arrive and the queue
+                // would stall; fail this operation instead.
+                if unsafe { SetTimer(Some(self.hwnd), RETRY_TIMER, delay, None) } == 0 {
+                    return Some(Err(()));
+                }
                 self.timer_armed = true;
                 None
             }

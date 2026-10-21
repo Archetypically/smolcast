@@ -12,6 +12,7 @@
 //! - Entries are written sorted by `AppId`, so equal state encodes to equal bytes.
 
 use std::collections::BTreeMap;
+use std::collections::btree_map::Entry;
 
 use serde::{Deserialize, Serialize};
 
@@ -86,9 +87,22 @@ impl Usage {
 
         let mut usage = Usage::default();
         for entry in file.entries {
-            let stats = usage.entries.entry(entry.id).or_default();
-            stats.launch_count = stats.launch_count.saturating_add(entry.launch_count);
-            stats.last_launch_unix_ms = stats.last_launch_unix_ms.max(entry.last_launch_unix_ms);
+            // Merge only true duplicates; a lone entry keeps its own values,
+            // including a negative timestamp a default of 0 would clamp.
+            match usage.entries.entry(entry.id) {
+                Entry::Vacant(slot) => {
+                    slot.insert(UsageStats {
+                        launch_count: entry.launch_count,
+                        last_launch_unix_ms: entry.last_launch_unix_ms,
+                    });
+                }
+                Entry::Occupied(mut slot) => {
+                    let stats = slot.get_mut();
+                    stats.launch_count = stats.launch_count.saturating_add(entry.launch_count);
+                    stats.last_launch_unix_ms =
+                        stats.last_launch_unix_ms.max(entry.last_launch_unix_ms);
+                }
+            }
         }
         Ok(usage)
     }
@@ -181,6 +195,16 @@ mod tests {
             Usage::decode(br#"{"schema_version": 1, "entries": [{"id": 7}]}"#),
             Err(UsageError::Malformed(_))
         ));
+    }
+
+    #[test]
+    fn decode_keeps_a_lone_negative_timestamp() {
+        let mut usage = Usage::default();
+        let app = AppId::UnresolvedShortcut {
+            path_key: "a".into(),
+        };
+        usage.record_launch(&app, -5);
+        assert_eq!(Usage::decode(&usage.encode()).unwrap(), usage);
     }
 
     #[test]

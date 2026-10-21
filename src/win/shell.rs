@@ -259,7 +259,11 @@ fn enumerate_apps_folder(cancel: &AtomicBool) -> Result<Vec<(String, String)>, L
         }
         let mut batch = [None];
         let mut fetched = 0u32;
-        if unsafe { items.Next(&mut batch, Some(&mut fetched)) }.is_err() || fetched == 0 {
+        // A mid-list failure fails the scan, so the previous index is kept
+        // rather than replaced by a partial one.
+        unsafe { items.Next(&mut batch, Some(&mut fetched)) }
+            .map_err(|e| LaunchError::from_win("enumerate AppsFolder", &e))?;
+        if fetched == 0 {
             break;
         }
         let Some(item) = batch[0].take() else {
@@ -305,7 +309,15 @@ fn read_shortcut(
     let link: IShellLinkW = unsafe { CoCreateInstance(&ShellLink, None, CLSCTX_INPROC_SERVER) }
         .map_err(|_| Skip::Other)?;
     let file = link.cast::<IPersistFile>().map_err(|_| Skip::Other)?;
-    unsafe { file.Load(PCWSTR(lnk_wide.as_ptr()), STGM_READ) }.map_err(|_| Skip::Broken)?;
+    // A file that reads but does not load is corrupt; one that cannot be read
+    // right now (locked, access denied) is not called broken.
+    unsafe { file.Load(PCWSTR(lnk_wide.as_ptr()), STGM_READ) }.map_err(|_| {
+        if std::fs::read(lnk).is_ok() {
+            Skip::Broken
+        } else {
+            Skip::Other
+        }
+    })?;
 
     let mut buf = vec![0u16; LINK_BUF];
     let target = unsafe { link.GetPath(&mut buf, std::ptr::null_mut(), 0) }
@@ -321,19 +333,25 @@ fn read_shortcut(
         .unwrap_or_default();
 
     // A local absolute target that is gone is a broken shortcut (§6.4). UNC
-    // targets are not probed: a sleeping share must not stall the scan. A
-    // target on a drive that is not attached (a USB stick) is skipped but not
-    // called broken, since the app may come back with the drive.
-    if !target.is_empty() && !target.starts_with("\\\\") && !Path::new(&target).exists() {
-        let drive_attached = Path::new(&target)
-            .ancestors()
-            .last()
-            .is_some_and(|root| root.as_os_str().is_empty() || root.exists());
-        return Err(if drive_attached {
-            Skip::Broken
-        } else {
-            Skip::Other
-        });
+    // targets are not probed: a sleeping share must not stall the scan. Bare
+    // names (`pwsh.exe`) are resolved by the shell at launch, so they are not
+    // probed either. Only a definite "not found" on an attached drive counts:
+    // an access error or a detached drive (a USB stick) skips the shortcut
+    // without calling it broken, since the app may still be there.
+    let target_path = Path::new(&target);
+    if target_path.is_absolute() && !target.starts_with("\\\\") {
+        match target_path.try_exists() {
+            Ok(true) => {}
+            Ok(false) => {
+                let drive_attached = target_path.ancestors().last().is_some_and(Path::exists);
+                return Err(if drive_attached {
+                    Skip::Broken
+                } else {
+                    Skip::Other
+                });
+            }
+            Err(_) => return Err(Skip::Other),
+        }
     }
 
     // Display name and AUMID come from the shell item, which honors localized

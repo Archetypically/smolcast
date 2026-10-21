@@ -54,10 +54,13 @@ pub fn scroll_window(
     visible: usize,
     step: isize,
 ) {
+    // Clamp even without a scroll: a list that shrank under the window
+    // would otherwise leave blank rows below its end.
+    let max_first = count.saturating_sub(visible);
+    *first_row = (*first_row).min(max_first);
     if step == 0 || count == 0 {
         return;
     }
-    let max_first = count.saturating_sub(visible);
     *first_row = first_row.saturating_add_signed(step).min(max_first);
     let last = (*first_row + visible).min(count) - 1;
     *selected = (*selected).clamp(*first_row, last);

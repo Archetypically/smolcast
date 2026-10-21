@@ -286,8 +286,13 @@ pub fn shortcut_id(
     }
 }
 
+/// The containing directory. A drive root keeps its separator (`C:\\`), so
+/// an implicit cwd keys the same as an explicit one.
 fn parent_dir(path: &str) -> &str {
-    path.rfind(['\\', '/']).map_or("", |i| &path[..i])
+    path.rfind(['\\', '/']).map_or("", |i| {
+        let dir = &path[..i];
+        if dir.ends_with(':') { &path[..=i] } else { dir }
+    })
 }
 
 /// Merge entries that share an [`AppId`] (§6.2). The output is sorted by
@@ -434,6 +439,12 @@ mod tests {
                 }
             );
         }
+    }
+
+    #[test]
+    fn a_drive_root_parent_matches_an_explicit_root_cwd() {
+        assert_eq!(path_key(parent_dir("C:\\tool.exe")), path_key("C:\\"));
+        assert_eq!(parent_dir("C:\\Tools\\a.exe"), "C:\\Tools");
     }
 
     #[test]
