@@ -12,7 +12,7 @@ use egui::{Color32, Key, Modifiers, RichText, TextureHandle, TextureOptions, Vec
 use fuzzy_matcher::FuzzyMatcher;
 use fuzzy_matcher::skim::SkimMatcherV2;
 
-use crate::core::config::ClipboardSource;
+use crate::core::config::{ClipboardSource, PaletteSize};
 use crate::core::dib::ImagePayload;
 use crate::core::history::{History, InsertOutcome, Limits, Payload, encode_record};
 use crate::win::clipboard::{ClipboardCommand, ClipboardError, WindowsContent, WindowsSnapshot};
@@ -24,13 +24,12 @@ use super::{list, theme};
 const THUMBNAIL_CACHE_CAP: usize = 32;
 /// Thumbnail edge bound in pixels (§7.5).
 const THUMBNAIL_EDGE: u32 = 256;
-const VISIBLE_ROWS: usize = 6;
+/// Rows shown at once in a medium palette; the snippet view matches.
+const MEDIUM_ROWS: usize = 6;
 /// Characters of text considered by search.
 const SEARCH_CHARS: usize = 512;
 const ROW_CHARS: usize = 60;
 const LIST_WIDTH: f32 = 300.0;
-/// Six rows; the clipboard and snippet views match.
-const LIST_HEIGHT: f32 = VISIBLE_ROWS as f32 * theme::ROW_STRIDE;
 
 /// Which history the view is showing.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -242,6 +241,10 @@ pub struct ClipboardView {
     /// When the newest Windows refresh was requested, while it is in flight.
     windows_refreshing: Option<Instant>,
     thumbnails: Thumbnails,
+    /// Rows shown at once, from the palette size.
+    rows: usize,
+    /// Mouse-wheel distance not yet worth a whole row.
+    wheel: f32,
     /// Row keys matching `filtered_for`, newest first.
     filtered: Vec<RowKey>,
     filtered_for: Option<String>,
@@ -278,6 +281,8 @@ impl ClipboardView {
             windows_generation: 0,
             windows_refreshing: None,
             thumbnails: Thumbnails::default(),
+            rows: MEDIUM_ROWS,
+            wheel: 0.0,
             filtered: Vec::new(),
             filtered_for: None,
             selected: 0,
@@ -305,6 +310,10 @@ impl ClipboardView {
             ClipboardSource::Smolcast => self.active = Some(Active::Smolcast),
             ClipboardSource::Windows | ClipboardSource::Auto => self.refresh_windows(),
         }
+    }
+
+    pub fn set_palette_size(&mut self, size: PaletteSize) {
+        self.rows = theme::visible_rows(MEDIUM_ROWS, size);
     }
 
     pub fn set_setting(&mut self, setting: ClipboardSource) {
@@ -615,16 +624,29 @@ impl ClipboardView {
             }
         }
         self.selected = self.selected.min(self.filtered.len().saturating_sub(1));
-        list::keep_visible(self.selected, &mut self.first_row, VISIBLE_ROWS);
+        let visible = self.rows;
+        let list_height = visible as f32 * theme::ROW_STRIDE;
+        let step = list::wheel_rows(ui, theme::ROW_STRIDE, &mut self.wheel);
+        let count = self.filtered.len();
+        list::scroll_window(
+            &mut self.first_row,
+            &mut self.selected,
+            count,
+            visible,
+            step,
+        );
+        list::keep_visible(self.selected, &mut self.first_row, visible);
 
-        self.source_line(ui);
+        theme::inset(ui, |ui| self.source_line(ui));
         if self.setting == ClipboardSource::Windows
             && self.windows.as_ref().is_some_and(|s| !s.enabled)
         {
-            ui.label("Windows clipboard history is turned off.");
-            if ui.button("Open clipboard settings").clicked() {
-                self.open_settings = true;
-            }
+            theme::inset(ui, |ui| {
+                ui.label("Windows clipboard history is turned off.");
+                if ui.button("Open clipboard settings").clicked() {
+                    self.open_settings = true;
+                }
+            });
             return;
         }
 
@@ -639,8 +661,8 @@ impl ClipboardView {
             // and the list has a fixed height so the action row stays visible.
             // The cap also stops the separator taking all remaining height,
             // which grew the window every frame.
-            ui.set_max_height(LIST_HEIGHT);
-            let size = Vec2::new(LIST_WIDTH, LIST_HEIGHT);
+            ui.set_max_height(list_height);
+            let size = Vec2::new(LIST_WIDTH, list_height);
             ui.allocate_ui_with_layout(size, egui::Layout::top_down(egui::Align::Min), |ui| {
                 ui.set_min_size(size);
                 ui.set_width(LIST_WIDTH);
@@ -651,14 +673,14 @@ impl ClipboardView {
                         Some(_) if rows.is_empty() => Some("Nothing copied yet."),
                         Some(_) => Some("No matches."),
                     };
-                    match text {
+                    theme::inset(ui, |ui| match text {
                         Some(text) => {
                             ui.label(RichText::new(text).weak());
                         }
                         None => theme::busy(ui, "Loading clipboard history…"),
-                    }
+                    });
                 }
-                let end = (first_row + VISIBLE_ROWS).min(filtered.len());
+                let end = (first_row + visible).min(filtered.len());
                 for (index, key) in filtered.iter().enumerate().take(end).skip(first_row) {
                     if let Some(row) = by_key.get(key)
                         && row_ui(ui, row, index == selected, now).clicked()
@@ -669,9 +691,9 @@ impl ClipboardView {
             });
             ui.separator();
             ui.vertical(|ui| {
-                ui.set_max_height(LIST_HEIGHT);
+                ui.set_max_height(list_height);
                 if let Some(row) = filtered.get(selected).and_then(|k| by_key.get(k)) {
-                    preview_ui(ui, row, thumbnails);
+                    theme::inset(ui, |ui| preview_ui(ui, row, thumbnails, list_height));
                 }
             });
         });
@@ -682,7 +704,12 @@ impl ClipboardView {
             }
         }
 
-        ui.add_space(6.0);
+        ui.add_space(theme::SECTION_GAP);
+        theme::inset(ui, |ui| self.actions_ui(ui));
+    }
+
+    /// Delete and Clear all, under the list.
+    fn actions_ui(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
             if ui.button("Delete").on_hover_text("Shift+Delete").clicked() {
                 self.delete_selected();
@@ -755,7 +782,7 @@ impl ClipboardView {
     }
 }
 
-fn preview_ui(ui: &mut egui::Ui, row: &Row<'_>, thumbnails: &mut Thumbnails) {
+fn preview_ui(ui: &mut egui::Ui, row: &Row<'_>, thumbnails: &mut Thumbnails, list_height: f32) {
     match &row.content {
         RowContent::Text(text) => {
             let shown: String = text.chars().take(2000).collect();
@@ -775,7 +802,7 @@ fn preview_ui(ui: &mut egui::Ui, row: &Row<'_>, thumbnails: &mut Thumbnails) {
                 Ok(texture) => {
                     let size = texture.size_vec2();
                     let fit = (ui.available_width() / size.x)
-                        .min((LIST_HEIGHT - 24.0) / size.y)
+                        .min((list_height - 24.0) / size.y)
                         .min(1.0);
                     ui.add(egui::Image::new(&texture).fit_to_exact_size(size * fit));
                 }

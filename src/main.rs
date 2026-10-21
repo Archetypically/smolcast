@@ -19,9 +19,10 @@ use eframe::egui;
 use windows::Win32::UI::WindowsAndMessaging::{MB_ICONERROR, MB_OK, MessageBoxW};
 use windows::core::PCWSTR;
 
-use smolcast::app::eframe_host::{EframeApp, PALETTE_SIZE, Startup};
+use smolcast::app::eframe_host::{EframeApp, Startup};
 use smolcast::app::model::{AppEvent, AppModel, Wake};
 use smolcast::app::notice::{Notice, Severity, op};
+use smolcast::app::theme;
 use smolcast::core::config::{self, ConfigFile};
 use smolcast::win::appearance;
 use smolcast::win::clipboard::ClipboardThread;
@@ -81,6 +82,8 @@ fn main() -> eframe::Result {
     // notice, which is shown on the next summon rather than forcing the window.
     let (usage, usage_notice) = persistence::load_usage(&paths.usage);
     startup_notices.extend(usage_notice);
+    let (favorites, favorites_notice) = persistence::load_favorites(&paths.favorites);
+    startup_notices.extend(favorites_notice);
 
     // 4. Shared egui context and event channel (§1.2). Producers clone the
     //    sender and the context; the same context is handed to eframe below.
@@ -110,7 +113,7 @@ fn main() -> eframe::Result {
         viewport: egui::ViewportBuilder::default()
             .with_title("smolcast")
             .with_app_id("smolcast")
-            .with_inner_size(PALETTE_SIZE)
+            .with_inner_size(theme::window_size(config.settings.palette_size))
             .with_visible(false)
             .with_decorations(false)
             .with_resizable(false)
@@ -125,7 +128,14 @@ fn main() -> eframe::Result {
         options,
         Some(ctx),
         Box::new(move |cc| {
-            let model = AppModel::new(event_rx, config, usage, startup_notices, config_failed);
+            let model = AppModel::new(
+                event_rx,
+                config,
+                usage,
+                favorites,
+                startup_notices,
+                config_failed,
+            );
             let app = EframeApp::build(
                 cc,
                 model,

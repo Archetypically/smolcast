@@ -29,6 +29,7 @@ use windows::core::{GUID, PCWSTR};
 
 use crate::app::model::{AppEvent, Wake};
 use crate::app::notice::{Notice, Severity, op};
+use crate::core::favorites::Favorites;
 use crate::core::history::{Payload, decode_record};
 use crate::core::usage::Usage;
 
@@ -42,6 +43,9 @@ static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 pub struct StatePaths {
     /// `%APPDATA%\smolcast\config.toml`
     pub config: PathBuf,
+    /// `%APPDATA%\smolcast\favorites.json`: user-curated, so it roams with
+    /// the config rather than living with the usage cache.
+    pub favorites: PathBuf,
     /// `%LOCALAPPDATA%\smolcast\usage.json`
     pub usage: PathBuf,
     /// `%LOCALAPPDATA%\smolcast\clipboard\`: one DPAPI-encrypted file per
@@ -55,6 +59,7 @@ impl StatePaths {
         let local = known_folder(&FOLDERID_LocalAppData)?.join("smolcast");
         Some(Self {
             config: roaming.join("config.toml"),
+            favorites: roaming.join("favorites.json"),
             usage: local.join("usage.json"),
             clipboard_dir: local.join("clipboard"),
         })
@@ -242,6 +247,45 @@ pub fn load_usage(path: &Path) -> (Usage, Option<Notice>) {
     }
 }
 
+/// Load favorites. Missing means none. An unreadable file is renamed to
+/// `favorites.corrupt-<unix_ms>.json`, never overwritten in place, since the
+/// user curated it; one notice says where it went.
+pub fn load_favorites(path: &Path) -> (Favorites, Option<Notice>) {
+    let bytes = match fs::read(path) {
+        Ok(bytes) => bytes,
+        Err(e) if e.kind() == io::ErrorKind::NotFound => return (Favorites::default(), None),
+        Err(e) => {
+            return (
+                Favorites::default(),
+                Some(Notice::new(
+                    Severity::Warning,
+                    op::LAUNCHER,
+                    format!("Could not read favorites ({e})."),
+                )),
+            );
+        }
+    };
+    match Favorites::decode(&bytes) {
+        Ok(favorites) => (favorites, None),
+        Err(decode_error) => {
+            let aside = path.with_file_name(format!("favorites.corrupt-{}.json", unix_ms_now()));
+            let message = match fs::rename(path, &aside) {
+                Ok(()) => format!(
+                    "Favorites were unreadable ({decode_error}); the file was kept as {}.",
+                    aside.display()
+                ),
+                Err(e) => format!(
+                    "Favorites were unreadable ({decode_error}) and could not be moved aside \
+                     ({e}); they will be replaced when you next change a favorite."
+                ),
+            };
+            (
+                Favorites::default(),
+                Some(Notice::new(Severity::Warning, op::LAUNCHER, message)),
+            )
+        }
+    }
+}
 /// Current UTC time in Unix milliseconds; a pre-1970 clock reads as 0.
 pub fn unix_ms_now() -> i64 {
     SystemTime::now()
@@ -281,7 +325,12 @@ const CLIP_EXTENSION: &str = "clip";
 const CLIP_ENTROPY: &[u8] = b"smolcast.clipboard.v1";
 
 enum WriterCommand {
-    Usage { generation: u64, bytes: Vec<u8> },
+    Usage {
+        generation: u64,
+        bytes: Vec<u8>,
+    },
+    /// The whole favorites document; the newest queued one wins.
+    Favorites(Vec<u8>),
     Clipboard(ClipboardStoreCommand),
     Shutdown,
 }
@@ -295,11 +344,12 @@ pub struct StateWriter {
 }
 
 impl StateWriter {
-    pub fn start(usage_path: PathBuf, clipboard_dir: PathBuf, wake: Wake) -> io::Result<Self> {
+    pub fn start(paths: &StatePaths, wake: Wake) -> io::Result<Self> {
         let (tx, rx) = mpsc::channel();
+        let paths = paths.clone();
         let join = thread::Builder::new()
             .name("smolcast-state".into())
-            .spawn(move || writer_main(rx, usage_path, clipboard_dir, wake))?;
+            .spawn(move || writer_main(rx, paths, wake))?;
         Ok(Self {
             tx,
             join: Some(join),
@@ -309,6 +359,10 @@ impl StateWriter {
     /// Queue a usage snapshot. `generation` must increase with every snapshot.
     pub fn save_usage(&self, generation: u64, bytes: Vec<u8>) {
         let _ = self.tx.send(WriterCommand::Usage { generation, bytes });
+    }
+
+    pub fn save_favorites(&self, bytes: Vec<u8>) {
+        let _ = self.tx.send(WriterCommand::Favorites(bytes));
     }
 
     pub fn clipboard(&self, command: ClipboardStoreCommand) {
@@ -334,16 +388,19 @@ impl Drop for StateWriter {
     }
 }
 
-fn writer_main(
-    rx: Receiver<WriterCommand>,
-    usage_path: PathBuf,
-    clipboard_dir: PathBuf,
-    wake: Wake,
-) {
+fn writer_main(rx: Receiver<WriterCommand>, paths: StatePaths, wake: Wake) {
+    let StatePaths {
+        usage: usage_path,
+        clipboard_dir,
+        favorites: favorites_path,
+        ..
+    } = paths;
     remove_stale_temps(&usage_path);
+    remove_stale_temps(&favorites_path);
     let mut written_generation = 0u64;
     while let Ok(first) = rx.recv() {
         let mut newest: Option<(u64, Vec<u8>)> = None;
+        let mut favorites: Option<Vec<u8>> = None;
         let mut stop = false;
         for command in std::iter::once(first).chain(rx.try_iter()) {
             match command {
@@ -352,12 +409,22 @@ fn writer_main(
                         newest = Some((generation, bytes));
                     }
                 }
+                WriterCommand::Favorites(bytes) => favorites = Some(bytes),
                 // Clipboard operations are not coalesced: each runs in order.
                 WriterCommand::Clipboard(command) => {
                     clipboard_store(&clipboard_dir, command, &wake)
                 }
                 WriterCommand::Shutdown => stop = true,
             }
+        }
+        if let Some(bytes) = favorites
+            && let Err(e) = atomic_write(&favorites_path, &bytes)
+        {
+            wake.send(AppEvent::Notice(Notice::new(
+                Severity::Warning,
+                op::LAUNCHER,
+                format!("Could not save favorites: {e}"),
+            )));
         }
         if let Some((generation, bytes)) = newest
             && generation > written_generation

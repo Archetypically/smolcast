@@ -2,19 +2,20 @@
 //!
 //! `AppModel::ui` is shaped like `fn ui(&mut self, ctx: &egui::Context)` and
 //! must not mention `eframe::Frame`, preserving the raw-winit fallback boundary
-//! (`plans/IMPLEMENTATION_PLAN.md` §4). Event handling lives here so the eframe
+//! (`docs/systemPatterns.md` §4). Event handling lives here so the eframe
 //! adapter can stay a thin lifecycle shim.
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use egui::{Color32, Context, Key, Modifiers, RichText, ViewportCommand};
 
 use crate::core::app_index::{AppId, Command};
-use crate::core::config::{ClipboardSource, ConfigError, ConfigFile, Settings};
+use crate::core::config::{ClipboardSource, ConfigError, ConfigFile, PaletteSize, Settings};
 use crate::core::config_edit::ConfigEdit;
+use crate::core::favorites::Favorites;
 use crate::core::history::{Limits, Payload};
 use crate::core::usage::Usage;
 use crate::win::clipboard::{
@@ -67,6 +68,11 @@ pub enum AppEvent {
     LaunchFinished {
         app_id: AppId,
         result: Result<(), LaunchError>,
+    },
+    /// Broken shortcuts were moved to the Recycle Bin; `Ok(false)` when a
+    /// prompt was cancelled or some were skipped.
+    ShortcutsRecycled {
+        result: Result<bool, LaunchError>,
     },
     ClipboardCaptured(Payload),
     /// A stored clipboard image downscaled off the UI thread.
@@ -251,6 +257,9 @@ pub struct AppModel {
     /// The palette has held focus since it was shown; losing it afterwards
     /// dismisses the palette (click-away, §12.7).
     had_focus: bool,
+    /// When the palette was dismissed with its state kept; `None` after a
+    /// completed action, so the next summon starts fresh.
+    hidden_at: Option<Instant>,
 }
 
 impl AppModel {
@@ -260,6 +269,7 @@ impl AppModel {
         receiver: Receiver<AppEvent>,
         config: ConfigFile,
         usage: Usage,
+        favorites: Favorites,
         startup_notices: Vec<Notice>,
         force_visible: bool,
     ) -> Self {
@@ -270,7 +280,8 @@ impl AppModel {
         let hotkey_status = HotkeyStatus::Active {
             canonical: config.settings.summon_hotkey.clone(),
         };
-        Self {
+        let palette_size = config.settings.palette_size;
+        let mut model = Self {
             receiver,
             hotkey_status,
             destination: None,
@@ -279,7 +290,7 @@ impl AppModel {
             search: String::new(),
             focus_search: false,
             view: View::Root,
-            launcher: Launcher::new(usage, &config.scripts),
+            launcher: Launcher::new(usage, favorites, &config.scripts),
             clipboard: ClipboardView::new(
                 history_limits(&config.settings),
                 config.settings.clipboard_source,
@@ -306,8 +317,22 @@ impl AppModel {
             config_save: None,
             open_config_file: false,
             had_focus: false,
+            hidden_at: None,
             config,
-        }
+        };
+        model.set_palette_size(palette_size);
+        let settings = &model.config.settings;
+        let (engine, custom) = (settings.search_engine, settings.web_search_url.clone());
+        model.launcher.set_search_engine(engine, &custom);
+        model
+    }
+
+    /// List row counts and the emoji grid follow the window size.
+    fn set_palette_size(&mut self, size: PaletteSize) {
+        self.launcher.set_palette_size(size);
+        self.clipboard.set_palette_size(size);
+        self.snippets.set_palette_size(size);
+        self.emoji.set_palette_size(size);
     }
 
     /// Drain queued events and apply viewport transitions. Called before every
@@ -427,6 +452,20 @@ impl AppModel {
             .scan_start_failed(generation, &mut self.notices, error);
     }
 
+    pub fn take_recycle_request(&mut self) -> Option<Vec<std::path::PathBuf>> {
+        self.launcher.take_recycle_request()
+    }
+
+    pub fn recycle_start_failed(&mut self, error: &str) {
+        let error = LaunchError {
+            operation: "move to Recycle Bin",
+            message: error.to_owned(),
+            code: None,
+        };
+        self.launcher
+            .on_shortcuts_recycled(Err(error), &mut self.notices);
+    }
+
     pub fn take_launch_request(&mut self) -> Option<LaunchRequest> {
         self.launcher.take_launch_request()
     }
@@ -441,6 +480,10 @@ impl AppModel {
 
     pub fn take_usage_snapshot(&mut self) -> Option<(u64, Vec<u8>)> {
         self.launcher.take_usage_snapshot()
+    }
+
+    pub fn take_favorites_snapshot(&mut self) -> Option<Vec<u8>> {
+        self.launcher.take_favorites_snapshot()
     }
 
     // ---- clipboard and paste requests executed by the host ----------------------
@@ -504,6 +547,11 @@ impl AppModel {
         self.clipboard.set_limits(history_limits(&cfg.settings));
         self.clipboard.set_setting(cfg.settings.clipboard_source);
         self.launcher.set_scripts(&cfg.scripts);
+        self.launcher
+            .set_search_engine(cfg.settings.search_engine, &cfg.settings.web_search_url);
+        if cfg.settings.palette_size != self.config.settings.palette_size {
+            self.set_palette_size(cfg.settings.palette_size);
+        }
         self.clipboard.set_persist(cfg.settings.clipboard_persist);
         self.clipboard_commands.push(ClipboardCommand::SetItemCap(
             cfg.settings.clipboard_max_item_bytes,
@@ -601,13 +649,17 @@ impl AppModel {
             } => {
                 self.launcher.on_icon_ready(ctx, app_id, &icon_key, result);
             }
+            AppEvent::ShortcutsRecycled { result } => {
+                self.launcher
+                    .on_shortcuts_recycled(result, &mut self.notices);
+            }
             AppEvent::LaunchFinished { app_id, result } => {
                 if self
                     .launcher
                     .on_launch_finished(app_id, result, &mut self.notices)
                     && self.visible
                 {
-                    self.hide(ctx);
+                    self.finish(ctx);
                 }
             }
             AppEvent::ClipboardCaptured(payload) => self.clipboard.record(payload),
@@ -738,7 +790,7 @@ impl AppModel {
             destination: dest,
             cancel,
         });
-        self.hide(ctx);
+        self.finish(ctx);
     }
 
     /// Steps 6–8 result: failures are stored for the next summon (§5.3).
@@ -805,21 +857,32 @@ impl AppModel {
         self.visible = true;
         self.had_focus = false;
         self.focus_search = true;
-        self.launcher.reset_view();
+        // A quick re-summon returns to the view, query, selection, and any
+        // draft as they were, so an accidental dismiss loses nothing.
+        let keep = Duration::from_secs(self.config.settings.keep_state_secs.into());
+        if self.hidden_at.take().is_none_or(|at| at.elapsed() >= keep) {
+            self.open_view(View::Root);
+        }
         ctx.send_viewport_cmd(ViewportCommand::Visible(true));
         ctx.send_viewport_cmd(ViewportCommand::Focus);
     }
 
+    /// Dismiss, keeping the palette's state for `keep_state_secs`.
     fn hide(&mut self, ctx: &Context) {
         self.visible = false;
         self.recording = false;
-        self.view = View::Root;
         // Escape before the receipt cancels injection; the clipboard content,
         // if already written, stays (§8.2).
         self.paste = PasteState::Idle;
         self.destination = None;
-        self.search.clear();
+        self.hidden_at = Some(Instant::now());
         ctx.send_viewport_cmd(ViewportCommand::Visible(false));
+    }
+
+    /// Hide after a completed launch or paste; the next summon starts fresh.
+    fn finish(&mut self, ctx: &Context) {
+        self.hide(ctx);
+        self.hidden_at = None;
     }
 
     // ---- palette UI -------------------------------------------------------------
@@ -873,7 +936,12 @@ impl AppModel {
                 self.open_view(View::Root);
             }
             match self.view {
-                View::Root => self.launcher.handle_keys(ui),
+                View::Root => {
+                    self.launcher.handle_keys(ui);
+                    if let Some(notice) = self.launcher.take_notice() {
+                        self.notices.push(notice);
+                    }
+                }
                 View::Clipboard => self.clipboard.handle_keys(ui, paste_enabled),
                 View::Emoji => self.emoji.handle_keys(ui, paste_enabled),
                 View::Snippets => self.snippets.handle_keys(ui, paste_enabled),
@@ -892,14 +960,21 @@ impl AppModel {
         egui::Frame::new()
             .inner_margin(egui::Margin::symmetric(theme::GUTTER, 12))
             .show(ui, |ui| {
-                ui.set_min_height(28.0);
-                ui.horizontal(|ui| {
+                // A fixed 28-point line (the back button's height) so the
+                // query sits at the same height with or without the button.
+                let line = egui::vec2(ui.available_width(), 28.0);
+                let layout = egui::Layout::left_to_right(egui::Align::Center);
+                ui.allocate_ui_with_layout(line, layout, |ui| {
+                    ui.set_min_size(line);
                     if crumb.is_some() {
                         back = theme::back_button(ui).on_hover_text("Back (Esc)").clicked();
                     }
                     if self.search_hidden() {
                         self.focus_search = false;
-                        ui.label(RichText::new(crumb.unwrap_or_default()).size(theme::SEARCH_SIZE));
+                        ui.label(
+                            RichText::new(crumb.unwrap_or_default())
+                                .text_style(egui::TextStyle::Heading),
+                        );
                     } else {
                         let search = ui.add(
                             egui::TextEdit::singleline(&mut self.search)
@@ -918,7 +993,7 @@ impl AppModel {
         theme::divider(ui);
 
         egui::Frame::new()
-            .inner_margin(egui::Margin::same(8))
+            .inner_margin(egui::Margin::same(theme::BODY_MARGIN))
             .show(ui, |ui| {
                 ui.spacing_mut().item_spacing.y = spacing;
                 self.body_ui(ui, paste_enabled);
@@ -938,28 +1013,36 @@ impl AppModel {
 
     fn body_ui(&mut self, ui: &mut egui::Ui, paste_enabled: bool) {
         if self.view == View::Root {
-            let section = if self.search.is_empty() {
+            // A calculation leads with its answer card, as in Raycast.
+            self.launcher.refresh(&self.search);
+            let section = if self.launcher.has_answer() {
+                "Calculator"
+            } else if self.launcher.shows_favorites() {
+                "Favorites"
+            } else if self.search.is_empty() {
                 "Suggestions"
             } else {
                 "Results"
             };
-            ui.add_space(2.0);
-            ui.horizontal(|ui| {
-                ui.add_space(10.0);
-                ui.label(RichText::new(section).small().weak());
-                // The list is usable while apps are (re)indexed; say so.
-                if let Some(status) = self.launcher.scan_status() {
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        ui.add_space(10.0);
-                        theme::action_busy(ui, status);
-                    });
-                }
-            });
-            ui.add_space(2.0);
+            // The list is usable while apps are (re)indexed; say so.
+            theme::section_header(ui, section, self.launcher.scan_status());
         }
         match self.view {
             View::Root => {
                 self.launcher.results_ui(ui, &self.search);
+                if let Some(answer) = self.launcher.take_paste_answer() {
+                    self.start_paste(PasteRequest::Text(answer));
+                }
+                if let Some(notice) = self.launcher.take_notice() {
+                    self.notices.push(notice);
+                }
+                // A web search is a completed action: the browser takes over
+                // and the next summon starts fresh.
+                if let Some(url) = self.launcher.take_open_url() {
+                    crate::win::shell::open_uri(url);
+                    let ctx = ui.ctx().clone();
+                    self.finish(&ctx);
+                }
                 if let Some(command) = self.launcher.take_open_command() {
                     match command {
                         Command::ClipboardHistory => self.open_view(View::Clipboard),
@@ -972,6 +1055,7 @@ impl AppModel {
                         Command::Settings => self.open_view(View::Settings),
                     }
                 }
+                theme::inset(ui, |ui| self.launcher.broken_shortcuts_ui(ui));
             }
             View::Clipboard => {
                 self.clipboard.ui(ui, &self.search, paste_enabled);
@@ -1008,10 +1092,12 @@ impl AppModel {
             }
             View::Settings => {
                 let recording = self.recording && self.record_target == RecordTarget::Settings;
-                self.settings.ui(ui, recording);
-                if recording && let Some(hint) = &self.capture_hint {
-                    ui.label(RichText::new(hint).weak().small());
-                }
+                theme::inset(ui, |ui| {
+                    self.settings.ui(ui, recording);
+                    if recording && let Some(hint) = &self.capture_hint {
+                        ui.label(RichText::new(hint).weak().small());
+                    }
+                });
                 if self.settings.take_record_request() {
                     self.recording = true;
                     self.record_target = RecordTarget::Settings;
@@ -1027,11 +1113,11 @@ impl AppModel {
         }
 
         if matches!(self.hotkey_status, HotkeyStatus::Conflict { .. }) {
-            ui.add_space(8.0);
-            self.hotkey_capture_ui(ui);
+            ui.add_space(theme::SECTION_GAP);
+            theme::inset(ui, |ui| self.hotkey_capture_ui(ui));
         }
 
-        self.notices_ui(ui);
+        theme::inset(ui, |ui| self.notices_ui(ui));
     }
 
     /// Raycast's action bar: where you are on the left, the primary action
@@ -1046,10 +1132,8 @@ impl AppModel {
         };
         // An action in flight replaces its key hint until it finishes.
         let busy = match (self.view, &self.paste) {
+            (_, PasteState::Writing { since, .. }) => Some((*since, "Pasting…")),
             (View::Root, _) => self.launcher.launching_since().map(|t| (t, "Launching…")),
-            (View::Clipboard | View::Emoji | View::Snippets, PasteState::Writing { since, .. }) => {
-                Some((*since, "Pasting…"))
-            }
             _ => None,
         }
         .filter(|(since, _)| theme::busy_due(ui, *since))
@@ -1082,7 +1166,7 @@ impl AppModel {
                 }
                 // Right to left: the rightmost hint comes first.
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.add_space(f32::from(theme::GUTTER) - ui.spacing().item_spacing.x);
+                    ui.add_space(f32::from(theme::GUTTER));
                     if crumb.is_some() {
                         theme::action_hint(ui, "Back", &["Esc"]);
                         ui.label(RichText::new("|").small().color(theme::divider_color(ui)));

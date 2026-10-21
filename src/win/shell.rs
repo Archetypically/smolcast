@@ -16,16 +16,18 @@ use std::thread::{self, JoinHandle};
 use windows::Win32::Foundation::{PROPERTYKEY, SIZE};
 use windows::Win32::Storage::FileSystem::SearchPathW;
 use windows::Win32::System::Com::{
-    CLSCTX_INPROC_SERVER, CLSCTX_LOCAL_SERVER, COINIT_APARTMENTTHREADED, COINIT_DISABLE_OLE1DDE,
-    CoCreateInstance, CoInitializeEx, CoTaskMemFree, CoUninitialize, IPersistFile, STGM_READ,
+    CLSCTX_ALL, CLSCTX_INPROC_SERVER, CLSCTX_LOCAL_SERVER, COINIT_APARTMENTTHREADED,
+    COINIT_DISABLE_OLE1DDE, CoCreateInstance, CoInitializeEx, CoTaskMemFree, CoUninitialize,
+    IPersistFile, STGM_READ,
 };
 use windows::Win32::UI::Shell::{
-    AO_NONE, ApplicationActivationManager, BHID_EnumItems, FOLDERID_AppsFolder,
-    FOLDERID_CommonPrograms, FOLDERID_Programs, IApplicationActivationManager, IEnumShellItems,
-    IShellItem, IShellItem2, IShellItemImageFactory, IShellLinkW, KF_FLAG_DEFAULT,
-    SEE_MASK_FLAG_NO_UI, SEE_MASK_NOASYNC, SHCreateItemFromParsingName, SHELLEXECUTEINFOW,
-    SHGetKnownFolderItem, SHGetKnownFolderPath, SIGDN_NORMALDISPLAY, SIIGBF_BIGGERSIZEOK,
-    SIIGBF_ICONONLY, ShellExecuteExW, ShellLink,
+    AO_NONE, ApplicationActivationManager, BHID_EnumItems, FOF_ALLOWUNDO, FOF_NOCONFIRMATION,
+    FOFX_RECYCLEONDELETE, FOLDERID_AppsFolder, FOLDERID_CommonPrograms, FOLDERID_Programs,
+    FileOperation, IApplicationActivationManager, IEnumShellItems, IFileOperation, IShellItem,
+    IShellItem2, IShellItemImageFactory, IShellLinkW, KF_FLAG_DEFAULT, SEE_MASK_FLAG_NO_UI,
+    SEE_MASK_NOASYNC, SHCreateItemFromParsingName, SHELLEXECUTEINFOW, SHGetKnownFolderItem,
+    SHGetKnownFolderPath, SIGDN_NORMALDISPLAY, SIIGBF_BIGGERSIZEOK, SIIGBF_ICONONLY,
+    ShellExecuteExW, ShellLink,
 };
 use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
 use windows::core::{GUID, Interface, PCWSTR, PWSTR, w};
@@ -35,6 +37,7 @@ use crate::core::app_index::{
     AppId, AppSource, IndexedApp, LaunchSpec, RawEntry, ShortcutTarget, aumid_key, dedup,
     is_packaged_aumid, shortcut_id,
 };
+use crate::core::icon_scale;
 use crate::win::icon::{IconRgba, OwnedBitmap, bitmap_to_rgba};
 
 /// `System.AppUserModel.ID` ({9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3}, 5).
@@ -81,7 +84,15 @@ impl std::error::Error for LaunchError {}
 pub struct ScanOutcome {
     pub apps: Vec<IndexedApp>,
     /// Shortcuts that failed to load or point at a missing file (§6.4).
-    pub skipped_shortcuts: usize,
+    pub broken_shortcuts: Vec<BrokenShortcut>,
+}
+
+/// A Start Menu shortcut whose file does not load or whose target is gone.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BrokenShortcut {
+    /// The file name without `.lnk`.
+    pub name: String,
+    pub path: PathBuf,
 }
 
 /// STA membership for the current thread; uninitializes on drop.
@@ -165,7 +176,7 @@ fn scan(cancel: &AtomicBool) -> Result<ScanOutcome, LaunchError> {
         });
     }
 
-    let mut skipped_shortcuts = 0;
+    let mut broken_shortcuts = Vec::new();
     for (folder, source) in [
         (FOLDERID_Programs, AppSource::UserStartMenu),
         (FOLDERID_CommonPrograms, AppSource::CommonStartMenu),
@@ -183,15 +194,22 @@ fn scan(cancel: &AtomicBool) -> Result<ScanOutcome, LaunchError> {
                 });
             }
             match read_shortcut(&lnk, source, &packaged_keys) {
-                Some(entry) => entries.push(entry),
-                None => skipped_shortcuts += 1,
+                Ok(entry) => entries.push(entry),
+                Err(Skip::Broken) => broken_shortcuts.push(BrokenShortcut {
+                    name: lnk
+                        .file_stem()
+                        .map(|s| s.to_string_lossy().into_owned())
+                        .unwrap_or_default(),
+                    path: lnk,
+                }),
+                Err(Skip::Other) => {}
             }
         }
     }
 
     Ok(ScanOutcome {
         apps: dedup(entries),
-        skipped_shortcuts,
+        broken_shortcuts,
     })
 }
 
@@ -268,20 +286,26 @@ fn enumerate_apps_folder(cancel: &AtomicBool) -> Result<Vec<(String, String)>, L
 
 /// Resolve one shortcut without triggering link tracking or search. `None`
 /// means skip: unreadable, or its filesystem target no longer exists.
+/// Why a shortcut was left out of the index.
+enum Skip {
+    /// The file does not load, or its local target is gone: safe to offer
+    /// for removal.
+    Broken,
+    /// Anything else (COM trouble, no usable name, an offline drive): never
+    /// offered for removal.
+    Other,
+}
+
 fn read_shortcut(
     lnk: &Path,
     source: AppSource,
     packaged_keys: &BTreeSet<String>,
-) -> Option<RawEntry> {
+) -> Result<RawEntry, Skip> {
     let lnk_wide = wide_path(lnk);
-    let link: IShellLinkW =
-        unsafe { CoCreateInstance(&ShellLink, None, CLSCTX_INPROC_SERVER) }.ok()?;
-    unsafe {
-        link.cast::<IPersistFile>()
-            .ok()?
-            .Load(PCWSTR(lnk_wide.as_ptr()), STGM_READ)
-            .ok()?
-    };
+    let link: IShellLinkW = unsafe { CoCreateInstance(&ShellLink, None, CLSCTX_INPROC_SERVER) }
+        .map_err(|_| Skip::Other)?;
+    let file = link.cast::<IPersistFile>().map_err(|_| Skip::Other)?;
+    unsafe { file.Load(PCWSTR(lnk_wide.as_ptr()), STGM_READ) }.map_err(|_| Skip::Broken)?;
 
     let mut buf = vec![0u16; LINK_BUF];
     let target = unsafe { link.GetPath(&mut buf, std::ptr::null_mut(), 0) }
@@ -297,9 +321,19 @@ fn read_shortcut(
         .unwrap_or_default();
 
     // A local absolute target that is gone is a broken shortcut (§6.4). UNC
-    // targets are not probed: a sleeping share must not stall the scan.
+    // targets are not probed: a sleeping share must not stall the scan. A
+    // target on a drive that is not attached (a USB stick) is skipped but not
+    // called broken, since the app may come back with the drive.
     if !target.is_empty() && !target.starts_with("\\\\") && !Path::new(&target).exists() {
-        return None;
+        let drive_attached = Path::new(&target)
+            .ancestors()
+            .last()
+            .is_some_and(|root| root.as_os_str().is_empty() || root.exists());
+        return Err(if drive_attached {
+            Skip::Broken
+        } else {
+            Skip::Other
+        });
     }
 
     // Display name and AUMID come from the shell item, which honors localized
@@ -311,7 +345,8 @@ fn read_shortcut(
         .and_then(|i| unsafe { i.GetDisplayName(SIGDN_NORMALDISPLAY) }.ok())
         .map(take_pwstr)
         .filter(|n| !n.is_empty())
-        .or_else(|| lnk.file_stem().map(|s| s.to_string_lossy().into_owned()))?;
+        .or_else(|| lnk.file_stem().map(|s| s.to_string_lossy().into_owned()))
+        .ok_or(Skip::Other)?;
     let aumid = item
         .as_ref()
         .and_then(|i| unsafe { i.GetString(&PKEY_APP_USER_MODEL_ID) }.ok())
@@ -324,7 +359,7 @@ fn read_shortcut(
         arguments,
         working_dir,
     };
-    Some(RawEntry {
+    Ok(RawEntry {
         id: shortcut_id(&lnk_str, Some(&resolved), aumid.as_deref(), packaged_keys),
         display_name,
         source,
@@ -333,6 +368,43 @@ fn read_shortcut(
         },
         icon_key: lnk_str,
     })
+}
+
+// ---- broken shortcuts ---------------------------------------------------------
+
+/// Move shortcuts to the Recycle Bin on their own thread; the result arrives
+/// as `AppEvent::ShortcutsRecycled`. Windows shows its own prompts, such as
+/// administrator permission for all-users Start Menu shortcuts.
+pub fn spawn_recycle(paths: Vec<PathBuf>, wake: Wake) -> std::io::Result<JoinHandle<()>> {
+    thread::Builder::new()
+        .name("smolcast-recycle".into())
+        .spawn(move || {
+            let result = recycle(&paths);
+            wake.send(AppEvent::ShortcutsRecycled { result });
+        })
+}
+
+/// Returns whether every item was moved; `false` when the user cancelled a
+/// prompt or Windows skipped some.
+fn recycle(paths: &[PathBuf]) -> Result<bool, LaunchError> {
+    let _com = ComApartment::enter()?;
+    let fail = |e: windows::core::Error| LaunchError::from_win("move to Recycle Bin", &e);
+    let op: IFileOperation =
+        unsafe { CoCreateInstance(&FileOperation, None, CLSCTX_ALL) }.map_err(fail)?;
+    // Undo-able (Recycle Bin), and no second "are you sure": the palette
+    // already listed the shortcuts and the user chose to remove them.
+    unsafe { op.SetOperationFlags(FOF_ALLOWUNDO | FOF_NOCONFIRMATION | FOFX_RECYCLEONDELETE) }
+        .map_err(fail)?;
+    for path in paths {
+        let wide = wide_path(path);
+        let item: IShellItem =
+            unsafe { SHCreateItemFromParsingName(PCWSTR(wide.as_ptr()), None) }.map_err(fail)?;
+        unsafe { op.DeleteItem(&item, None) }.map_err(fail)?;
+    }
+    let performed = unsafe { op.PerformOperations() };
+    let aborted = unsafe { op.GetAnyOperationsAborted() }.map_or(true, |b| b.as_bool());
+    performed.map_err(fail)?;
+    Ok(!aborted)
 }
 
 // ---- launch -------------------------------------------------------------------
@@ -476,7 +548,9 @@ fn extract_icon(icon_key: &str, size: u32) -> Result<IconRgba, LaunchError> {
     let factory: IShellItemImageFactory =
         unsafe { SHCreateItemFromParsingName(PCWSTR(key.as_ptr()), None) }
             .map_err(|e| LaunchError::from_win("load icon", &e))?;
-    let edge = size as i32;
+    // The shell's own resize to odd edges is coarse; fetch a stock size and
+    // area-average down to the drawn pixel size.
+    let edge = icon_scale::fetch_edge(size) as i32;
     let bitmap = unsafe {
         factory.GetImage(
             SIZE { cx: edge, cy: edge },
@@ -485,10 +559,19 @@ fn extract_icon(icon_key: &str, size: u32) -> Result<IconRgba, LaunchError> {
     }
     .map_err(|e| LaunchError::from_win("load icon", &e))?;
     let bitmap = OwnedBitmap(bitmap);
-    bitmap_to_rgba(&bitmap).ok_or(LaunchError {
+    let icon = bitmap_to_rgba(&bitmap).ok_or(LaunchError {
         operation: "load icon",
         message: "unsupported icon bitmap".into(),
         code: None,
+    })?;
+    let (width, height, trimmed) =
+        icon_scale::trim_padding(icon.width, icon.height, &icon.rgba_premultiplied);
+    let (width, height, rgba_premultiplied) =
+        icon_scale::downscale_premultiplied(width, height, &trimmed, size);
+    Ok(IconRgba {
+        width,
+        height,
+        rgba_premultiplied,
     })
 }
 
@@ -517,16 +600,18 @@ fn resolve_executable(name: &str) -> Option<Vec<u16>> {
     Some(buffer)
 }
 
-/// Open a URI (for example `ms-settings:clipboard`) with the shell, off the UI
-/// thread. Failures are ignored: the user can open Settings directly.
-pub fn open_uri(uri: &'static str) {
+/// Open a URI (`ms-settings:clipboard`, or a web search in the default
+/// browser) with the shell, off the UI thread. Failures are ignored: there is
+/// nothing smolcast could do about a missing browser or Settings app.
+pub fn open_uri(uri: impl Into<String>) {
+    let uri = uri.into();
     let _ = thread::Builder::new()
         .name("smolcast-open".into())
         .spawn(move || {
             let Ok(_com) = ComApartment::enter() else {
                 return;
             };
-            let file = wide(uri);
+            let file = wide(&uri);
             let mut info = SHELLEXECUTEINFOW {
                 cbSize: size_of::<SHELLEXECUTEINFOW>() as u32,
                 fMask: SEE_MASK_NOASYNC | SEE_MASK_FLAG_NO_UI,
