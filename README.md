@@ -15,6 +15,7 @@ smolcast is a Windows take on [Tinycast](https://github.com/abue-ammar/tinycast)
 - **Scripts**: name a command in the config, run it from the palette or its own hotkey.
 - **Snippets**: save text you paste often, find it by name or keyword, and edit it right in the palette.
 - **Feels native**: Raycast-style look, Mica backdrop, rounded corners, light and dark themes, opens on the monitor under your cursor.
+- **Lively, never slow**: the palette settles in, views slide, the selection glides, and nothing waits on an animation. Reduced motion follows Windows' Animation effects setting or your choice.
 - **Forgiving**: dismiss by accident and the palette comes back as you left it for 30 seconds.
 - **Tidy**: offers to move broken Start Menu shortcuts to the Recycle Bin.
 
@@ -31,7 +32,7 @@ smolcast runs as a normal user and needs no installer, admin rights, or runtime.
 3. Type `clipboard`, `emoji`, `snippets` or `settings` to open those views; **Esc** or **Backspace** on an empty search goes back.
 4. Right-click any app to add it to your favorites.
 
-The footer always shows what Enter will do. The tray icon has Open, Refresh and Quit.
+The footer always shows what Enter will do. The tray icon has Open, Refresh and Quit. **About smolcast** shows the version and credits.
 
 ## Configuration
 
@@ -43,6 +44,7 @@ Open **smolcast settings** from the palette, or edit `%APPDATA%\smolcast\config.
 | `start_at_login` | `false` | Start smolcast when you sign in |
 | `palette_size` | `medium` | `small`, `medium` or `large` window; larger shows more results |
 | `text_size` | `medium` | `small`, `medium` or `large` text |
+| `reduce_motion` | `system` | `system` (follow Windows' Animation effects), `on` (fades only, no sliding or zooming) or `off` |
 | `keep_state_secs` | `30` | How long a dismissed palette keeps your search and drafts (`0` = never) |
 | `search_engine` | `google` | `google`, `bing`, `duckduckgo`, `brave`, `ecosia`, `startpage`, `kagi` or `custom` |
 | `web_search_url` | Google | Search URL for `custom`; `%s` is replaced by the query |

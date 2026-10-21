@@ -18,6 +18,9 @@ those natively, in one small executable that is idle when hidden.
   while (`keep_state_secs`, default 30 s); a completed action starts fresh.
 - **Honest.** Anything still running says so ("Indexing apps…", "Pasting…")
   instead of looking frozen. Failures are short notices, never dialogs.
+- **Alive, never slow.** Short animations (the palette settling in, views
+  sliding, the selection gliding) add warmth, but none of them delays input:
+  typing works from the first frame. Reduced motion keeps only fades.
 - **Private.** Clipboard contents and script text never leave the device or
   enter logs.
 
@@ -32,7 +35,8 @@ those natively, in one small executable that is idle when hidden.
 | Emoji | Searchable grid with color glyphs; pastes the exact sequence. |
 | Scripts | Named commands from `config.toml`, run from the palette or their own hotkey. |
 | Snippets | Saved text searched by name or keyword and pasted; created and edited in the palette. |
-| Settings | "smolcast settings" edits hotkey, startup, window and text size, keep-state time, web search engine, and clipboard options, preserving hand-written comments in `config.toml`. |
+| Settings | "smolcast settings" edits hotkey, startup, window and text size, reduced motion, keep-state time, web search engine, and clipboard options, preserving hand-written comments in `config.toml`. |
+| About | "About smolcast" (also found as "Credits") shows the version, the author, and what smolcast is built with. |
 
 ## Where user data lives
 

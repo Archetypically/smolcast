@@ -926,6 +926,7 @@ clipboard_source = "auto" # optional: "auto" | "windows" | "smolcast"
 start_at_login = false     # optional (§12.7)
 palette_size = "medium"    # optional: window size "small" | "medium" | "large" (§12.7)
 text_size = "medium"       # optional: font sizes "small" | "medium" | "large" (§12.7)
+reduce_motion = "system"   # optional: "system" (Windows Animation effects) | "on" | "off" (§12.7)
 keep_state_secs = 30       # optional: 0..=3600; 0 always starts fresh (§12.7)
 search_engine = "google"   # optional: google | bing | duckduckgo | brave | ecosia | startpage | kagi | custom
 web_search_url = "https://www.google.com/search?q=%s" # optional; used by "custom"
@@ -963,6 +964,7 @@ struct Settings {
     start_at_login: bool,              // #[serde(default)] = false (§12.7)
     palette_size: PaletteSize,         // #[serde(default)] = Medium (§12.7)
     text_size: TextSize,               // #[serde(default)] = Medium (§12.7)
+    reduce_motion: ReduceMotion,       // #[serde(default)] = System (§12.7)
     keep_state_secs: u32,              // #[serde(default)] = 30, max 3600 (§12.7)
     search_engine: SearchEngine,       // #[serde(default)] = Google
     web_search_url: String,            // #[serde(default)]; http(s), contains %s
@@ -1158,7 +1160,6 @@ rustup toolchain install 1.98.1 --profile minimal --component rustfmt,clippy
 rustup target add x86_64-pc-windows-msvc --toolchain 1.98.1
 cargo fmt --all -- --check
 cargo clippy --locked --target x86_64-pc-windows-msvc --all-targets -- -D warnings
-cargo build --locked --target x86_64-pc-windows-msvc
 cargo build --locked --release --target x86_64-pc-windows-msvc
 ```
 
@@ -1167,9 +1168,13 @@ GNU target, then run:
 
 ```text
 cargo test --locked --lib
-cargo build --locked --target x86_64-pc-windows-gnu
 cargo build --locked --release --target x86_64-pc-windows-gnu
 ```
+
+Both jobs cache the dependency build (`Swatinem/rust-cache`), and a newer push
+to the same ref cancels the run it supersedes. CI builds no debug binary:
+clippy type-checks every target and the release build proves linking; debug
+builds stay a local command (2026-10-21).
 
 Use an MSVC developer-command environment or `llvm-objdump -p` to capture the
 release import table. Upload both release executables, byte counts, and import
@@ -1365,6 +1370,20 @@ Raycast look (2026-10-20, `app/theme.rs`): both egui themes are restyled once
 at startup to match Raycast. The palette has a frameless search field, the
 view, and a footer action bar pinned to the bottom. The base window is 640×460.
 [`docs/DESIGN.md`](DESIGN.md) holds the layout, tokens, and rules.
+
+Motion (2026-10-21, `core/motion.rs`, `app/motion.rs`, decision 018): the
+palette animates its content in paint only, never the window or its input.
+A show fades and scales the content in (160 ms; a fast-path summon starts the
+clock once it is uncloaked); a dismiss (Escape at the root, click-away, the
+window close) fades it out (90 ms) with input disabled, then hides the window.
+A summon during that fade brings the palette back in place with its captured
+destination. Completed actions (launch, paste, web search) hide at once, so
+paste-back timing (§8.2) is unchanged. Moving between views or into a form
+slides the body in (150 ms); selections glide between rows. `reduce_motion`
+resolves against `SPI_GETCLIENTAREAANIMATION`, re-read on each show: reduced
+motion keeps fades and drops movement and scaling, and sets egui's own
+`animation_time` to 0. A Windows high-contrast theme (re-read on each show)
+strengthens the fills and gray text. Details in [`docs/DESIGN.md`](DESIGN.md).
 
 Settings form (2026-09-25, `app/settings_view.rs`, `core/config_edit.rs`): a
 root command "smolcast settings" (named to differ from Windows Settings) opens a structured form for every `[settings]` field

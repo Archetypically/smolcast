@@ -64,7 +64,34 @@ Contents:
   selection; dead `Wake`/`Notice` methods gone; the clipboard row preview
   and search look only at the start of large items.
 
+## Motion and polish batch (2026-10-21), on main, unverified on Windows
+
+Built and linted for the Windows target; host tests pass. Never run on
+Windows yet. Contents (decision 018, DESIGN.md Motion and Accessibility):
+
+- Summon fades/scales content in (160 ms, clock starts after uncloak);
+  Esc/click-away/close fade out (90 ms) then hide; summon during the fade
+  returns in place; launch/paste/web search still hide at once.
+- View and form changes slide the body in (150 ms); row and emoji selection
+  glides; hover fills fade; the selected emoji lifts; key caps light up while
+  held; the back arrow leans on hover.
+- `reduce_motion` setting (`system` follows `SPI_GETCLIENTAREAANIMATION`,
+  re-read on each show): fades only. Settings > Palette > Reduce motion.
+- Accessibility: visible 1 pt focus ring on buttons/checkboxes/menus (egui's
+  active style); stronger fills and gray text under high contrast.
+- "About smolcast" command (alias "Credits"): version, "Made with ♥ by Evan
+  Lee" (heart beats once), built-with credits, license.
+
 ## Pending Windows checks
+
+- Motion batch: summon feel with and without the fast path (no stale frame,
+  animation visible from its start), Esc and click-away fades, re-summon
+  during the fade (keeps destination: paste still works), paste/launch still
+  instant, view slides, glide in each list and the emoji grid, typing during
+  the appear animation, reduced motion via the setting and via Windows'
+  Animation effects switch, high-contrast theme, Tab focus ring in Settings,
+  About page layout at every window and text size, idle CPU 0 after
+  animations end.
 
 - 2026-10-21 batch: icon sharpness at 100/150/200%; spacing in every view;
   window/text size switching; keep-state and fresh start after launch/paste;
@@ -79,7 +106,7 @@ Contents:
 
 ## Next, in order
 
-1. User's Windows pass over the batch above, including the review fixes;
+1. User's Windows pass over both batches above, including the review fixes;
    fix findings.
 2. Decide the deferred review items above, and the structural refactors the
    review proposed (one texture LRU, a list cursor, a worker abstraction,
@@ -106,6 +133,9 @@ Contents:
   Twemoji, CC-BY/MIT with notice) costs ~1–2 MB. Also rank the Flags group
   above "flag in hole" for the bare query `flag`.
 - **Snippet expansion** tier 2 stays unapproved (decision 009).
+- **Screen readers**: eframe's `accesskit` feature would expose the palette
+  to Narrator, but adds dependencies and size, and the painted rows need
+  `widget_info` labels. Not started; needs the user's call.
 
 ## Standing rules
 
