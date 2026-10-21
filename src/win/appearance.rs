@@ -21,7 +21,8 @@ use windows::Win32::System::Registry::{
 };
 use windows::Win32::UI::Accessibility::{HCF_HIGHCONTRASTON, HIGHCONTRASTW};
 use windows::Win32::UI::WindowsAndMessaging::{
-    SPI_GETHIGHCONTRAST, SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS, SystemParametersInfoW,
+    SPI_GETCLIENTAREAANIMATION, SPI_GETHIGHCONTRAST, SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS,
+    SystemParametersInfoW,
 };
 use windows::core::{BOOL, PCWSTR, w};
 
@@ -104,6 +105,21 @@ fn transparency_enabled() -> bool {
         &mut bytes,
     );
     value != 0
+}
+
+/// Settings > Accessibility > Visual effects > Animation effects. Assumed on
+/// when the query fails.
+pub fn animations_enabled() -> bool {
+    let mut enabled = BOOL::from(true);
+    let _ = unsafe {
+        SystemParametersInfoW(
+            SPI_GETCLIENTAREAANIMATION,
+            0,
+            Some((&mut enabled as *mut BOOL).cast()),
+            SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS(0),
+        )
+    };
+    enabled.as_bool()
 }
 
 fn high_contrast() -> bool {

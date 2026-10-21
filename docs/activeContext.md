@@ -73,6 +73,8 @@ Windows yet. Contents (decision 018, DESIGN.md Motion):
   Esc/click-away/close fade out (90 ms) then hide; summon during the fade
   returns in place; launch/paste/web search still hide at once.
 - View and form changes slide the body in (150 ms).
+- `reduce_motion` setting (`system` follows `SPI_GETCLIENTAREAANIMATION`,
+  re-read on each show): fades only. Settings > Palette > Reduce motion.
 
 ## Pending Windows checks
 
@@ -80,7 +82,8 @@ Windows yet. Contents (decision 018, DESIGN.md Motion):
   animation visible from its start), Esc and click-away fades, re-summon
   during the fade (keeps destination: paste still works), paste/launch still
   instant, view slides, typing during
-  the appear animation, idle CPU 0 after animations end.
+  the appear animation, reduced motion via the setting and via Windows'
+  Animation effects switch, idle CPU 0 after animations end.
 
 - 2026-10-21 batch: icon sharpness at 100/150/200%; spacing in every view;
   window/text size switching; keep-state and fresh start after launch/paste;

@@ -75,18 +75,25 @@ pub fn ease_out(t: f32) -> f32 {
 /// gone, 1 is fully shown). Easing the level out serves both directions:
 /// appearing it starts fast and lands gently; dismissing, the level falls,
 /// so the fade starts gently and finishes fast (an ease in over time).
-pub fn presence_look(level: f32) -> (f32, f32) {
+/// Reduced motion keeps the fade and drops the scaling.
+pub fn presence_look(level: f32, reduced: bool) -> (f32, f32) {
     let eased = ease_out(level);
-    (0.97 + 0.03 * eased, eased)
+    let scale = if reduced { 1.0 } else { 0.97 + 0.03 * eased };
+    (scale, eased)
 }
 
 /// Horizontal offset (in points) and opacity of a view sliding in at linear
 /// progress `t`; `forward` slides in from the right, back from the left.
-pub fn navigate_look(t: f32, forward: bool) -> (f32, f32) {
+pub fn navigate_look(t: f32, forward: bool, reduced: bool) -> (f32, f32) {
     const DISTANCE: f32 = 12.0;
     let eased = ease_out(t);
-    let sign = if forward { 1.0 } else { -1.0 };
-    (sign * DISTANCE * (1.0 - eased), eased)
+    let offset = if reduced {
+        0.0
+    } else {
+        let sign = if forward { 1.0 } else { -1.0 };
+        sign * DISTANCE * (1.0 - eased)
+    };
+    (offset, eased)
 }
 
 #[cfg(test)]
@@ -142,16 +149,18 @@ mod tests {
     }
 
     #[test]
-    fn presence_ends_fully_shown() {
-        assert_eq!(presence_look(1.0), (1.0, 1.0));
-        let (scale, opacity) = presence_look(0.0);
+    fn presence_ends_fully_shown_and_reduced_never_scales() {
+        assert_eq!(presence_look(1.0, false), (1.0, 1.0));
+        let (scale, opacity) = presence_look(0.0, false);
         assert!(scale < 1.0 && opacity == 0.0);
+        assert_eq!(presence_look(0.3, true).0, 1.0);
     }
 
     #[test]
-    fn navigation_slides_by_direction() {
-        assert!(navigate_look(0.0, true).0 > 0.0);
-        assert!(navigate_look(0.0, false).0 < 0.0);
-        assert_eq!(navigate_look(1.0, true), (0.0, 1.0));
+    fn navigation_slides_by_direction_and_reduced_only_fades() {
+        assert!(navigate_look(0.0, true, false).0 > 0.0);
+        assert!(navigate_look(0.0, false, false).0 < 0.0);
+        assert_eq!(navigate_look(1.0, true, false), (0.0, 1.0));
+        assert_eq!(navigate_look(0.0, true, true), (0.0, 0.0));
     }
 }

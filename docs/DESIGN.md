@@ -136,7 +136,7 @@ The font is Segoe UI, with egui's bundled fonts as fallbacks.
 
 ## Motion
 
-Tokens live in `core::motion`. Every
+Tokens live in `core::motion`; the egui side is `app::motion`. Every
 animation changes paint only (`Ui::with_visual_transform`, opacity), so clicks
 and keys always act on final positions, and typing works from the first frame.
 
@@ -147,8 +147,10 @@ and keys always act on final positions, and typing works from the first frame.
 | Completed action (launch, paste, web search) | Nothing: the window hides at once | — | — |
 | View change, form open or close | Body slides 12 pt in (from the right going deeper, from the left going back) and fades in; the search line fades | 150 ms | ease out (cubic) |
 
-Animations request repaints only while they run; a resting palette is
-idle.
+Reduced motion (`reduce_motion`, following Windows' Animation effects by
+default) keeps the fades and drops all movement: no scaling or sliding, and
+egui's own animations are off. Animations request repaints only while they
+run; a resting palette is idle.
 
 ## Rules
 
@@ -172,6 +174,7 @@ idle.
 - **Color only for status.** Warnings are amber and errors are red, in small
   text. Nothing else gets color.
 - **Check new views in both themes.** Also check them at 100%, 150% and 200%
-  scaling.
+  scaling, and with reduced motion on.
 - **Animate paint, never input.** New motion goes through `core::motion`
-  tokens and stays under 200 ms.
+  tokens and `app::motion` helpers, stays under 200 ms, and has a reduced
+  form with no movement.

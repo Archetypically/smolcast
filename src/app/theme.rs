@@ -2,8 +2,8 @@
 //! selection instead of an accent fill, 8-point corner radii, a large frameless
 //! search field, hairline dividers, and a footer action bar with key caps.
 //!
-//! Both egui themes are styled once at startup; egui keeps following the
-//! system theme.
+//! Both egui themes are styled at startup and again when the text size or
+//! reduced motion changes; egui keeps following the system theme.
 
 use std::time::{Duration, Instant};
 
@@ -112,11 +112,26 @@ fn palette(dark: bool) -> &'static Palette {
     if dark { &DARK } else { &LIGHT }
 }
 
-/// Style both egui themes. Called again when the text size changes.
-pub fn install(ctx: &Context, text: TextSize) {
+/// How the palette is styled beyond its text size.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Look {
+    pub text: TextSize,
+    /// egui's own animations (menus, toggles) are turned off too.
+    pub reduced_motion: bool,
+}
+
+/// Style both egui themes. Called again when the look changes.
+pub fn install(ctx: &Context, look: Look) {
     for theme in [Theme::Dark, Theme::Light] {
         ctx.style_mut_of(theme, |style| {
-            apply(style, palette(theme == Theme::Dark), text)
+            apply(style, palette(theme == Theme::Dark), look.text);
+            // Set both ways: the style persists, so turning reduced motion
+            // off again must restore egui's own animations.
+            style.animation_time = if look.reduced_motion {
+                0.0
+            } else {
+                egui::Style::default().animation_time
+            };
         });
     }
 }

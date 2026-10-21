@@ -130,6 +130,10 @@ pub struct Settings {
     /// Font sizes, independent of the window size. Optional; medium.
     #[serde(default)]
     pub text_size: TextSize,
+    /// Animations: follow Windows' "Animation effects", or force reduced
+    /// motion on or off. Optional; follows Windows.
+    #[serde(default)]
+    pub reduce_motion: ReduceMotion,
     /// Seconds a dismissed palette keeps its view, query, and drafts; 0
     /// always starts fresh. Optional; 30.
     #[serde(default = "default_keep_state_secs")]
@@ -184,6 +188,31 @@ impl TextSize {
     pub const ALL: [Self; 3] = [Self::Small, Self::Medium, Self::Large];
 }
 
+/// Whether to reduce motion: fades stay, movement and scaling go
+/// (`core::motion`).
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ReduceMotion {
+    /// Follow Windows' "Animation effects" setting.
+    #[default]
+    System,
+    On,
+    Off,
+}
+
+impl ReduceMotion {
+    pub const ALL: [Self; 3] = [Self::System, Self::On, Self::Off];
+
+    /// Resolve against Windows' "Animation effects" switch.
+    pub fn reduced(self, system_animations: bool) -> bool {
+        match self {
+            Self::System => !system_animations,
+            Self::On => true,
+            Self::Off => false,
+        }
+    }
+}
+
 fn default_true() -> bool {
     true
 }
@@ -212,6 +241,7 @@ impl Default for Settings {
             start_at_login: false,
             palette_size: PaletteSize::Medium,
             text_size: TextSize::Medium,
+            reduce_motion: ReduceMotion::System,
             keep_state_secs: DEFAULT_KEEP_STATE_SECS,
             search_engine: SearchEngine::Google,
             web_search_url: default_web_search_url(),
@@ -774,6 +804,22 @@ mod tests {
         let large = format!("{base}text_size = \"large\"\n");
         assert_eq!(parse(&large).unwrap().settings.text_size, TextSize::Large);
         assert!(parse(&format!("{base}text_size = \"Large\"\n")).is_err());
+
+        let settings = parse(base).unwrap().settings;
+        assert_eq!(settings.reduce_motion, ReduceMotion::System);
+        for (value, expected) in [
+            ("system", ReduceMotion::System),
+            ("on", ReduceMotion::On),
+            ("off", ReduceMotion::Off),
+        ] {
+            let text = format!("{base}reduce_motion = \"{value}\"\n");
+            assert_eq!(parse(&text).unwrap().settings.reduce_motion, expected);
+        }
+        assert!(parse(&format!("{base}reduce_motion = \"yes\"\n")).is_err());
+        assert!(ReduceMotion::System.reduced(false));
+        assert!(!ReduceMotion::System.reduced(true));
+        assert!(ReduceMotion::On.reduced(true));
+        assert!(!ReduceMotion::Off.reduced(false));
     }
 
     #[test]

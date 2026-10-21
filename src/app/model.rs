@@ -35,6 +35,7 @@ use crate::win::shell::{LaunchError, ScanOutcome};
 use super::clipboard_view::{ClipboardView, PasteRequest, ThumbnailRequest};
 use super::emoji_view::{EmojiView, GlyphRequest};
 use super::launcher::{IconRequest, LaunchRequest, Launcher};
+use super::motion;
 use super::notice::{Notice, NoticeStore, Severity, op};
 use super::settings_view::SettingsView;
 use super::snippet_view::SnippetView;
@@ -403,7 +404,8 @@ impl AppModel {
         if !self.presence.done(now) {
             ui.ctx().request_repaint();
         }
-        let (scale, opacity) = timing::presence_look(self.presence.value(now));
+        let (scale, opacity) =
+            timing::presence_look(self.presence.value(now), motion::reduced(ui.ctx()));
         // Scaled about the window's center. Always wrapped, even at rest, so
         // widget ids (and the search field's focus) stay the same.
         let center = ui.clip_rect().center().to_vec2();
@@ -1123,7 +1125,7 @@ impl AppModel {
         } else {
             self.navigating = None;
         }
-        timing::navigate_look(t, forward)
+        timing::navigate_look(t, forward, motion::reduced(ctx))
     }
 
     fn body_ui(&mut self, ui: &mut egui::Ui, paste_enabled: bool) {
