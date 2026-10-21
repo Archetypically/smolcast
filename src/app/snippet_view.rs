@@ -8,19 +8,18 @@
 
 use std::collections::BTreeMap;
 
-use egui::{Color32, Key, Modifiers, RichText, Vec2};
+use egui::{Key, Modifiers, RichText, Vec2};
 
 use crate::core::app_index::Command;
-use crate::core::config::SnippetConfig;
+use crate::core::config::{PaletteSize, SnippetConfig};
 use crate::core::config_edit::SnippetEdit;
 use crate::core::snippet::{self, Snippet};
 
 use super::{list, theme};
 
-const VISIBLE_ROWS: usize = 6;
+/// Rows shown at once in a medium palette; the clipboard view matches.
+const MEDIUM_ROWS: usize = 6;
 const LIST_WIDTH: f32 = 300.0;
-/// Six rows; the clipboard and snippet views match.
-const LIST_HEIGHT: f32 = VISIBLE_ROWS as f32 * theme::ROW_STRIDE;
 /// Characters of the selected snippet shown in the preview pane.
 const PREVIEW_CHARS: usize = 2000;
 
@@ -31,7 +30,7 @@ enum Mode {
 }
 
 /// The form's fields as typed. `id` is `None` for a new snippet.
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Default, PartialEq)]
 struct Draft {
     name: String,
     keyword: String,
@@ -91,6 +90,10 @@ pub struct SnippetView {
     /// The editor closed; `true` also asks the model to clear the search.
     left_editor: Option<bool>,
     open_file: bool,
+    /// Rows shown at once, from the palette size.
+    rows: usize,
+    /// Mouse-wheel distance not yet worth a whole row.
+    wheel: f32,
 }
 
 impl SnippetView {
@@ -108,6 +111,8 @@ impl SnippetView {
             save_request: None,
             left_editor: None,
             open_file: false,
+            rows: MEDIUM_ROWS,
+            wheel: 0.0,
         }
     }
 
@@ -115,6 +120,9 @@ impl SnippetView {
     /// Returns whether this completed a save from the view.
     pub fn config_accepted(&mut self, snippets: &BTreeMap<String, SnippetConfig>) -> bool {
         self.snippets = snippet::from_config(snippets);
+        // The old indices may point at other snippets now; keys act on
+        // nothing until the list is ranked again.
+        self.results.clear();
         self.results_for = None;
         if !self.saving() {
             return false;
@@ -137,6 +145,14 @@ impl SnippetView {
 
     /// Opening the view resumes an unsaved draft; otherwise it starts at the
     /// top of the list.
+    pub fn set_palette_size(&mut self, size: PaletteSize) {
+        self.rows = theme::visible_rows(MEDIUM_ROWS, size);
+    }
+
+    fn list_height(&self) -> f32 {
+        self.rows as f32 * theme::ROW_STRIDE
+    }
+
     pub fn open(&mut self) {
         if self.busy() {
             return;
@@ -223,25 +239,21 @@ impl SnippetView {
     }
 
     fn selected_snippet(&self) -> Option<&Snippet> {
-        self.results.get(self.selected).map(|&i| &self.snippets[i])
+        self.results
+            .get(self.selected)
+            .and_then(|&i| self.snippets.get(i))
     }
 
     fn begin_edit(&mut self, id: Option<String>) {
-        let original = match id
+        let original = id
             .as_deref()
             .and_then(|id| self.snippets.iter().find(|s| s.id == id))
-        {
-            Some(s) => Draft {
+            .map(|s| Draft {
                 name: s.name.clone(),
                 keyword: s.keyword.clone().unwrap_or_default(),
                 text: s.text.clone(),
-            },
-            None => Draft {
-                name: String::new(),
-                keyword: String::new(),
-                text: String::new(),
-            },
-        };
+            })
+            .unwrap_or_default();
         self.mode = Mode::Edit(Editor {
             id,
             draft: original.clone(),
@@ -357,41 +369,51 @@ impl SnippetView {
 
     pub fn ui(&mut self, ui: &mut egui::Ui, query: &str, paste_enabled: bool) {
         if matches!(self.mode, Mode::Edit(_)) {
-            self.editor_ui(ui);
+            theme::inset(ui, |ui| self.editor_ui(ui));
             return;
         }
         self.refresh_results(query);
 
         if self.snippets.is_empty() {
-            ui.label("No snippets yet.");
-            ui.label(
-                RichText::new("Save text you paste often, then find it here by name or keyword.")
+            theme::inset(ui, |ui| {
+                ui.label("No snippets yet.");
+                ui.label(
+                    RichText::new(
+                        "Save text you paste often, then find it here by name or keyword.",
+                    )
                     .weak()
                     .small(),
-            );
-            ui.add_space(6.0);
-            ui.horizontal(|ui| {
-                if ui.button("New snippet").on_hover_text("Ctrl+N").clicked() {
-                    self.start_new();
-                }
-                self.config_link(ui);
+                );
+                ui.add_space(theme::SECTION_GAP);
+                ui.horizontal(|ui| {
+                    if ui.button("New snippet").on_hover_text("Ctrl+N").clicked() {
+                        self.start_new();
+                    }
+                    self.config_link(ui);
+                });
+                self.status_ui(ui, None);
             });
-            self.status_ui(ui, None);
             return;
         }
 
+        let step = list::wheel_rows(ui, theme::ROW_STRIDE, &mut self.wheel);
+        let count = self.results.len();
+        self.selected =
+            list::scroll_window(&mut self.first_row, self.selected, count, self.rows, step);
+
         let mut clicked = None;
+        let list_height = self.list_height();
         ui.horizontal_top(|ui| {
             // A separator in a row takes all remaining height unless capped.
-            ui.set_max_height(LIST_HEIGHT);
-            let size = Vec2::new(LIST_WIDTH, LIST_HEIGHT);
+            ui.set_max_height(list_height);
+            let size = Vec2::new(LIST_WIDTH, list_height);
             ui.allocate_ui_with_layout(size, egui::Layout::top_down(egui::Align::Min), |ui| {
                 ui.set_min_size(size);
                 ui.set_width(LIST_WIDTH);
                 if self.results.is_empty() {
-                    ui.label(RichText::new("No matches.").weak());
+                    theme::inset(ui, |ui| ui.label(RichText::new("No matches.").weak()));
                 }
-                let end = (self.first_row + VISIBLE_ROWS).min(self.results.len());
+                let end = (self.first_row + self.rows).min(self.results.len());
                 for row in self.first_row..end {
                     let snippet = &self.snippets[self.results[row]];
                     if row_ui(ui, snippet, row == self.selected).clicked() {
@@ -401,9 +423,9 @@ impl SnippetView {
             });
             ui.separator();
             ui.vertical(|ui| {
-                ui.set_max_height(LIST_HEIGHT);
+                ui.set_max_height(list_height);
                 if let Some(snippet) = self.selected_snippet() {
-                    preview_ui(ui, snippet);
+                    theme::inset(ui, |ui| preview_ui(ui, snippet));
                 }
             });
         });
@@ -414,7 +436,13 @@ impl SnippetView {
             }
         }
 
-        ui.add_space(6.0);
+        ui.add_space(theme::SECTION_GAP);
+        theme::inset(ui, |ui| self.actions_ui(ui));
+    }
+
+    /// The row under the list: delete confirmation or New / Edit / Delete,
+    /// then the save status.
+    fn actions_ui(&mut self, ui: &mut egui::Ui) {
         if let Mode::ConfirmDelete { name, .. } = &self.mode {
             let name = name.clone();
             ui.horizontal(|ui| {
@@ -479,11 +507,12 @@ impl SnippetView {
             self.selected = row;
         }
         self.selected = self.selected.min(self.results.len().saturating_sub(1));
-        list::keep_visible(self.selected, &mut self.first_row, VISIBLE_ROWS);
+        list::keep_visible(self.selected, &mut self.first_row, self.rows);
     }
 
     fn editor_ui(&mut self, ui: &mut egui::Ui) {
         let saving = self.saving();
+        let list_height = self.list_height();
         let Mode::Edit(editor) = &mut self.mode else {
             return;
         };
@@ -514,10 +543,10 @@ impl SnippetView {
                 });
                 ui.end_row();
             });
-        ui.add_space(6.0);
+        ui.add_space(theme::SECTION_GAP);
         ui.label("Text");
         egui::ScrollArea::vertical()
-            .max_height(LIST_HEIGHT)
+            .max_height(list_height)
             .show(ui, |ui| {
                 ui.add_enabled(
                     !saving,
@@ -535,7 +564,7 @@ impl SnippetView {
         let dirty = editor.dirty();
         let confirm_discard = editor.confirm_discard;
         let problem = dirty.then(|| editor.problem(snippets)).flatten();
-        ui.add_space(6.0);
+        ui.add_space(theme::SECTION_GAP);
         ui.horizontal(|ui| {
             if ui
                 .add_enabled(
@@ -565,12 +594,11 @@ impl SnippetView {
 
     /// One status line: a form problem or hint wins over the save status.
     fn status_ui(&self, ui: &mut egui::Ui, problem: Option<&str>) {
-        let red = Color32::from_rgb(230, 90, 90);
         let weak = ui.visuals().weak_text_color();
         let (text, color) = match (problem, &self.status) {
-            (Some(problem), _) => (problem.to_owned(), red),
+            (Some(problem), _) => (problem.to_owned(), theme::ERROR),
             (None, Status::Saving) => ("Saving…".to_owned(), weak),
-            (None, Status::Failed(e)) => (e.clone(), red),
+            (None, Status::Failed(e)) => (e.clone(), theme::ERROR),
             (None, Status::Done(done)) => ((*done).to_owned(), weak),
             (None, Status::Idle) => return,
         };

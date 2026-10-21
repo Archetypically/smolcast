@@ -22,7 +22,7 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{
     VK_RCONTROL, VK_RMENU, VK_RSHIFT, VK_RWIN,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    GetForegroundWindow, GetWindowThreadProcessId, IsWindow, SetForegroundWindow,
+    GetClassNameW, GetForegroundWindow, GetWindowThreadProcessId, IsWindow, SetForegroundWindow,
 };
 
 use crate::app::model::{AppEvent, Wake};
@@ -46,10 +46,23 @@ pub fn capture_destination() -> Option<Destination> {
         return None;
     }
     let (pid, tid) = window_identity(hwnd)?;
-    if pid == unsafe { GetCurrentProcessId() } {
+    if pid == unsafe { GetCurrentProcessId() } || is_shell_surface(hwnd) {
         return None;
     }
     Some(Destination { hwnd, pid, tid })
+}
+
+/// The taskbar and desktop take focus when the tray icon is clicked or the
+/// desktop is selected; neither accepts a paste, so they are no destination
+/// and paste-back falls back to "copied, not pasted" (§8.1).
+fn is_shell_surface(hwnd: HWND) -> bool {
+    let mut class = [0u16; 64];
+    let len = unsafe { GetClassNameW(hwnd, &mut class) };
+    let class = String::from_utf16_lossy(&class[..len.max(0) as usize]);
+    matches!(
+        class.as_str(),
+        "Shell_TrayWnd" | "Shell_SecondaryTrayWnd" | "Progman" | "WorkerW"
+    )
 }
 
 fn window_identity(hwnd: HWND) -> Option<(u32, u32)> {

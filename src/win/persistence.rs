@@ -29,8 +29,10 @@ use windows::core::{GUID, PCWSTR};
 
 use crate::app::model::{AppEvent, Wake};
 use crate::app::notice::{Notice, Severity, op};
+use crate::core::favorites::Favorites;
 use crate::core::history::{Payload, decode_record};
 use crate::core::usage::Usage;
+use crate::win::wide_path;
 
 /// Temp files older than this are leftovers from a crashed write (§10.5).
 const STALE_TEMP_AGE: Duration = Duration::from_secs(24 * 60 * 60);
@@ -42,6 +44,9 @@ static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 pub struct StatePaths {
     /// `%APPDATA%\smolcast\config.toml`
     pub config: PathBuf,
+    /// `%APPDATA%\smolcast\favorites.json`: user-curated, so it roams with
+    /// the config rather than living with the usage cache.
+    pub favorites: PathBuf,
     /// `%LOCALAPPDATA%\smolcast\usage.json`
     pub usage: PathBuf,
     /// `%LOCALAPPDATA%\smolcast\clipboard\`: one DPAPI-encrypted file per
@@ -55,6 +60,7 @@ impl StatePaths {
         let local = known_folder(&FOLDERID_LocalAppData)?.join("smolcast");
         Some(Self {
             config: roaming.join("config.toml"),
+            favorites: roaming.join("favorites.json"),
             usage: local.join("usage.json"),
             clipboard_dir: local.join("clipboard"),
         })
@@ -132,8 +138,8 @@ fn write_synced(temp: &Path, bytes: &[u8]) -> Result<(), PersistError> {
 }
 
 fn move_replace(from: &Path, to: &Path) -> io::Result<()> {
-    let from = wide(from);
-    let to = wide(to);
+    let from = wide_path(from);
+    let to = wide_path(to);
     unsafe {
         MoveFileExW(
             PCWSTR(from.as_ptr()),
@@ -142,11 +148,6 @@ fn move_replace(from: &Path, to: &Path) -> io::Result<()> {
         )
     }
     .map_err(io::Error::from)
-}
-
-fn wide(path: &Path) -> Vec<u16> {
-    use std::os::windows::ffi::OsStrExt;
-    path.as_os_str().encode_wide().chain(Some(0)).collect()
 }
 
 fn next_counter() -> u64 {
@@ -201,43 +202,94 @@ pub fn remove_stale_temps(dest: &Path) -> usize {
         .count()
 }
 
-/// Load usage state (§10.4). Missing means empty. A malformed or unsupported
-/// file is renamed to `usage.corrupt-<unix_ms>.json` and replaced by empty
-/// state, with one notice.
-pub fn load_usage(path: &Path) -> (Usage, Option<Notice>) {
+/// State read from disk at startup. `writable` is false when a file exists
+/// but could not be read or moved aside: saving would replace data that may
+/// still be good, so this session keeps changes in memory only.
+pub struct Stored<T> {
+    pub value: T,
+    pub writable: bool,
+}
+
+/// Load usage state (§10.4); see [`load_versioned`].
+pub fn load_usage(path: &Path) -> (Stored<Usage>, Option<Notice>) {
+    load_versioned(path, "usage", "Launch history", op::USAGE, Usage::decode)
+}
+
+/// Load favorites; see [`load_versioned`].
+pub fn load_favorites(path: &Path) -> (Stored<Favorites>, Option<Notice>) {
+    load_versioned(
+        path,
+        "favorites",
+        "Favorites",
+        op::LAUNCHER,
+        Favorites::decode,
+    )
+}
+
+/// Missing means empty and writable. A file that does not decode is renamed
+/// to `<stem>.corrupt-<unix_ms>.json` and replaced by empty state. A file
+/// that cannot be read (locked, access denied) or moved aside is never
+/// overwritten: the session starts empty without saving, and says so.
+fn load_versioned<T: Default, E: std::fmt::Display>(
+    path: &Path,
+    stem: &str,
+    what: &str,
+    operation: &'static str,
+    decode: impl Fn(&[u8]) -> Result<T, E>,
+) -> (Stored<T>, Option<Notice>) {
+    let empty = |writable, message: String| {
+        let notice = Notice::new(Severity::Warning, operation, message);
+        (
+            Stored {
+                value: T::default(),
+                writable,
+            },
+            Some(notice),
+        )
+    };
     let bytes = match fs::read(path) {
         Ok(bytes) => bytes,
-        Err(e) if e.kind() == io::ErrorKind::NotFound => return (Usage::default(), None),
+        Err(e) if e.kind() == io::ErrorKind::NotFound => {
+            let stored = Stored {
+                value: T::default(),
+                writable: true,
+            };
+            return (stored, None);
+        }
         Err(e) => {
-            return (
-                Usage::default(),
-                Some(Notice::new(
-                    Severity::Warning,
-                    op::USAGE,
-                    format!("Could not read launch history ({e}); starting empty."),
-                )),
+            return empty(
+                false,
+                format!("{what} could not be read ({e}); changes this session will not be saved."),
             );
         }
     };
-    match Usage::decode(&bytes) {
-        Ok(usage) => (usage, None),
+    match decode(&bytes) {
+        Ok(value) => (
+            Stored {
+                value,
+                writable: true,
+            },
+            None,
+        ),
         Err(decode_error) => {
-            let quarantine = path.with_file_name(format!("usage.corrupt-{}.json", unix_ms_now()));
-            let message = match fs::rename(path, &quarantine) {
-                Ok(()) => format!(
-                    "Launch history was unreadable ({decode_error}) and was reset; the old file \
-                     was kept as {}.",
-                    quarantine.display()
+            let aside = path.with_file_name(format!("{stem}.corrupt-{}.json", unix_ms_now()));
+            match fs::rename(path, &aside) {
+                Ok(()) => empty(
+                    true,
+                    format!(
+                        "{what} was unreadable ({decode_error}) and was reset; the old file was \
+                         kept as {}.",
+                        aside.display()
+                    ),
                 ),
-                Err(e) => format!(
-                    "Launch history was unreadable ({decode_error}) and was reset; moving it \
-                     aside failed ({e}), so it will be replaced on the next launch."
+                Err(e) => empty(
+                    false,
+                    format!(
+                        "{what} was unreadable ({decode_error}) and could not be moved aside \
+                         ({e}); changes this session will not be saved."
+                    ),
                 ),
-            };
-            (
-                Usage::default(),
-                Some(Notice::new(Severity::Warning, op::USAGE, message)),
-            )
+            }
         }
     }
 }
@@ -281,7 +333,12 @@ const CLIP_EXTENSION: &str = "clip";
 const CLIP_ENTROPY: &[u8] = b"smolcast.clipboard.v1";
 
 enum WriterCommand {
-    Usage { generation: u64, bytes: Vec<u8> },
+    Usage {
+        generation: u64,
+        bytes: Vec<u8>,
+    },
+    /// The whole favorites document; the newest queued one wins.
+    Favorites(Vec<u8>),
     Clipboard(ClipboardStoreCommand),
     Shutdown,
 }
@@ -295,11 +352,12 @@ pub struct StateWriter {
 }
 
 impl StateWriter {
-    pub fn start(usage_path: PathBuf, clipboard_dir: PathBuf, wake: Wake) -> io::Result<Self> {
+    pub fn start(paths: &StatePaths, wake: Wake) -> io::Result<Self> {
         let (tx, rx) = mpsc::channel();
+        let paths = paths.clone();
         let join = thread::Builder::new()
             .name("smolcast-state".into())
-            .spawn(move || writer_main(rx, usage_path, clipboard_dir, wake))?;
+            .spawn(move || writer_main(rx, paths, wake))?;
         Ok(Self {
             tx,
             join: Some(join),
@@ -309,6 +367,10 @@ impl StateWriter {
     /// Queue a usage snapshot. `generation` must increase with every snapshot.
     pub fn save_usage(&self, generation: u64, bytes: Vec<u8>) {
         let _ = self.tx.send(WriterCommand::Usage { generation, bytes });
+    }
+
+    pub fn save_favorites(&self, bytes: Vec<u8>) {
+        let _ = self.tx.send(WriterCommand::Favorites(bytes));
     }
 
     pub fn clipboard(&self, command: ClipboardStoreCommand) {
@@ -334,16 +396,19 @@ impl Drop for StateWriter {
     }
 }
 
-fn writer_main(
-    rx: Receiver<WriterCommand>,
-    usage_path: PathBuf,
-    clipboard_dir: PathBuf,
-    wake: Wake,
-) {
+fn writer_main(rx: Receiver<WriterCommand>, paths: StatePaths, wake: Wake) {
+    let StatePaths {
+        usage: usage_path,
+        clipboard_dir,
+        favorites: favorites_path,
+        ..
+    } = paths;
     remove_stale_temps(&usage_path);
+    remove_stale_temps(&favorites_path);
     let mut written_generation = 0u64;
     while let Ok(first) = rx.recv() {
         let mut newest: Option<(u64, Vec<u8>)> = None;
+        let mut favorites: Option<Vec<u8>> = None;
         let mut stop = false;
         for command in std::iter::once(first).chain(rx.try_iter()) {
             match command {
@@ -352,12 +417,22 @@ fn writer_main(
                         newest = Some((generation, bytes));
                     }
                 }
+                WriterCommand::Favorites(bytes) => favorites = Some(bytes),
                 // Clipboard operations are not coalesced: each runs in order.
                 WriterCommand::Clipboard(command) => {
                     clipboard_store(&clipboard_dir, command, &wake)
                 }
                 WriterCommand::Shutdown => stop = true,
             }
+        }
+        if let Some(bytes) = favorites
+            && let Err(e) = atomic_write(&favorites_path, &bytes)
+        {
+            wake.send(AppEvent::Notice(Notice::new(
+                Severity::Warning,
+                op::LAUNCHER,
+                format!("Could not save favorites: {e}"),
+            )));
         }
         if let Some((generation, bytes)) = newest
             && generation > written_generation
@@ -434,18 +509,23 @@ fn clip_files(dir: &Path) -> Vec<PathBuf> {
 
 /// Read every stored entry, oldest first. Files that cannot be decrypted or
 /// decoded (for example after a Windows password reset invalidated the DPAPI
-/// key, or a record over the current item cap) are deleted.
+/// key) are deleted. A file that cannot be read right now (an antivirus or
+/// indexer holding it) is skipped and kept, as is a record over the current
+/// item cap, which a later higher cap can load again.
 fn load_clipboard(dir: &Path, item_cap: usize) -> Vec<LoadedEntry> {
     let mut loaded = Vec::new();
     for path in clip_files(dir) {
         let Some(token) = path.file_stem().map(|s| s.to_string_lossy().into_owned()) else {
             continue;
         };
-        let decoded = fs::read(&path)
+        let Ok(blob) = fs::read(&path) else {
+            continue;
+        };
+        let decoded = dpapi_unprotect(&blob)
             .ok()
-            .and_then(|blob| dpapi_unprotect(&blob).ok())
-            .and_then(|plain| decode_record(&plain, item_cap).ok());
+            .and_then(|plain| decode_record(&plain, usize::MAX).ok());
         match decoded {
+            Some((payload, _)) if payload.byte_len() > item_cap => {}
             Some((payload, captured_at_ms)) => loaded.push(LoadedEntry {
                 token,
                 payload,

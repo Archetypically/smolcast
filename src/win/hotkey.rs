@@ -154,6 +154,11 @@ impl HotkeyManager {
     /// leaves the previous registration fully intact.
     pub fn set_summon(&mut self, key: &str) -> Result<HotKey, HotkeyError> {
         let hk = HotKey::from_str(key).map_err(HotkeyError::Parse)?;
+        // Already the summon key: registering again would fail as a
+        // duplicate, and the unregister below would drop the live key.
+        if self.summon.is_some_and(|old| old.id() == hk.id()) {
+            return Ok(hk);
+        }
         self.manager
             .register(hk)
             .map_err(|e| HotkeyError::Register(e.to_string()))?;

@@ -17,6 +17,8 @@ use windows::Win32::System::Registry::{
 };
 use windows::core::{PCWSTR, w};
 
+use crate::win::{from_wide_nul, wide};
+
 const RUN_KEY: PCWSTR = w!("Software\\Microsoft\\Windows\\CurrentVersion\\Run");
 const VALUE_NAME: PCWSTR = w!("smolcast");
 
@@ -61,9 +63,8 @@ pub fn reconcile(enabled: bool) -> Result<bool, AutostartError> {
     if current.as_deref() == Some(command.as_str()) {
         return Ok(false);
     }
-    let data: Vec<u8> = command
-        .encode_utf16()
-        .chain(Some(0))
+    let data: Vec<u8> = wide(&command)
+        .into_iter()
         .flat_map(u16::to_le_bytes)
         .collect();
     check(
@@ -131,8 +132,7 @@ fn read_value(key: &RunKey) -> Result<Option<String>, AutostartError> {
         },
         "read",
     )?;
-    let len = buffer.iter().position(|&c| c == 0).unwrap_or(buffer.len());
-    Ok(Some(String::from_utf16_lossy(&buffer[..len])))
+    Ok(Some(from_wide_nul(&buffer)))
 }
 
 fn check(status: WIN32_ERROR, operation: &'static str) -> Result<(), AutostartError> {

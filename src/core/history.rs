@@ -1,7 +1,7 @@
 //! Session-only clipboard history: payloads, exact duplicate promotion,
 //! recency order, and count/byte eviction; plus `CF_UNICODETEXT` decoding.
 //!
-//! Windows-free and host-testable (see `plans/IMPLEMENTATION_PLAN.md`
+//! Windows-free and host-testable (see `docs/systemPatterns.md`
 //! §7.3, §7.5). Nothing here is ever serialized.
 //!
 //! Contract:

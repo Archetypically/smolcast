@@ -52,6 +52,7 @@ use crate::app::notice::{Notice, Severity, op};
 use crate::core::config::ClipboardSource;
 use crate::core::dib::{DibError, ImagePayload, decode_dib, encode_dib24, encode_dibv5};
 use crate::core::history::{Payload, TextError, decode_unicode_text, encode_unicode_text};
+use crate::win::{wide, win_error_parts};
 
 /// Commands sent to the clipboard thread (§7.1).
 #[derive(Debug)]
@@ -144,10 +145,11 @@ impl ClipboardError {
     }
 
     fn from_win(operation: &'static str, e: &windows::core::Error) -> Self {
+        let (message, code) = win_error_parts(e);
         Self {
             operation,
-            message: e.message(),
-            code: Some(e.code().0 as u32),
+            message,
+            code: Some(code),
         }
     }
 }
@@ -258,10 +260,6 @@ impl Drop for ClipboardThread {
     fn drop(&mut self) {
         self.stop_and_join();
     }
-}
-
-fn wide(s: &str) -> Vec<u16> {
-    s.encode_utf16().chain(Some(0)).collect()
 }
 
 fn clipboard_main(
@@ -632,11 +630,11 @@ impl Worker {
                 .Timestamp()
                 .map(|t| (t.UniversalTime - FILETIME_UNIX_EPOCH) / 10_000)
                 .unwrap_or(0);
-            let content = match self.windows_content.get(&id) {
-                Some(content) => content.clone(),
-                None => windows_content(&item),
-            };
-            self.windows_content.insert(id.clone(), content.clone());
+            let content = self
+                .windows_content
+                .entry(id.clone())
+                .or_insert_with(|| windows_content(&item))
+                .clone();
             snapshot.push(WindowsItem {
                 id: id.clone(),
                 captured_at_ms,
@@ -680,7 +678,11 @@ impl Worker {
             Err(_) if self.attempts < RETRY_DELAYS_MS.len() => {
                 let delay = RETRY_DELAYS_MS[self.attempts];
                 self.attempts += 1;
-                unsafe { SetTimer(Some(self.hwnd), RETRY_TIMER, delay, None) };
+                // Without a timer no retry would ever arrive and the queue
+                // would stall; fail this operation instead.
+                if unsafe { SetTimer(Some(self.hwnd), RETRY_TIMER, delay, None) } == 0 {
+                    return Some(Err(()));
+                }
                 self.timer_armed = true;
                 None
             }

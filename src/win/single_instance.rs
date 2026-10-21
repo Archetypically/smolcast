@@ -14,6 +14,8 @@ use windows::Win32::System::Threading::{
 };
 use windows::core::{Error, PCWSTR, PWSTR};
 
+use crate::win::{wide, win_error_parts};
+
 #[derive(Debug)]
 pub enum AcquireError {
     /// A live smolcast instance owns the mutex; the caller exits silently.
@@ -48,8 +50,7 @@ impl SingleInstance {
     /// instance already holds it.
     pub fn acquire() -> Result<Self, AcquireError> {
         let sid = current_user_sid()?;
-        let mut name: Vec<u16> = format!("Local\\smolcast-{sid}").encode_utf16().collect();
-        name.push(0);
+        let name = wide(&format!("Local\\smolcast-{sid}"));
 
         // A valid handle is returned even when the mutex already exists, so the
         // error from the wrapper is a genuine NULL-handle failure (§5.1 step 3).
@@ -123,10 +124,8 @@ fn current_user_sid() -> Result<String, AcquireError> {
 }
 
 fn windows_err(error: Error) -> AcquireError {
-    AcquireError::Windows {
-        message: error.message(),
-        code: error.code().0 as u32,
-    }
+    let (message, code) = win_error_parts(&error);
+    AcquireError::Windows { message, code }
 }
 
 #[cfg(test)]

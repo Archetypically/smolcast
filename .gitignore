@@ -22,3 +22,6 @@ target
 
 # Local-only agent memory for this devbox; never committed
 MEMORY.md
+
+# Machine-specific settings for Task (see .env.example); never committed
+.env
