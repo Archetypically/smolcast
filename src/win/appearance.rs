@@ -122,7 +122,8 @@ pub fn animations_enabled() -> bool {
     enabled.as_bool()
 }
 
-fn high_contrast() -> bool {
+/// Whether a Windows high-contrast theme is on.
+pub fn high_contrast() -> bool {
     let mut info = HIGHCONTRASTW {
         cbSize: size_of::<HIGHCONTRASTW>() as u32,
         ..Default::default()

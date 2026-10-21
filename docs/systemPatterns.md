@@ -1379,7 +1379,8 @@ paste-back timing (§8.2) is unchanged. Moving between views or into a form
 slides the body in (150 ms); selections glide between rows. `reduce_motion`
 resolves against `SPI_GETCLIENTAREAANIMATION`, re-read on each show: reduced
 motion keeps fades and drops movement and scaling, and sets egui's own
-`animation_time` to 0. Details in [`docs/DESIGN.md`](DESIGN.md).
+`animation_time` to 0. A Windows high-contrast theme (re-read on each show)
+strengthens the fills and gray text. Details in [`docs/DESIGN.md`](DESIGN.md).
 
 Settings form (2026-09-25, `app/settings_view.rs`, `core/config_edit.rs`): a
 root command "smolcast settings" (named to differ from Windows Settings) opens a structured form for every `[settings]` field

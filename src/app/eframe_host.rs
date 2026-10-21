@@ -80,8 +80,8 @@ pub struct EframeApp {
     glyphs_warmed: bool,
     /// The palette size and look the window and style were last set for.
     applied_look: Option<(PaletteSize, theme::Look)>,
-    /// Windows' "Animation effects" switch, re-read whenever the palette
-    /// is shown.
+    /// Windows' "Animation effects" and high-contrast switches, re-read
+    /// whenever the palette is shown.
     system_look: SystemLook,
     /// Whether the palette was visible at the last step.
     was_visible: bool,
@@ -90,12 +90,14 @@ pub struct EframeApp {
 #[derive(Clone, Copy)]
 struct SystemLook {
     animations: bool,
+    high_contrast: bool,
 }
 
 impl SystemLook {
     fn read() -> Self {
         Self {
             animations: appearance::animations_enabled(),
+            high_contrast: appearance::high_contrast(),
         }
     }
 }
@@ -254,8 +256,8 @@ impl EframeApp {
     }
 
     /// Follow the `palette_size`, `text_size` and `reduce_motion` settings
-    /// and Windows' animation switch: restyle, and resize the window when
-    /// the palette size changes.
+    /// and Windows' animation and contrast switches: restyle, and resize the
+    /// window when the palette size changes.
     fn sync_look(&mut self, ctx: &Context) {
         let visible = self.model.is_visible();
         if visible && !self.was_visible {
@@ -266,6 +268,7 @@ impl EframeApp {
         let look = theme::Look {
             text: settings.text_size,
             reduced_motion: settings.reduce_motion.reduced(self.system_look.animations),
+            high_contrast: self.system_look.high_contrast,
         };
         let size = settings.palette_size;
         if self.applied_look == Some((size, look)) {
