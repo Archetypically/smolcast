@@ -1,7 +1,7 @@
 //! Clipboard device-independent bitmaps: checked metadata, decode to a
 //! normalized RGBA payload, and `CF_DIBV5` encode for paste-back.
 //!
-//! Windows-free and host-testable (see `plans/IMPLEMENTATION_PLAN.md` §7.4).
+//! Windows-free and host-testable (see `docs/systemPatterns.md` §7.4).
 //! Every size and offset is validated with checked arithmetic before any
 //! pixel buffer is allocated; `BITMAPCOREHEADER` (12 bytes) is rejected.
 
