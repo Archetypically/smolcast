@@ -6,6 +6,7 @@ use tray_icon::menu::{Menu, MenuEvent, MenuItem};
 use tray_icon::{Icon, MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 
 use crate::app::model::{AppEvent, TrayCommand, Wake};
+use crate::win::placement::PaletteWindow;
 
 pub const MENU_OPEN: &str = "smolcast.open";
 pub const MENU_REFRESH: &str = "smolcast.refresh";
@@ -27,12 +28,21 @@ impl std::error::Error for TrayError {}
 /// Installs both tray event handlers, routing to typed events with a repaint
 /// request each (§1.2). Calls once, on the main thread at startup. Tray
 /// hover/move events are ignored; only left-button release and menu selections
-/// are enqueued.
-pub fn install_event_handlers(wake: Wake) {
+/// are enqueued. Opening the palette shows `window` through the summon fast
+/// path first.
+pub fn install_event_handlers(wake: Wake, window: Option<PaletteWindow>) {
+    let open = move || {
+        if let Some(window) = &window {
+            window.begin_reveal();
+        }
+    };
     let menu_wake = wake.clone();
     MenuEvent::set_event_handler(Some(move |event: MenuEvent| {
         let command = match event.id().0.as_str() {
-            MENU_OPEN => TrayCommand::OpenPalette,
+            MENU_OPEN => {
+                open();
+                TrayCommand::OpenPalette
+            }
             MENU_REFRESH => TrayCommand::Refresh,
             MENU_QUIT => TrayCommand::Quit,
             _ => return,
@@ -49,6 +59,7 @@ pub fn install_event_handlers(wake: Wake) {
             && button == MouseButton::Left
             && button_state == MouseButtonState::Up
         {
+            open();
             wake.send(AppEvent::Tray(TrayCommand::OpenPalette));
         }
     }));

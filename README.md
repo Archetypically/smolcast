@@ -15,7 +15,7 @@ Cargo package, pinned toolchain, setup scripts, CI, config schema v1, eframe Glo
 | Release exe size | 5,907,456 B; imports only Windows system DLLs |
 | Hidden CPU after summon/hide | 0.0 ms over 65 s |
 | Private memory (hidden, after 120 summons) | ~76 MiB (review threshold 80 MiB) |
-| Hotkey → window visible | median ~102 ms, max ~158 ms (20 samples) — reviewed and accepted: eframe 0.36 throttles invisible-window repaints to 100 ms |
+| Hotkey → window visible | median ~102 ms, max ~158 ms (20 samples), measured before the summon fast path (below), which removes eframe 0.36's 100 ms hidden-window repaint delay; re-measurement pending |
 | 100 summon/Escape cycles | one process, stable handles |
 | Wake after 65 s hidden | works |
 | Second launch | exits 0 silently |
@@ -31,6 +31,14 @@ Manual checks passed: tray click and Quit, and hotkey-conflict recovery with a r
 **Milestone 5 (script runner) implemented.** `[scripts.<id>]` config entries appear in the root list as **Script**. Each spawns the configured interpreter, argument vector and working directory directly, with no console and no interpolation. Optional per-script hotkeys run a script without the palette; a hotkey conflict disables only that script's key.
 
 **Milestone 6, tier 1 (palette snippets) implemented; awaiting Windows checks.** **Search Snippets** lists saved snippets with a preview and pastes them through the same paste-back path. An exact keyword match ranks first, and line breaks are pasted as CRLF. Snippets are created, edited and deleted right in the palette (Ctrl+N / Ctrl+E / Shift+Delete, or the **Create Snippet** command). Edits are stored as `[snippets.<id>]` tables (`name`, `text`, optional `keyword`) in config.toml, and comments elsewhere in the file are preserved. As-you-type expansion is a later, separately approved tier that will reuse `keyword` as its trigger.
+
+**Responsiveness pass implemented; awaiting Windows checks.**
+- **Summon fast path.** The hotkey and tray handlers show the palette themselves. It stays cloaked until its first fresh frame is presented, which removes eframe's 100 ms hidden-window repaint delay. See plan §2.1.
+- **Off the UI thread.** Large clipboard images are downscaled on a worker. Clipboard rows no longer scan whole 8 MiB texts every frame. Emoji search keys are computed once.
+- **Warm start.** Common glyphs and the emoji font are warmed while the palette is hidden.
+- **Honest status.** The palette says what it is still doing: indexing or refreshing apps, loading stored clipboard history, updating Windows history, loading a preview, pasting, and launching. Spinners appear only after 150 ms.
+- **Fewer dependencies.** `directories` and the direct `parking_lot` dependency are gone.
+- **Still to check on Windows:** the summon latency sample and the absence of stale-frame flashes.
 
 The approved engineering plan is [plans/IMPLEMENTATION_PLAN.md](plans/IMPLEMENTATION_PLAN.md). The visual design (Raycast-style) is in [docs/DESIGN.md](docs/DESIGN.md). `BRIEF.md` is the product source.
 
@@ -57,7 +65,7 @@ Debian/Ubuntu x64 or WSL:
 
 `scripts/setup.sh` installs `build-essential`, CA certificates, curl, and MinGW x64 C/C++ tools via apt, then the pinned Rust toolchain (1.98.1) with rustfmt, Clippy, and `x86_64-pc-windows-gnu`. It links a temporary Rust program against a Windows API. It requires sudo for missing system packages and network access for downloads. Both setup paths fetch the locked Cargo dependencies.
 
-**Local verification:** `cargo test --lib`, `fmt`, and `clippy` pass; the GNU debug and release cross-links succeed (release ≈ 5.9 MB, GUI subsystem). The MSVC build runs in CI; runtime measurements are in Status above.
+**Local verification:** `cargo test --lib`, `fmt`, and `clippy` pass; the GNU debug and release cross-links succeed (GNU release 7,683,072 B as of the responsiveness pass; it was ≈ 5.9 MB at milestone 1; GUI subsystem). The MSVC build runs in CI; runtime measurements are in Status above.
 
 ### Commands
 

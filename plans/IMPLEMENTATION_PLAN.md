@@ -199,6 +199,20 @@ an error that requires user action. Summon sends `ViewportCommand::Visible(true)
 then `ViewportCommand::Focus`. Hide sends `Visible(false)`. Never send `Close` to
 implement hide.
 
+Summon fast path (2026-10-21): eframe 0.36 delays every repaint of a hidden
+window by at least 100 ms (`INVISIBLE_WINDOW_REPAINT_INTERVAL`), which set the
+measured ~102 ms summon median. The summon-hotkey and tray-open handlers already
+run on the main thread. Before they queue their event, they call
+`PaletteWindow::begin_reveal`, which works only on a hidden palette. It
+DWM-cloaks the window (`DWMWA_CLOAK`), places it on the cursor's monitor and
+shows it with `SW_SHOWNOACTIVATE`. Because the window is visible, the repaint
+runs at once. Because it is not activated, the model still captures the paste
+destination before its usual `Visible(true)` + `Focus`. That keeps winit's
+visibility flag in sync. The host uncloaks after one frame has been presented at
+the final size (at most three frames). If the model did not show the palette
+after all, the host hides and uncloaks the window directly. If cloaking fails,
+the handler leaves the window alone and the normal path applies.
+
 Eframe owns `ControlFlow`; application code must not try to set it through a
 second event loop. Demand-driven behavior comes from making no repaint request
 while hidden. The only allowed hidden delayed repaints are the bounded paste-back

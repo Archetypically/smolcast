@@ -16,6 +16,10 @@ reference for anyone changing the UI. The tokens live in
   never the accent.
 - **Follow the system.** Dark and light themes follow Windows. Mica shows
   through when it is available (see plan §12.7, Appearance).
+- **Quick, and honest about work.** The palette never blocks on work. Anything
+  still running shows a small spinner with a plain label ("Indexing apps…",
+  "Loading clipboard history…", "Pasting…") until it finishes. A spinner only
+  appears after 150 ms, so quick work does not flash one.
 
 ## Layout
 
@@ -27,13 +31,16 @@ From top to bottom, all sections span the full window width:
    view title at the same size.
 2. **Divider.** A 1-point hairline across the full window, ignoring margins.
 3. **Body.** 8-point padding. The root list starts with a small, gray
-   "Suggestions" (empty query) or "Results" header.
+   "Suggestions" (empty query) or "Results" header. While apps are indexed, the
+   header's right side shows "Indexing apps…" (first scan) or "Refreshing
+   apps…" with a spinner. The list stays usable.
 4. **Footer action bar.** A divider, then a 40-point bar pinned to the bottom
    of the window. Left: where you are ("smolcast" or the view title), plus the
    summon key as a key cap at the root. Right: the main action with its key
    caps (`Open Application Enter`, `Paste Enter`, `Save Ctrl S`,
    `Delete Enter` while confirming a snippet delete), then
-   `Back Esc` in sub-views.
+   `Back Esc` in sub-views. While that action runs ("Launching…",
+   "Pasting…"), a spinner and the label replace its key caps.
 
 The base window is 640×460. It grows to fit notices and the hotkey recovery UI
 and shrinks back when they go. The host measures content without the footer's
@@ -82,6 +89,10 @@ The font is Segoe UI, with egui's bundled fonts as fallbacks.
 - **Action hint** (`theme::action_hint`). A label followed by its key caps,
   for right-to-left footer layouts.
 - **Back button** (`theme::back_button`). A painted arrow, not a font glyph.
+- **Busy indicator** (`theme::busy`, `busy_small`, `action_busy`). A small
+  egui spinner beside weak text. Gate it with `theme::busy_due`, which applies
+  the 150 ms delay. Spinners animate only while drawn, so a hidden palette
+  never repaints for one.
 
 ## Rules
 

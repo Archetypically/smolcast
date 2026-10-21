@@ -5,6 +5,8 @@
 //! Both egui themes are styled once at startup; egui keeps following the
 //! system theme.
 
+use std::time::{Duration, Instant};
+
 use egui::{
     Color32, Context, CornerRadius, FontFamily, FontId, RichText, Stroke, TextStyle, Theme, Vec2,
 };
@@ -194,4 +196,60 @@ pub fn action_hint(ui: &mut egui::Ui, label: &str, keys: &[&str]) {
         }
     });
     ui.label(RichText::new(label).small());
+}
+
+/// Work shorter than this shows no progress indicator, so quick operations do
+/// not flash one.
+const BUSY_DELAY: Duration = Duration::from_millis(150);
+
+/// Whether work started at `since` has run long enough to show as busy. Until
+/// then it schedules the repaint that will show it; the palette is visible
+/// whenever this runs.
+pub fn busy_due(ui: &egui::Ui, since: Instant) -> bool {
+    let elapsed = since.elapsed();
+    if elapsed >= BUSY_DELAY {
+        return true;
+    }
+    ui.ctx().request_repaint_after(BUSY_DELAY - elapsed);
+    false
+}
+
+/// A spinner and a weak label for work in progress. The spinner repaints only
+/// while it is drawn, so nothing animates while the palette is hidden.
+pub fn busy(ui: &mut egui::Ui, label: &str) {
+    ui.horizontal(|ui| {
+        ui.add(egui::Spinner::new().size(14.0));
+        ui.label(RichText::new(label).weak());
+    });
+}
+
+/// [`busy`] at caption size.
+pub fn busy_small(ui: &mut egui::Ui, label: &str) {
+    ui.horizontal(|ui| {
+        ui.add(egui::Spinner::new().size(11.0));
+        ui.label(RichText::new(label).weak().small());
+    });
+}
+
+/// The footer's action slot while that action runs, in a right-to-left
+/// layout: the label, then a spinner to its left.
+pub fn action_busy(ui: &mut egui::Ui, label: &str) {
+    ui.label(RichText::new(label).small());
+    ui.add(egui::Spinner::new().size(11.0));
+}
+
+/// Characters the palette's chrome and typical queries use.
+const WARM_TEXT: &str = " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`\
+abcdefghijklmnopqrstuvwxyz{|}~…·×";
+
+/// Lay out common characters in every text style while the palette is hidden,
+/// so the first summon does not parse fonts or rasterize glyphs.
+pub fn warm_glyphs(ui: &egui::Ui) {
+    let fonts: Vec<FontId> = ui.style().text_styles.values().cloned().collect();
+    let color = ui.visuals().text_color();
+    ui.ctx().fonts_mut(|f| {
+        for font in fonts {
+            let _ = f.layout_no_wrap(WARM_TEXT.to_owned(), font, color);
+        }
+    });
 }

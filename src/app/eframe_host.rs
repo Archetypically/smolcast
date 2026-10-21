@@ -12,6 +12,7 @@ use std::thread::JoinHandle;
 
 use egui::{Context, ViewportCommand};
 
+use crate::app::clipboard_view;
 use crate::app::model::loads_stored_history;
 use crate::app::model::{AppEvent, AppModel, HotkeyStatus, Wake};
 use crate::app::notice::{Notice, Severity, op};
@@ -39,6 +40,10 @@ pub struct Startup {
 /// Base palette size in points; the height grows to fit content.
 pub const PALETTE_SIZE: [f32; 2] = [640.0, 460.0];
 
+/// Frames a fast-path summon may stay cloaked waiting for a stable size; it
+/// is uncloaked after this many even if the size is still changing.
+const MAX_REVEAL_FRAMES: u8 = 3;
+
 /// The `eframe::App` and main-thread resource owner.
 pub struct EframeApp {
     model: AppModel,
@@ -55,6 +60,8 @@ pub struct EframeApp {
     launch_jobs: Vec<JoinHandle<()>>,
     /// Paste finishers and their cancel flags (§8.2 steps 6–8).
     paste_jobs: Vec<(JoinHandle<()>, Arc<AtomicBool>)>,
+    /// Clipboard image downscales.
+    thumbnail_jobs: Vec<JoinHandle<()>>,
     event_tx: Sender<AppEvent>,
     ctx: Context,
     paths: StatePaths,
@@ -68,6 +75,12 @@ pub struct EframeApp {
     mica: bool,
     /// The theme the DWM frame was last styled for.
     frame_theme: Option<egui::Theme>,
+    /// Frames painted while the summon fast path keeps the window cloaked,
+    /// and whether the last one was at the final size.
+    reveal_frames: u8,
+    reveal_settled: bool,
+    /// Common glyphs were laid out ahead of the first summon.
+    glyphs_warmed: bool,
 }
 
 impl EframeApp {
@@ -119,7 +132,7 @@ impl EframeApp {
             }
             // Script keys register after the summon key (§10.3).
             apply_script_hotkeys(h, &mut model);
-            hotkey::install_event_handler(wake.clone(), h.routes());
+            hotkey::install_event_handler(wake.clone(), h.routes(), palette_window);
         }
 
         // Launcher workers (§6): the usage writer and the icon extractor. A
@@ -180,7 +193,7 @@ impl EframeApp {
         // visible notice; the hotkey path still works.
         let tray = match TrayHandle::build() {
             Ok(tray) => {
-                tray::install_event_handlers(wake);
+                tray::install_event_handlers(wake, palette_window);
                 Some(tray)
             }
             Err(e) => {
@@ -206,6 +219,7 @@ impl EframeApp {
             scan_cancel: Arc::new(AtomicBool::new(false)),
             launch_jobs: Vec::new(),
             paste_jobs: Vec::new(),
+            thumbnail_jobs: Vec::new(),
             event_tx,
             ctx,
             paths,
@@ -215,6 +229,9 @@ impl EframeApp {
             palette_window,
             mica: startup.mica,
             frame_theme: None,
+            reveal_frames: 0,
+            reveal_settled: false,
+            glyphs_warmed: false,
         }
     }
 
@@ -327,6 +344,29 @@ impl EframeApp {
                 writer.clipboard(command);
             }
         }
+        self.thumbnail_jobs.retain(|job| !job.is_finished());
+        for request in self.model.take_thumbnail_requests() {
+            let wake = self.wake();
+            let spawned = std::thread::Builder::new()
+                .name("smolcast-thumbnail".into())
+                .spawn(move || {
+                    let image = clipboard_view::thumbnail(&request.image);
+                    wake.send(AppEvent::ThumbnailReady {
+                        id: request.id,
+                        image,
+                    });
+                });
+            match spawned {
+                Ok(job) => self.thumbnail_jobs.push(job),
+                // No thread: the preview stays "loading" until the next
+                // request; nothing is downscaled on the UI thread.
+                Err(e) => self.model.push_notice(Notice::new(
+                    Severity::Warning,
+                    op::CLIPBOARD,
+                    format!("Could not start the image preview: {e}"),
+                )),
+            }
+        }
         self.paste_jobs.retain(|(job, _)| !job.is_finished());
         if let Some(request) = self.model.take_paste_finisher() {
             match paste::spawn_finisher(request.destination, request.cancel.clone(), self.wake()) {
@@ -437,6 +477,27 @@ impl EframeApp {
         }
     }
 
+    /// Uncloak a fast-path summon once a frame at the final size has been
+    /// presented, so the window never composes a stale or resizing surface.
+    fn advance_reveal(&mut self, ctx: &Context, resized: bool) {
+        let Some(window) = &self.palette_window else {
+            return;
+        };
+        if !window.revealing() {
+            self.reveal_frames = 0;
+        } else if self.reveal_settled || self.reveal_frames >= MAX_REVEAL_FRAMES {
+            window.finish_reveal();
+            self.reveal_frames = 0;
+            self.reveal_settled = false;
+        } else {
+            // This frame is presented after `ui` returns; uncloak on the next
+            // one. A resize this frame repaints at the new size first.
+            self.reveal_frames += 1;
+            self.reveal_settled = !resized;
+            ctx.request_repaint();
+        }
+    }
+
     /// Ordered resource shutdown (§1.5 steps 1-5): clear handlers, unregister
     /// and drop hotkeys/tray, then stop and join the clipboard thread. Runs
     /// inside `on_exit`, before eframe destroys the viewport.
@@ -483,6 +544,9 @@ impl EframeApp {
             cancel.store(true, Ordering::Release);
             let _ = job.join();
         }
+        for job in self.thumbnail_jobs.drain(..) {
+            let _ = job.join();
+        }
 
         if let Some(worker) = self.refresh_worker.take() {
             let _ = worker.join();
@@ -506,6 +570,11 @@ impl eframe::App for EframeApp {
         // the same frame, so this wins; at most one blank frame can flash.
         if !std::mem::replace(&mut self.first_frame_seen, true) && !self.model.is_visible() {
             ctx.send_viewport_cmd(ViewportCommand::Visible(false));
+        }
+        // Rasterize common glyphs on the first hidden frame rather than in the
+        // first summon's frame.
+        if !std::mem::replace(&mut self.glyphs_warmed, true) && !self.model.is_visible() {
+            theme::warm_glyphs(ui);
         }
         // The DWM frame (border, Mica tint) follows egui's system-driven theme.
         let theme = ctx.theme();
@@ -534,7 +603,14 @@ impl eframe::App for EframeApp {
                     inner.response.rect.height() - inner.inner
                 })
                 .inner;
-            fit_height(&ctx, content_height);
+            let resized = fit_height(&ctx, content_height);
+            self.advance_reveal(&ctx, resized);
+        } else if let Some(window) = &self.palette_window {
+            // A fast-path show the model did not follow (it dropped the
+            // summon during shutdown, for example) must not stay on screen.
+            window.cancel_reveal();
+            self.reveal_frames = 0;
+            self.reveal_settled = false;
         }
     }
 
@@ -556,21 +632,24 @@ impl eframe::App for EframeApp {
 /// Grow the palette to fit its content (§12.7): notices and the hotkey
 /// recovery UI can exceed the base height. Never shrinks below the base, so
 /// typing does not make the window jump, and never exceeds most of the monitor.
-fn fit_height(ctx: &Context, wanted: f32) {
+/// Returns whether a resize was requested.
+fn fit_height(ctx: &Context, wanted: f32) -> bool {
     let (current, monitor) = ctx.input(|i| {
         let info = i.viewport();
         (info.inner_rect.map(|r| r.size()), info.monitor_size)
     });
     let Some(current) = current else {
-        return;
+        return false;
     };
     let max = monitor.map_or(f32::INFINITY, |m| m.y * 0.85);
     let height = wanted
         .ceil()
         .clamp(PALETTE_SIZE[1], max.max(PALETTE_SIZE[1]));
-    if (height - current.y).abs() >= 1.0 {
+    let resize = (height - current.y).abs() >= 1.0;
+    if resize {
         ctx.send_viewport_cmd(ViewportCommand::InnerSize(egui::vec2(current.x, height)));
     }
+    resize
 }
 
 /// Apply a form edit to the file's current text and write it atomically.
