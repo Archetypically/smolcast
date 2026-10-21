@@ -28,15 +28,13 @@ use smolcast::win::appearance;
 use smolcast::win::clipboard::ClipboardThread;
 use smolcast::win::persistence::{self, StatePaths};
 use smolcast::win::single_instance::{AcquireError, SingleInstance};
+use smolcast::win::wide;
 
 /// Show a fatal startup error and exit. `stderr` alone cannot reach a user in a
 /// GUI-subsystem process.
 fn fatal(message: &str) -> ! {
-    let text: Vec<u16> = message.encode_utf16().chain(Some(0)).collect();
-    let caption: Vec<u16> = "smolcast — startup failed"
-        .encode_utf16()
-        .chain(Some(0))
-        .collect();
+    let text = wide(message);
+    let caption = wide("smolcast — startup failed");
     unsafe {
         MessageBoxW(
             None,

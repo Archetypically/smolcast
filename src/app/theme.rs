@@ -71,6 +71,9 @@ fn font_sizes(size: TextSize) -> [f32; 5] {
 const RADIUS: u8 = 8;
 /// Raycast's brand red, used only for the text cursor, text selection, and links.
 const ACCENT: Color32 = Color32::from_rgb(255, 99, 99);
+/// Status colors, in small text only (DESIGN.md).
+pub const WARNING: Color32 = Color32::from_rgb(230, 180, 60);
+pub const ERROR: Color32 = Color32::from_rgb(230, 90, 90);
 
 struct Palette {
     background: Color32,

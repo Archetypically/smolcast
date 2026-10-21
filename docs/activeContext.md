@@ -58,6 +58,11 @@ Contents:
   Deferred: unsaved Settings edits are dropped by Esc (snippet editor warns);
   a failed thumbnail thread leaves "Loading preview…"; a failed clipboard
   write can leave the clipboard empty.
+- **Simplify pass**: shared `win::{wide, wide_path, from_wide_nul,
+  win_error_parts}` and `shell_execute`; unit captions live in `UNITS`;
+  `theme::{WARNING, ERROR}` tokens; `list::scroll_window` returns the
+  selection; dead `Wake`/`Notice` methods gone; the clipboard row preview
+  and search look only at the start of large items.
 
 ## Pending Windows checks
 

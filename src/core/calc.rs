@@ -70,8 +70,8 @@ fn convert(query: &str) -> Option<Answer> {
         return Some(Answer {
             input: format!("{} {}", format_number(value)?, from.symbol),
             result: format!("{} {}", format_number(converted)?, to.symbol),
-            input_label: unit_name(from.symbol),
-            result_label: unit_name(to.symbol),
+            input_label: from.name,
+            result_label: to.name,
         });
     }
     None
@@ -82,8 +82,9 @@ fn quantity(text: &str) -> Option<(f64, &'static Unit)> {
     let text = text.trim();
     // Longest alias first, so "km" is not read as "k" + "m" and "°c" is
     // not read as "°".
-    let (alias, unit) = all_aliases()
-        .into_iter()
+    let (alias, unit) = UNITS
+        .iter()
+        .flat_map(|u| u.aliases.iter().map(move |a| (*a, u)))
         .filter(|(alias, _)| text.ends_with(alias))
         .filter(|(alias, _)| {
             let before = text[..text.len() - alias.len()].chars().next_back();
@@ -96,13 +97,6 @@ fn quantity(text: &str) -> Option<(f64, &'static Unit)> {
 
 fn unit_named(name: &str) -> Option<&'static Unit> {
     UNITS.iter().find(|u| u.aliases.contains(&name))
-}
-
-fn all_aliases() -> Vec<(&'static str, &'static Unit)> {
-    UNITS
-        .iter()
-        .flat_map(|u| u.aliases.iter().map(move |a| (*a, u)))
-        .collect()
 }
 
 /// Up to 10 significant digits, trailing zeros trimmed; scientific notation
@@ -300,6 +294,8 @@ enum Scale {
 struct Unit {
     /// Shown in answers.
     symbol: &'static str,
+    /// Caption under an answer, e.g. "Centimeters".
+    name: &'static str,
     /// Lowercase names accepted in queries.
     aliases: &'static [&'static str],
     dim: Dim,
@@ -325,86 +321,16 @@ impl Unit {
     }
 }
 
-/// The caption for a unit symbol from `UNITS`.
-fn unit_name(symbol: &str) -> &'static str {
-    match symbol {
-        "µm" => "Micrometers",
-        "mm" => "Millimeters",
-        "cm" => "Centimeters",
-        "m" => "Meters",
-        "km" => "Kilometers",
-        "in" => "Inches",
-        "ft" => "Feet",
-        "yd" => "Yards",
-        "mi" => "Miles",
-        "nmi" => "Nautical Miles",
-        "mg" => "Milligrams",
-        "g" => "Grams",
-        "kg" => "Kilograms",
-        "t" => "Tonnes",
-        "oz" => "Ounces",
-        "lb" => "Pounds",
-        "st" => "Stone",
-        "ml" => "Milliliters",
-        "cl" => "Centiliters",
-        "dl" => "Deciliters",
-        "l" => "Liters",
-        "m³" => "Cubic Meters",
-        "tsp" => "Teaspoons",
-        "tbsp" => "Tablespoons",
-        "fl oz" => "Fluid Ounces",
-        "cup" => "Cups",
-        "pt" => "Pints",
-        "qt" => "Quarts",
-        "gal" => "Gallons",
-        "°C" => "Celsius",
-        "°F" => "Fahrenheit",
-        "K" => "Kelvin",
-        "ms" => "Milliseconds",
-        "s" => "Seconds",
-        "min" => "Minutes",
-        "h" => "Hours",
-        "d" => "Days",
-        "wk" => "Weeks",
-        "yr" => "Years",
-        "bit" => "Bits",
-        "B" => "Bytes",
-        "kB" => "Kilobytes",
-        "MB" => "Megabytes",
-        "GB" => "Gigabytes",
-        "TB" => "Terabytes",
-        "KiB" => "Kibibytes",
-        "MiB" => "Mebibytes",
-        "GiB" => "Gibibytes",
-        "TiB" => "Tebibytes",
-        "cm²" => "Square Centimeters",
-        "m²" => "Square Meters",
-        "km²" => "Square Kilometers",
-        "in²" => "Square Inches",
-        "ft²" => "Square Feet",
-        "yd²" => "Square Yards",
-        "ac" => "Acres",
-        "ha" => "Hectares",
-        "mi²" => "Square Miles",
-        "m/s" => "Meters per Second",
-        "km/h" => "Kilometers per Hour",
-        "mph" => "Miles per Hour",
-        "kn" => "Knots",
-        "ft/s" => "Feet per Second",
-        "°" => "Degrees",
-        "rad" => "Radians",
-        _ => "",
-    }
-}
-
 const fn unit(
     symbol: &'static str,
+    name: &'static str,
     aliases: &'static [&'static str],
     dim: Dim,
     factor: f64,
 ) -> Unit {
     Unit {
         symbol,
+        name,
         aliases,
         dim,
         scale: Scale::Factor(factor),
@@ -417,12 +343,14 @@ static UNITS: &[Unit] = &[
     // Length
     unit(
         "µm",
+        "Micrometers",
         &["µm", "um", "micrometer", "micrometers", "micron", "microns"],
         Dim::Length,
         1e-6,
     ),
     unit(
         "mm",
+        "Millimeters",
         &[
             "mm",
             "millimeter",
@@ -435,6 +363,7 @@ static UNITS: &[Unit] = &[
     ),
     unit(
         "cm",
+        "Centimeters",
         &[
             "cm",
             "centimeter",
@@ -447,52 +376,95 @@ static UNITS: &[Unit] = &[
     ),
     unit(
         "m",
+        "Meters",
         &["m", "meter", "meters", "metre", "metres"],
         Dim::Length,
         1.0,
     ),
     unit(
         "km",
+        "Kilometers",
         &["km", "kilometer", "kilometers", "kilometre", "kilometres"],
         Dim::Length,
         1e3,
     ),
-    unit("in", &["in", "inch", "inches", "\""], Dim::Length, 0.0254),
-    unit("ft", &["ft", "foot", "feet", "'"], Dim::Length, 0.3048),
-    unit("yd", &["yd", "yard", "yards"], Dim::Length, 0.9144),
-    unit("mi", &["mi", "mile", "miles"], Dim::Length, 1609.344),
+    unit(
+        "in",
+        "Inches",
+        &["in", "inch", "inches", "\""],
+        Dim::Length,
+        0.0254,
+    ),
+    unit(
+        "ft",
+        "Feet",
+        &["ft", "foot", "feet", "'"],
+        Dim::Length,
+        0.3048,
+    ),
+    unit("yd", "Yards", &["yd", "yard", "yards"], Dim::Length, 0.9144),
+    unit(
+        "mi",
+        "Miles",
+        &["mi", "mile", "miles"],
+        Dim::Length,
+        1609.344,
+    ),
     unit(
         "nmi",
+        "Nautical Miles",
         &["nmi", "nautical mile", "nautical miles"],
         Dim::Length,
         1852.0,
     ),
     // Mass
-    unit("mg", &["mg", "milligram", "milligrams"], Dim::Mass, 1e-6),
-    unit("g", &["g", "gram", "grams"], Dim::Mass, 1e-3),
+    unit(
+        "mg",
+        "Milligrams",
+        &["mg", "milligram", "milligrams"],
+        Dim::Mass,
+        1e-6,
+    ),
+    unit("g", "Grams", &["g", "gram", "grams"], Dim::Mass, 1e-3),
     unit(
         "kg",
+        "Kilograms",
         &["kg", "kilogram", "kilograms", "kilo", "kilos"],
         Dim::Mass,
         1.0,
     ),
     unit(
         "t",
+        "Tonnes",
         &["t", "tonne", "tonnes", "metric ton", "metric tons"],
         Dim::Mass,
         1e3,
     ),
-    unit("oz", &["oz", "ounce", "ounces"], Dim::Mass, 0.028349523125),
+    unit(
+        "oz",
+        "Ounces",
+        &["oz", "ounce", "ounces"],
+        Dim::Mass,
+        0.028349523125,
+    ),
     unit(
         "lb",
+        "Pounds",
         &["lb", "lbs", "pound", "pounds"],
         Dim::Mass,
         0.45359237,
     ),
-    unit("st", &["st", "stone", "stones"], Dim::Mass, 6.35029318),
+    unit(
+        "st",
+        "Stone",
+        &["st", "stone", "stones"],
+        Dim::Mass,
+        6.35029318,
+    ),
     // Volume (US customary)
     unit(
         "ml",
+        "Milliliters",
         &[
             "ml",
             "milliliter",
@@ -505,46 +477,71 @@ static UNITS: &[Unit] = &[
     ),
     unit(
         "cl",
+        "Centiliters",
         &["cl", "centiliter", "centiliters"],
         Dim::Volume,
         1e-2,
     ),
-    unit("dl", &["dl", "deciliter", "deciliters"], Dim::Volume, 1e-1),
+    unit(
+        "dl",
+        "Deciliters",
+        &["dl", "deciliter", "deciliters"],
+        Dim::Volume,
+        1e-1,
+    ),
     unit(
         "l",
+        "Liters",
         &["l", "liter", "liters", "litre", "litres"],
         Dim::Volume,
         1.0,
     ),
     unit(
         "m³",
+        "Cubic Meters",
         &["m3", "m³", "cubic meter", "cubic meters"],
         Dim::Volume,
         1e3,
     ),
     unit(
         "tsp",
+        "Teaspoons",
         &["tsp", "teaspoon", "teaspoons"],
         Dim::Volume,
         0.00492892159375,
     ),
     unit(
         "tbsp",
+        "Tablespoons",
         &["tbsp", "tablespoon", "tablespoons"],
         Dim::Volume,
         0.01478676478125,
     ),
     unit(
         "fl oz",
+        "Fluid Ounces",
         &["fl oz", "floz", "fluid ounce", "fluid ounces"],
         Dim::Volume,
         0.0295735295625,
     ),
-    unit("cup", &["cup", "cups"], Dim::Volume, 0.2365882365),
-    unit("pt", &["pt", "pint", "pints"], Dim::Volume, 0.473176473),
-    unit("qt", &["qt", "quart", "quarts"], Dim::Volume, 0.946352946),
+    unit("cup", "Cups", &["cup", "cups"], Dim::Volume, 0.2365882365),
+    unit(
+        "pt",
+        "Pints",
+        &["pt", "pint", "pints"],
+        Dim::Volume,
+        0.473176473,
+    ),
+    unit(
+        "qt",
+        "Quarts",
+        &["qt", "quart", "quarts"],
+        Dim::Volume,
+        0.946352946,
+    ),
     unit(
         "gal",
+        "Gallons",
         &["gal", "gallon", "gallons"],
         Dim::Volume,
         3.785411784,
@@ -552,100 +549,225 @@ static UNITS: &[Unit] = &[
     // Temperature
     Unit {
         symbol: "°C",
+        name: "Celsius",
         aliases: &["c", "°c", "celsius", "degc"],
         dim: Dim::Temperature,
         scale: Scale::Celsius,
     },
     Unit {
         symbol: "°F",
+        name: "Fahrenheit",
         aliases: &["f", "°f", "fahrenheit", "degf"],
         dim: Dim::Temperature,
         scale: Scale::Fahrenheit,
     },
-    unit("K", &["k", "kelvin"], Dim::Temperature, 1.0),
+    unit("K", "Kelvin", &["k", "kelvin"], Dim::Temperature, 1.0),
     // Time (a year is 365.25 days)
     unit(
         "ms",
+        "Milliseconds",
         &["ms", "millisecond", "milliseconds"],
         Dim::Time,
         1e-3,
     ),
     unit(
         "s",
+        "Seconds",
         &["s", "sec", "secs", "second", "seconds"],
         Dim::Time,
         1.0,
     ),
     unit(
         "min",
+        "Minutes",
         &["min", "mins", "minute", "minutes"],
         Dim::Time,
         60.0,
     ),
-    unit("h", &["h", "hr", "hrs", "hour", "hours"], Dim::Time, 3600.0),
-    unit("d", &["d", "day", "days"], Dim::Time, 86_400.0),
-    unit("wk", &["wk", "week", "weeks"], Dim::Time, 604_800.0),
-    unit("yr", &["yr", "year", "years"], Dim::Time, 31_557_600.0),
+    unit(
+        "h",
+        "Hours",
+        &["h", "hr", "hrs", "hour", "hours"],
+        Dim::Time,
+        3600.0,
+    ),
+    unit("d", "Days", &["d", "day", "days"], Dim::Time, 86_400.0),
+    unit(
+        "wk",
+        "Weeks",
+        &["wk", "week", "weeks"],
+        Dim::Time,
+        604_800.0,
+    ),
+    unit(
+        "yr",
+        "Years",
+        &["yr", "year", "years"],
+        Dim::Time,
+        31_557_600.0,
+    ),
     // Data (kB/MB/GB/TB are decimal; KiB/MiB/GiB/TiB binary)
-    unit("bit", &["bit", "bits"], Dim::Data, 0.125),
-    unit("B", &["b", "byte", "bytes"], Dim::Data, 1.0),
-    unit("kB", &["kb", "kilobyte", "kilobytes"], Dim::Data, 1e3),
-    unit("MB", &["mb", "megabyte", "megabytes"], Dim::Data, 1e6),
-    unit("GB", &["gb", "gigabyte", "gigabytes"], Dim::Data, 1e9),
-    unit("TB", &["tb", "terabyte", "terabytes"], Dim::Data, 1e12),
-    unit("KiB", &["kib", "kibibyte", "kibibytes"], Dim::Data, 1024.0),
+    unit("bit", "Bits", &["bit", "bits"], Dim::Data, 0.125),
+    unit("B", "Bytes", &["b", "byte", "bytes"], Dim::Data, 1.0),
+    unit(
+        "kB",
+        "Kilobytes",
+        &["kb", "kilobyte", "kilobytes"],
+        Dim::Data,
+        1e3,
+    ),
+    unit(
+        "MB",
+        "Megabytes",
+        &["mb", "megabyte", "megabytes"],
+        Dim::Data,
+        1e6,
+    ),
+    unit(
+        "GB",
+        "Gigabytes",
+        &["gb", "gigabyte", "gigabytes"],
+        Dim::Data,
+        1e9,
+    ),
+    unit(
+        "TB",
+        "Terabytes",
+        &["tb", "terabyte", "terabytes"],
+        Dim::Data,
+        1e12,
+    ),
+    unit(
+        "KiB",
+        "Kibibytes",
+        &["kib", "kibibyte", "kibibytes"],
+        Dim::Data,
+        1024.0,
+    ),
     unit(
         "MiB",
+        "Mebibytes",
         &["mib", "mebibyte", "mebibytes"],
         Dim::Data,
         1_048_576.0,
     ),
     unit(
         "GiB",
+        "Gibibytes",
         &["gib", "gibibyte", "gibibytes"],
         Dim::Data,
         1_073_741_824.0,
     ),
     unit(
         "TiB",
+        "Tebibytes",
         &["tib", "tebibyte", "tebibytes"],
         Dim::Data,
         1_099_511_627_776.0,
     ),
     // Area
-    unit("cm²", &["cm2", "cm²", "sq cm"], Dim::Area, 1e-4),
+    unit(
+        "cm²",
+        "Square Centimeters",
+        &["cm2", "cm²", "sq cm"],
+        Dim::Area,
+        1e-4,
+    ),
     unit(
         "m²",
+        "Square Meters",
         &["m2", "m²", "sq m", "square meter", "square meters"],
         Dim::Area,
         1.0,
     ),
-    unit("km²", &["km2", "km²", "sq km"], Dim::Area, 1e6),
-    unit("in²", &["in2", "in²", "sq in"], Dim::Area, 0.00064516),
+    unit(
+        "km²",
+        "Square Kilometers",
+        &["km2", "km²", "sq km"],
+        Dim::Area,
+        1e6,
+    ),
+    unit(
+        "in²",
+        "Square Inches",
+        &["in2", "in²", "sq in"],
+        Dim::Area,
+        0.00064516,
+    ),
     unit(
         "ft²",
+        "Square Feet",
         &["ft2", "ft²", "sq ft", "square feet"],
         Dim::Area,
         0.09290304,
     ),
-    unit("yd²", &["yd2", "yd²", "sq yd"], Dim::Area, 0.83612736),
-    unit("ac", &["ac", "acre", "acres"], Dim::Area, 4046.8564224),
-    unit("ha", &["ha", "hectare", "hectares"], Dim::Area, 1e4),
-    unit("mi²", &["mi2", "mi²", "sq mi"], Dim::Area, 2_589_988.110336),
+    unit(
+        "yd²",
+        "Square Yards",
+        &["yd2", "yd²", "sq yd"],
+        Dim::Area,
+        0.83612736,
+    ),
+    unit(
+        "ac",
+        "Acres",
+        &["ac", "acre", "acres"],
+        Dim::Area,
+        4046.8564224,
+    ),
+    unit(
+        "ha",
+        "Hectares",
+        &["ha", "hectare", "hectares"],
+        Dim::Area,
+        1e4,
+    ),
+    unit(
+        "mi²",
+        "Square Miles",
+        &["mi2", "mi²", "sq mi"],
+        Dim::Area,
+        2_589_988.110336,
+    ),
     // Speed
-    unit("m/s", &["m/s", "mps"], Dim::Speed, 1.0),
-    unit("km/h", &["km/h", "kmh", "kph"], Dim::Speed, 1.0 / 3.6),
-    unit("mph", &["mph"], Dim::Speed, 0.44704),
-    unit("kn", &["kn", "knot", "knots"], Dim::Speed, 1852.0 / 3600.0),
-    unit("ft/s", &["ft/s", "fps"], Dim::Speed, 0.3048),
+    unit("m/s", "Meters per Second", &["m/s", "mps"], Dim::Speed, 1.0),
+    unit(
+        "km/h",
+        "Kilometers per Hour",
+        &["km/h", "kmh", "kph"],
+        Dim::Speed,
+        1.0 / 3.6,
+    ),
+    unit("mph", "Miles per Hour", &["mph"], Dim::Speed, 0.44704),
+    unit(
+        "kn",
+        "Knots",
+        &["kn", "knot", "knots"],
+        Dim::Speed,
+        1852.0 / 3600.0,
+    ),
+    unit(
+        "ft/s",
+        "Feet per Second",
+        &["ft/s", "fps"],
+        Dim::Speed,
+        0.3048,
+    ),
     // Angle
     unit(
         "°",
+        "Degrees",
         &["°", "deg", "degree", "degrees"],
         Dim::Angle,
         PI / 180.0,
     ),
-    unit("rad", &["rad", "radian", "radians"], Dim::Angle, 1.0),
+    unit(
+        "rad",
+        "Radians",
+        &["rad", "radian", "radians"],
+        Dim::Angle,
+        1.0,
+    ),
 ];
 
 #[cfg(test)]
@@ -750,13 +872,6 @@ mod tests {
         assert_eq!(result("10^20").as_deref(), Some("1e20"));
         assert_eq!(result("1/3000000000").as_deref(), Some("3.333333e-10"));
         assert_eq!(result("1/3").as_deref(), Some("0.3333333333"));
-    }
-
-    #[test]
-    fn every_unit_has_a_caption() {
-        for unit in UNITS {
-            assert!(!unit_name(unit.symbol).is_empty(), "{}", unit.symbol);
-        }
     }
 
     #[test]
