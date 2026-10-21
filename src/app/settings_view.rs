@@ -11,7 +11,7 @@ use egui::{Key, Modifiers, RichText};
 use crate::core::config::{
     ClipboardSource, MAX_CLIPBOARD_ENTRIES, MAX_CLIPBOARD_ITEM_BYTES, MAX_CLIPBOARD_TOTAL_BYTES,
     MAX_KEEP_STATE_SECS, MIN_CLIPBOARD_ENTRIES, MIN_CLIPBOARD_ITEM_BYTES, PaletteSize,
-    SearchEngine, Settings, TextSize,
+    ReduceMotion, SearchEngine, Settings, TextSize,
 };
 use crate::win::hotkey;
 
@@ -211,6 +211,24 @@ impl SettingsView {
                 });
             ui.end_row();
 
+            ui.label("Reduce motion");
+            ui.horizontal(|ui| {
+                egui::ComboBox::from_id_salt("reduce_motion")
+                    .width(SIZE_COMBO_WIDTH)
+                    .selected_text(reduce_motion_label(draft.reduce_motion))
+                    .show_ui(ui, |ui| {
+                        for value in ReduceMotion::ALL {
+                            ui.selectable_value(
+                                &mut draft.reduce_motion,
+                                value,
+                                reduce_motion_label(value),
+                            );
+                        }
+                    });
+                hint(ui, "fades only, no sliding or zooming");
+            });
+            ui.end_row();
+
             ui.label("Keep state");
             ui.horizontal(|ui| {
                 ui.add(
@@ -291,18 +309,14 @@ impl SettingsView {
     fn actions_ui(&mut self, ui: &mut egui::Ui) {
         let problem = self.problem();
         let dirty = self.draft != self.saved;
+        let weak = ui.visuals().weak_text_color();
         let (text, color) = match (&problem, &self.status) {
             (Some(problem), _) => (problem.clone(), theme::ERROR),
-            (None, Status::Saving) => ("Saving…".to_owned(), ui.visuals().weak_text_color()),
+            (None, Status::Saving) => ("Saving…".to_owned(), weak),
             (None, Status::Failed(e)) => (e.clone(), theme::ERROR),
-            (None, Status::Saved) if !dirty => {
-                ("Saved.".to_owned(), ui.visuals().weak_text_color())
-            }
-            (None, _) if dirty => (
-                "Unsaved changes.".to_owned(),
-                ui.visuals().weak_text_color(),
-            ),
-            (None, _) => (String::new(), ui.visuals().weak_text_color()),
+            (None, Status::Saved) if !dirty => ("Saved.".to_owned(), weak),
+            (None, _) if dirty => ("Unsaved changes.".to_owned(), weak),
+            (None, _) => (String::new(), weak),
         };
         ui.horizontal(|ui| {
             let saving = matches!(self.status, Status::Saving);
@@ -384,6 +398,14 @@ fn text_size_label(size: TextSize) -> &'static str {
         TextSize::Small => "Small",
         TextSize::Medium => "Medium",
         TextSize::Large => "Large",
+    }
+}
+
+fn reduce_motion_label(value: ReduceMotion) -> &'static str {
+    match value {
+        ReduceMotion::System => "Follow Windows",
+        ReduceMotion::On => "On",
+        ReduceMotion::Off => "Off",
     }
 }
 

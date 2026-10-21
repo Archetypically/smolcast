@@ -10,6 +10,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver};
 use std::time::{Duration, Instant};
 
+use egui::emath::TSTransform;
 use egui::{Color32, Context, Key, Modifiers, RichText, ViewportCommand};
 
 use crate::core::app_index::{AppId, Command};
@@ -17,6 +18,7 @@ use crate::core::config::{ClipboardSource, ConfigError, ConfigFile, PaletteSize,
 use crate::core::config_edit::ConfigEdit;
 use crate::core::favorites::Favorites;
 use crate::core::history::{Limits, Payload};
+use crate::core::motion::{self as timing, Tween};
 use crate::core::usage::Usage;
 use crate::win::clipboard::{
     ClipboardCommand, ClipboardError, ClipboardWriteReceipt, WindowsSnapshot,
@@ -30,9 +32,11 @@ use crate::win::persistence::{ClipboardStoreCommand, LoadedEntry, Stored};
 use crate::win::placement::PaletteWindow;
 use crate::win::shell::{LaunchError, ScanOutcome};
 
+use super::about_view::AboutView;
 use super::clipboard_view::{ClipboardView, PasteRequest, ThumbnailRequest};
 use super::emoji_view::{EmojiView, GlyphRequest};
 use super::launcher::{IconRequest, LaunchRequest, Launcher};
+use super::motion;
 use super::notice::{Notice, NoticeStore, Severity, op};
 use super::settings_view::SettingsView;
 use super::snippet_view::SnippetView;
@@ -109,6 +113,7 @@ enum View {
     Emoji,
     Snippets,
     Settings,
+    About,
 }
 
 /// What a recorded key chord is for.
@@ -237,6 +242,7 @@ pub struct AppModel {
     /// host could not resolve the window handle.
     palette_window: Option<PaletteWindow>,
     settings: SettingsView,
+    about: AboutView,
     /// A form edit to write to config.toml; the host saves, then reloads
     /// (§12.7, §10.6).
     config_save: Option<ConfigEdit>,
@@ -247,6 +253,16 @@ pub struct AppModel {
     /// When the palette was dismissed with its state kept; `None` after a
     /// completed action, so the next summon starts fresh.
     hidden_at: Option<Instant>,
+    /// How present the palette is, from 0 (gone) to 1 (shown): it fades and
+    /// settles in on a show, and fades out on a dismiss.
+    presence: Tween,
+    /// A dismissed palette is fading out; it is hidden when the fade ends.
+    /// A summon meanwhile brings it straight back.
+    dismissing: bool,
+    /// The view and form mode last painted, to animate moving between them.
+    scene: Option<(View, bool)>,
+    /// The body is sliding in since then, forward (deeper) or back.
+    navigating: Option<(Instant, bool)>,
 }
 
 impl AppModel {
@@ -301,16 +317,22 @@ impl AppModel {
             force_show: force_visible,
             palette_window: None,
             settings: SettingsView::new(&config.settings),
+            about: AboutView::default(),
             config_save: None,
             open_config_file: false,
             had_focus: false,
             hidden_at: None,
+            presence: Tween::at(0.0, Instant::now()),
+            dismissing: false,
+            scene: None,
+            navigating: None,
             config,
         };
         model.set_palette_size(palette_size);
         let settings = &model.config.settings;
-        let (engine, custom) = (settings.search_engine, settings.web_search_url.clone());
-        model.launcher.set_search_engine(engine, &custom);
+        model
+            .launcher
+            .set_search_engine(settings.search_engine, &settings.web_search_url);
         model
     }
 
@@ -341,7 +363,7 @@ impl AppModel {
             && ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape))
         {
             if self.view == View::Root {
-                self.hide(ctx);
+                self.dismiss();
             } else if !self.view_escape() {
                 self.open_view(View::Root);
             }
@@ -355,7 +377,7 @@ impl AppModel {
             match ctx.input(|i| i.viewport().focused) {
                 Some(true) => self.had_focus = true,
                 Some(false) if self.had_focus && matches!(self.paste, PasteState::Idle) => {
-                    self.hide(ctx);
+                    self.dismiss();
                 }
                 _ => {}
             }
@@ -365,6 +387,12 @@ impl AppModel {
         // A pending tray Quit is the one close that must go through.
         if !self.quit_requested && ctx.input(|i| i.viewport().close_requested()) {
             ctx.send_viewport_cmd(ViewportCommand::CancelClose);
+            if self.visible {
+                self.dismiss();
+            }
+        }
+
+        if self.dismissing && self.presence.done(Instant::now()) {
             self.hide(ctx);
         }
 
@@ -377,7 +405,43 @@ impl AppModel {
     /// mentions `eframe::Frame`. The host wraps this in the root panel.
     /// Returns the slack padded above the footer (see `palette_ui`).
     pub fn ui(&mut self, ui: &mut egui::Ui) -> f32 {
-        self.palette_ui(ui)
+        let now = Instant::now();
+        if !self.presence.done(now) {
+            ui.ctx().request_repaint();
+        }
+        let (scale, opacity) =
+            timing::presence_look(self.presence.value(now), motion::reduced(ui.ctx()));
+        // Scaled about the window's center. Always wrapped, even at rest, so
+        // widget ids (and the search field's focus) stay the same.
+        let center = ui.clip_rect().center().to_vec2();
+        let transform = TSTransform::from_translation(center)
+            * TSTransform::from_scaling(scale)
+            * TSTransform::from_translation(-center);
+        ui.with_visual_transform(transform, |ui| {
+            ui.multiply_opacity(opacity);
+            if self.dismissing {
+                // Fading out: nothing may be clicked. Keep the fade as is.
+                ui.visuals_mut().disabled_alpha = 1.0;
+                ui.disable();
+            }
+            self.palette_ui(ui)
+        })
+        .inner
+    }
+
+    /// Whether the palette is on screen: shown, or fading out.
+    pub fn is_painted(&self) -> bool {
+        self.visible || self.dismissing
+    }
+
+    /// The host keeps a fast-path summon cloaked for its first frames; the
+    /// appear animation starts once it is uncloaked.
+    pub fn hold_appear(&mut self) {
+        if self.visible {
+            let now = Instant::now();
+            self.presence = Tween::at(0.0, now);
+            self.presence.retarget(1.0, timing::APPEAR, now);
+        }
     }
 
     // ---- host-facing accessors -------------------------------------------------
@@ -825,13 +889,18 @@ impl AppModel {
             View::Emoji => self.emoji.open(),
             View::Snippets => self.snippets.open(),
             View::Settings => self.settings.open(),
+            View::About => self.about.open(),
         }
     }
 
     /// Summon is idempotent (§5.2): show and focus when hidden, only focus when
     /// already visible, and never replace the captured destination while showing.
     fn summon(&mut self, ctx: &Context) {
-        if !self.visible {
+        if self.dismissing {
+            // Still fading out: come back as it was, with the destination it
+            // had (the palette itself is the foreground window now).
+            self.show(ctx);
+        } else if !self.visible {
             // A new summon cancels any stale paste before capturing a new
             // destination (§8.2).
             if let Some(cancel) = self.paste_cancel.take() {
@@ -847,10 +916,19 @@ impl AppModel {
     }
 
     fn show(&mut self, ctx: &Context) {
-        // Move while still hidden so the window never appears at its old spot.
-        if let Some(window) = &self.palette_window {
+        let returning = std::mem::take(&mut self.dismissing);
+        // Move while still hidden so the window never appears at its old
+        // spot; one still fading out stays put.
+        if !returning && let Some(window) = &self.palette_window {
             window.place_on_cursor_monitor();
         }
+        let now = Instant::now();
+        if !returning {
+            self.presence = Tween::at(0.0, now);
+            self.scene = None;
+            motion::new_epoch(ctx);
+        }
+        self.presence.retarget(1.0, timing::APPEAR, now);
         self.visible = true;
         self.had_focus = false;
         self.focus_search = true;
@@ -864,15 +942,30 @@ impl AppModel {
         ctx.send_viewport_cmd(ViewportCommand::Focus);
     }
 
-    /// Dismiss, keeping the palette's state for `keep_state_secs`.
-    fn hide(&mut self, ctx: &Context) {
+    /// Dismiss with a quick fade, keeping the palette's state for
+    /// `keep_state_secs`. `step` hides the window when the fade ends.
+    fn dismiss(&mut self) {
         self.visible = false;
+        self.dismissing = true;
         self.recording = false;
         // Escape before the receipt cancels injection; the clipboard content,
         // if already written, stays (§8.2).
         self.paste = PasteState::Idle;
+        let now = Instant::now();
+        self.hidden_at = Some(now);
+        self.presence.retarget(0.0, timing::DISMISS, now);
+    }
+
+    /// Hide at once, keeping the palette's state for `keep_state_secs`. A
+    /// completed action hides without a fade so its window is not kept
+    /// waiting (paste-back restores the destination next).
+    fn hide(&mut self, ctx: &Context) {
+        if !self.dismissing {
+            self.dismiss();
+        }
+        self.dismissing = false;
+        self.presence = Tween::at(0.0, Instant::now());
         self.destination = None;
-        self.hidden_at = Some(Instant::now());
         ctx.send_viewport_cmd(ViewportCommand::Visible(false));
     }
 
@@ -888,7 +981,7 @@ impl AppModel {
     /// delete confirmation.
     fn search_hidden(&self) -> bool {
         match self.view {
-            View::Settings => true,
+            View::Settings | View::About => true,
             View::Snippets => self.snippets.is_editing(),
             View::Root | View::Clipboard | View::Emoji => false,
         }
@@ -899,7 +992,7 @@ impl AppModel {
     fn view_escape(&mut self) -> bool {
         match self.view {
             View::Snippets => self.snippets.escape(),
-            View::Root | View::Clipboard | View::Emoji | View::Settings => false,
+            View::Root | View::Clipboard | View::Emoji | View::Settings | View::About => false,
         }
     }
 
@@ -918,9 +1011,12 @@ impl AppModel {
             View::Emoji => Some(Command::Emoji.title()),
             View::Snippets => Some(self.snippets.title()),
             View::Settings => Some(Command::Settings.title()),
+            View::About => Some(Command::About.title()),
         };
         let paste_enabled = matches!(self.paste, PasteState::Idle);
-        if self.recording {
+        if self.dismissing {
+            // Fading out: paint only.
+        } else if self.recording {
             self.capture_chord(ui);
         } else {
             // Backspace on an empty search leaves a sub-view (§5.4); forms
@@ -946,26 +1042,26 @@ impl AppModel {
                 View::Emoji => self.emoji.handle_keys(ui, paste_enabled),
                 View::Snippets => self.snippets.handle_keys(ui, paste_enabled),
                 View::Settings => self.settings.handle_keys(ui),
+                View::About => {}
             }
         }
+        let (nav_offset, nav_opacity) = self.navigation(ui.ctx());
         let hint = match self.view {
             View::Root => "Search apps and commands…",
             View::Clipboard => "Search clipboard history…",
             View::Emoji => "Search emoji…",
             View::Snippets => "Search snippets…",
-            // The form has no search field.
-            View::Settings => "",
+            // Forms have no search field.
+            View::Settings | View::About => "",
         };
         let mut back = false;
         egui::Frame::new()
             .inner_margin(egui::Margin::symmetric(theme::GUTTER, 12))
             .show(ui, |ui| {
+                ui.multiply_opacity(nav_opacity);
                 // A fixed 28-point line (the back button's height) so the
                 // query sits at the same height with or without the button.
-                let line = egui::vec2(ui.available_width(), 28.0);
-                let layout = egui::Layout::left_to_right(egui::Align::Center);
-                ui.allocate_ui_with_layout(line, layout, |ui| {
-                    ui.set_min_size(line);
+                fixed_row(ui, 28.0, |ui| {
                     if crumb.is_some() {
                         back = theme::back_button(ui).on_hover_text("Back (Esc)").clicked();
                     }
@@ -996,7 +1092,12 @@ impl AppModel {
             .inner_margin(egui::Margin::same(theme::BODY_MARGIN))
             .show(ui, |ui| {
                 ui.spacing_mut().item_spacing.y = spacing;
-                self.body_ui(ui, paste_enabled);
+                // Paint only: clicks land where the rows will settle.
+                let slide = TSTransform::from_translation(egui::vec2(nav_offset, 0.0));
+                ui.with_visual_transform(slide, |ui| {
+                    ui.multiply_opacity(nav_opacity);
+                    self.body_ui(ui, paste_enabled);
+                });
             });
         if back {
             self.open_view(View::Root);
@@ -1009,6 +1110,30 @@ impl AppModel {
         theme::divider(ui);
         self.footer_ui(ui, crumb);
         slack
+    }
+
+    /// Slide the body in after moving to another view or form, deeper from
+    /// the right and back from the left. Returns its offset and opacity.
+    fn navigation(&mut self, ctx: &Context) -> (f32, f32) {
+        let depth = |(view, form): (View, bool)| u8::from(view != View::Root) + u8::from(form);
+        let scene = (self.view, self.search_hidden());
+        if let Some(previous) = self.scene.replace(scene)
+            && previous != scene
+        {
+            self.navigating = Some((Instant::now(), depth(scene) > depth(previous)));
+            motion::new_epoch(ctx);
+        }
+        let Some((since, forward)) = self.navigating else {
+            return (0.0, 1.0);
+        };
+        let duration = timing::NAVIGATE.as_secs_f32();
+        let t = (since.elapsed().as_secs_f32() / duration).min(1.0);
+        if t < 1.0 {
+            ctx.request_repaint();
+        } else {
+            self.navigating = None;
+        }
+        timing::navigate_look(t, forward, motion::reduced(ctx))
     }
 
     fn body_ui(&mut self, ui: &mut egui::Ui, paste_enabled: bool) {
@@ -1053,6 +1178,7 @@ impl AppModel {
                             self.snippets.start_new();
                         }
                         Command::Settings => self.open_view(View::Settings),
+                        Command::About => self.open_view(View::About),
                     }
                 }
                 theme::inset(ui, |ui| self.launcher.broken_shortcuts_ui(ui));
@@ -1090,6 +1216,7 @@ impl AppModel {
                     self.open_config_file = true;
                 }
             }
+            View::About => theme::inset(ui, |ui| self.about.ui(ui)),
             View::Settings => {
                 let recording = self.recording && self.record_target == RecordTarget::Settings;
                 theme::inset(ui, |ui| {
@@ -1123,12 +1250,13 @@ impl AppModel {
     /// Raycast's action bar: where you are on the left, the primary action
     /// and its keys on the right.
     fn footer_ui(&mut self, ui: &mut egui::Ui, crumb: Option<&str>) {
-        let (action, keys): (&str, &[&str]) = match self.view {
-            View::Root => (self.launcher.primary_action(), &["Enter"]),
-            View::Snippets if self.snippets.is_confirming_delete() => ("Delete", &["Enter"]),
-            View::Snippets if self.snippets.is_editing() => ("Save", &["Ctrl", "S"]),
-            View::Settings => ("Save", &["Ctrl", "S"]),
-            View::Clipboard | View::Emoji | View::Snippets => ("Paste", &["Enter"]),
+        let action: Option<(&str, &[&str])> = match self.view {
+            View::Root => Some((self.launcher.primary_action(), &["Enter"])),
+            View::Snippets if self.snippets.is_confirming_delete() => Some(("Delete", &["Enter"])),
+            View::Snippets if self.snippets.is_editing() => Some(("Save", &["Ctrl", "S"])),
+            View::Settings => Some(("Save", &["Ctrl", "S"])),
+            View::Clipboard | View::Emoji | View::Snippets => Some(("Paste", &["Enter"])),
+            View::About => None,
         };
         // An action in flight replaces its key hint until it finishes.
         let busy = match (self.view, &self.paste) {
@@ -1138,46 +1266,43 @@ impl AppModel {
         }
         .filter(|(since, _)| theme::busy_due(ui, *since))
         .map(|(_, label)| label);
-        let size = egui::vec2(ui.available_width(), theme::FOOTER_HEIGHT);
-        ui.allocate_ui_with_layout(
-            size,
-            egui::Layout::left_to_right(egui::Align::Center),
-            |ui| {
-                ui.set_min_size(size);
-                ui.add_space(f32::from(theme::GUTTER));
-                ui.label(RichText::new(crumb.unwrap_or("smolcast")).small().weak());
-                match &self.hotkey_status {
-                    HotkeyStatus::Active { canonical } if crumb.is_none() => {
-                        ui.scope(|ui| {
-                            ui.spacing_mut().item_spacing.x = 3.0;
-                            for key in crate::core::config::key_names(canonical) {
-                                theme::key_cap(ui, &key);
-                            }
-                        });
-                    }
-                    HotkeyStatus::Active { .. } => {}
-                    HotkeyStatus::Conflict { requested, .. } => {
-                        ui.label(
-                            RichText::new(format!("hotkey conflict: {requested}"))
-                                .small()
-                                .color(Color32::from_rgb(220, 120, 60)),
-                        );
-                    }
+        fixed_row(ui, theme::FOOTER_HEIGHT, |ui| {
+            ui.add_space(f32::from(theme::GUTTER));
+            ui.label(RichText::new(crumb.unwrap_or("smolcast")).small().weak());
+            match &self.hotkey_status {
+                HotkeyStatus::Active { canonical } if crumb.is_none() => {
+                    ui.scope(|ui| {
+                        ui.spacing_mut().item_spacing.x = 3.0;
+                        for key in crate::core::config::key_names(canonical) {
+                            theme::key_cap(ui, &key);
+                        }
+                    });
                 }
-                // Right to left: the rightmost hint comes first.
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.add_space(f32::from(theme::GUTTER));
-                    if crumb.is_some() {
-                        theme::action_hint(ui, "Back", &["Esc"]);
+                HotkeyStatus::Active { .. } => {}
+                HotkeyStatus::Conflict { requested } => {
+                    ui.label(
+                        RichText::new(format!("hotkey conflict: {requested}"))
+                            .small()
+                            .color(Color32::from_rgb(220, 120, 60)),
+                    );
+                }
+            }
+            // Right to left: the rightmost hint comes first.
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.add_space(f32::from(theme::GUTTER));
+                if crumb.is_some() {
+                    theme::action_hint(ui, "Back", &["Esc"]);
+                    if action.is_some() {
                         ui.label(RichText::new("|").small().color(theme::divider_color(ui)));
                     }
-                    match busy {
-                        Some(label) => theme::action_busy(ui, label),
-                        None => theme::action_hint(ui, action, keys),
-                    }
-                });
-            },
-        );
+                }
+                match (busy, action) {
+                    (Some(label), _) => theme::action_busy(ui, label),
+                    (None, Some((action, keys))) => theme::action_hint(ui, action, keys),
+                    (None, None) => {}
+                }
+            });
+        });
     }
 
     /// Session-only replacement key (§5.2): record a pressed chord rather than
@@ -1313,6 +1438,25 @@ impl AppModel {
             self.notices.clear();
         }
     }
+}
+
+/// A full-width row `height` points tall, its items centered vertically. Its
+/// size is fixed, so the rows around it do not move with its contents.
+fn fixed_row<R>(
+    ui: &mut egui::Ui,
+    height: f32,
+    add_contents: impl FnOnce(&mut egui::Ui) -> R,
+) -> R {
+    let size = egui::vec2(ui.available_width(), height);
+    ui.allocate_ui_with_layout(
+        size,
+        egui::Layout::left_to_right(egui::Align::Center),
+        |ui| {
+            ui.set_min_size(size);
+            add_contents(ui)
+        },
+    )
+    .inner
 }
 
 fn is_modifier_key(key: Key) -> bool {

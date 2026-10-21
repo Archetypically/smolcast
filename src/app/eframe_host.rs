@@ -16,8 +16,8 @@ use crate::app::clipboard_view;
 use crate::app::model::loads_stored_history;
 use crate::app::model::{AppEvent, AppModel, HotkeyStatus, Wake};
 use crate::app::notice::{Notice, Severity, op};
-use crate::app::theme;
-use crate::core::config::{self, ConfigFile, PaletteSize, TextSize};
+use crate::app::{motion, theme};
+use crate::core::config::{self, ConfigFile, PaletteSize};
 use crate::core::config_edit::{self, ConfigEdit};
 use crate::win::clipboard::ClipboardThread;
 use crate::win::emoji_render::EmojiRenderer;
@@ -78,8 +78,28 @@ pub struct EframeApp {
     reveal_settled: bool,
     /// Common glyphs were laid out ahead of the first summon.
     glyphs_warmed: bool,
-    /// The palette and text sizes the window and style were last set for.
-    applied_look: Option<(PaletteSize, TextSize)>,
+    /// The palette size and look the window and style were last set for.
+    applied_look: Option<(PaletteSize, theme::Look)>,
+    /// Windows' "Animation effects" and high-contrast switches, re-read
+    /// whenever the palette is shown.
+    system_look: SystemLook,
+    /// Whether the palette was visible at the last step.
+    was_visible: bool,
+}
+
+#[derive(Clone, Copy)]
+struct SystemLook {
+    animations: bool,
+    high_contrast: bool,
+}
+
+impl SystemLook {
+    fn read() -> Self {
+        Self {
+            animations: appearance::animations_enabled(),
+            high_contrast: appearance::high_contrast(),
+        }
+    }
 }
 
 impl EframeApp {
@@ -230,22 +250,36 @@ impl EframeApp {
             reveal_settled: false,
             glyphs_warmed: false,
             applied_look: None,
+            system_look: SystemLook::read(),
+            was_visible: false,
         }
     }
 
-    /// Follow the `palette_size` and `text_size` settings: restyle fonts,
-    /// and resize the window when the palette size changes.
+    /// Follow the `palette_size`, `text_size` and `reduce_motion` settings
+    /// and Windows' animation and contrast switches: restyle, and resize the
+    /// window when the palette size changes.
     fn sync_look(&mut self, ctx: &Context) {
+        let visible = self.model.is_visible();
+        if visible && !self.was_visible {
+            self.system_look = SystemLook::read();
+        }
+        self.was_visible = visible;
         let settings = &self.model.config().settings;
-        let look = (settings.palette_size, settings.text_size);
-        if self.applied_look == Some(look) {
+        let look = theme::Look {
+            text: settings.text_size,
+            reduced_motion: settings.reduce_motion.reduced(self.system_look.animations),
+            high_contrast: self.system_look.high_contrast,
+        };
+        let size = settings.palette_size;
+        if self.applied_look == Some((size, look)) {
             return;
         }
-        theme::install(ctx, look.1);
-        if self.applied_look.is_none_or(|(size, _)| size != look.0) {
-            ctx.send_viewport_cmd(ViewportCommand::InnerSize(theme::window_size(look.0)));
+        theme::install(ctx, look);
+        motion::set_reduced(ctx, look.reduced_motion);
+        if self.applied_look.is_none_or(|(applied, _)| applied != size) {
+            ctx.send_viewport_cmd(ViewportCommand::InnerSize(theme::window_size(size)));
         }
-        self.applied_look = Some(look);
+        self.applied_look = Some((size, look));
     }
 
     /// Per-callback tick: drain events, service refresh/trial requests, and
@@ -518,7 +552,9 @@ impl EframeApp {
             self.reveal_settled = false;
         } else {
             // This frame is presented after `ui` returns; uncloak on the next
-            // one. A resize this frame repaints at the new size first.
+            // one. A resize this frame repaints at the new size first. The
+            // appear animation waits until it can be seen.
+            self.model.hold_appear();
             self.reveal_frames += 1;
             self.reveal_settled = !resized;
             ctx.request_repaint();
@@ -611,7 +647,7 @@ impl eframe::App for EframeApp {
             appearance::set_dark(window, theme == egui::Theme::Dark);
             self.frame_theme = Some(theme);
         }
-        if self.model.is_visible() {
+        if self.model.is_painted() {
             // DWM draws the rounded corners and border; with Mica the panel is
             // transparent so the backdrop shows through.
             let fill = if self.mica {

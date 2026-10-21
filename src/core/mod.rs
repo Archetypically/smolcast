@@ -12,6 +12,7 @@ pub mod emoji_data;
 pub mod history;
 pub mod icon_scale;
 pub mod matcher;
+pub mod motion;
 pub mod placement;
 pub mod snippet;
 pub mod usage;

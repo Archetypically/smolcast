@@ -12,14 +12,16 @@ reference for anyone changing the UI. The tokens live in
   hairline dividers instead of boxes. Color means status (warning, error), not
   decoration.
 - **One accent, used sparingly.** Raycast red (`#FF6363`) is used only for the
-  text cursor, text selection and links. Row selection is a soft gray fill,
-  never the accent.
+  text cursor, text selection and links, plus one grace note: the heart on the
+  About page. Row selection is a soft gray fill, never the accent.
 - **Follow the system.** Dark and light themes follow Windows. Mica shows
   through when it is available (see plan §12.7, Appearance).
 - **Quick, and honest about work.** The palette never blocks on work. Anything
   still running shows a small spinner with a plain label ("Indexing apps…",
   "Loading clipboard history…", "Pasting…") until it finishes. A spinner only
   appears after 150 ms, so quick work does not flash one.
+- **Alive, never slow.** Motion is short, interruptible and paint-only: it
+  never delays input or layout. See Motion.
 
 ## Layout
 
@@ -61,6 +63,7 @@ bottom padding so that shrinking works.
 | Selected row, key caps | white 10% | black 8% |
 | Text selection | `#FF6363` at 35% | `#FF6363` at 35% |
 | Hover | white 5% | black 4% |
+| Keyboard focus ring (buttons, checkboxes, menus) | 1 pt secondary text | 1 pt secondary text |
 | Controls (buttons, form fields) | white 7% | black 5% |
 | Dividers | white 10% | black 8% |
 
@@ -116,6 +119,12 @@ The font is Segoe UI, with egui's bundled fonts as fallbacks.
   `pwsh.exe` resolved through the search path. A glyph is used only when no
   icon exists: built-in commands, clipboard entries, snippets, or a failed
   lookup (▶ for scripts).
+- **About page** (`about_view`). "About smolcast" (also found by "Credits")
+  is a centered column: the name at 1.6× the search size, the version,
+  a one-line tagline, "Made with ♥ by Evan Lee" (the heart is painted in the
+  accent and beats once, lub-dub, when the page opens; hovering it beats
+  again), then the "Built with" credits and the license in small text. The
+  footer shows only `Back Esc`.
 - **Settings form.** Sections (General, Palette, Clipboard), each headed by
   `theme::section_label` (the same small gray style as "Suggestions"). Labels
   sit in a shared 112-point column so controls align across sections. Rows
@@ -124,13 +133,50 @@ The font is Segoe UI, with egui's bundled fonts as fallbacks.
   "Edit config file…" is on the right.
 - **Key cap** (`theme::key_cap`). Small gray text on a rounded selection fill.
   It is painted at the text's size so centered layouts cannot stretch it.
+  While its key is held, the cap lights up (brighter fill, full-strength text).
 - **Action hint** (`theme::action_hint`). A label followed by its key caps,
   for right-to-left footer layouts.
 - **Back button** (`theme::back_button`). A painted arrow, not a font glyph.
+  On hover the arrow leans 1.5 points to the left.
 - **Busy indicator** (`theme::busy`, `busy_small`, `action_busy`). A small
   egui spinner beside weak text. Gate it with `theme::busy_due`, which applies
   the 150 ms delay. Spinners animate only while drawn, so a hidden palette
   never repaints for one.
+
+## Motion
+
+Tokens live in `core::motion`; the egui side is `app::motion`. Every
+animation changes paint only (`Ui::with_visual_transform`, opacity), so clicks
+and keys always act on final positions, and typing works from the first frame.
+
+| Moment | What moves | Time | Easing |
+| --- | --- | --- | --- |
+| Summon | Content fades in and scales 97% → 100% about the window center; the window frame and backdrop appear at once | 160 ms | ease out (cubic) |
+| Dismiss (Esc, click-away) | Content fades out and scales to 97%, input off, then the window hides; a summon meanwhile reverses it | 90 ms | ease in (cubic) |
+| Completed action (launch, paste, web search) | Nothing: the window hides at once | — | — |
+| View change, form open or close | Body slides 12 pt in (from the right going deeper, from the left going back) and fades in; the search line fades | 150 ms | ease out (cubic) |
+| Selection | The row or emoji cell fill glides to its new place | 80 ms | linear |
+| Hover | Row and cell hover fills fade in and out | 80 ms | linear |
+| Emoji cell | The selected glyph lifts to 108% | 120 ms | ease out (cubic) |
+| Back button | The arrow leans 1.5 pt left on hover | 100 ms | linear |
+| Key cap | Lights up while its key is held | 60 ms | linear |
+
+Reduced motion (`reduce_motion`, following Windows' Animation effects by
+default) keeps the fades and drops all movement: no scaling, sliding, gliding,
+lifting or leaning, and egui's own animations are off. A new summon or view
+starts a new motion epoch, so highlights appear in place instead of gliding in
+from a stale spot. Animations request repaints only while they run; a resting
+palette is idle.
+
+## Accessibility
+
+- **Reduced motion**, as above.
+- **Keyboard focus** on buttons, checkboxes and menus shows a 1-point ring
+  (egui draws keyboard focus with the active style, whose fill alone was
+  nearly invisible). Text fields keep their cursor instead.
+- **High contrast.** Under a Windows high-contrast theme (re-read on each
+  show) the selection, hover, control and divider fills are stronger and the
+  secondary text is closer to the primary text. Mica is off then (§12.7).
 
 ## Rules
 
@@ -152,6 +198,10 @@ The font is Segoe UI, with egui's bundled fonts as fallbacks.
 - **Size lists from the stride.** List heights are row counts times
   `theme::ROW_STRIDE`, never magic numbers.
 - **Color only for status.** Warnings are amber and errors are red, in small
-  text. Nothing else gets color.
+  text. Nothing else gets color, except the accent where Principles allow it
+  (the About page's heart).
 - **Check new views in both themes.** Also check them at 100%, 150% and 200%
-  scaling.
+  scaling, with reduced motion on, and under a high-contrast theme.
+- **Animate paint, never input.** New motion goes through `core::motion`
+  tokens and `app::motion` helpers, stays under 200 ms, and has a reduced
+  form with no movement.

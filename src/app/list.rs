@@ -1,9 +1,9 @@
 //! List mechanics shared by the launcher, clipboard, and snippet views:
 //! wrapping arrow-key selection, the visible-row window, and row chrome.
 
-use egui::{Align, Color32, Layout, RichText, Sense, Shape, UiBuilder, Vec2};
+use egui::{Align, Layout, RichText, Sense, Shape, UiBuilder, Vec2};
 
-use super::theme;
+use super::{motion, theme};
 
 /// Move `selected` one row down or up, wrapping at both ends.
 pub fn step_selection(selected: &mut usize, count: usize, down: bool, up: bool) {
@@ -69,7 +69,8 @@ pub fn scroll_window(
 /// One clickable result row: `leading` (an icon or glyph), then a truncating
 /// `name`, then `trailing` right-aligned. The trailing column is laid out first
 /// so the name only takes the remaining width. Selection is a soft rounded
-/// fill, as in Raycast, rather than an accent color.
+/// fill, as in Raycast, rather than an accent color; it glides between the
+/// rows of one list, and hover fills fade in.
 pub fn row(
     ui: &mut egui::Ui,
     selected: bool,
@@ -107,13 +108,13 @@ pub fn row(
         ui.id().with(("row", rect.min.y as i32)),
         Sense::click(),
     );
-    let color = if selected {
-        theme::selected_fill(ui)
-    } else if response.hovered() {
-        theme::hover_fill(ui)
+    let hover = motion::hover(ui, response.id, response.hovered() && !selected);
+    let shape = if selected {
+        let at = motion::glide(ui, ui.id().with("selection"), rect);
+        Shape::rect_filled(at, 8, theme::selected_fill(ui))
     } else {
-        Color32::TRANSPARENT
+        Shape::rect_filled(rect, 8, theme::hover_fill(ui).gamma_multiply(hover))
     };
-    ui.painter().set(fill, Shape::rect_filled(rect, 8, color));
+    ui.painter().set(fill, shape);
     response
 }
