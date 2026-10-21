@@ -20,6 +20,8 @@ reference for anyone changing the UI. The tokens live in
   still running shows a small spinner with a plain label ("Indexing apps…",
   "Loading clipboard history…", "Pasting…") until it finishes. A spinner only
   appears after 150 ms, so quick work does not flash one.
+- **Alive, never slow.** Motion is short, interruptible and paint-only: it
+  never delays input or layout. See Motion.
 
 ## Layout
 
@@ -132,6 +134,22 @@ The font is Segoe UI, with egui's bundled fonts as fallbacks.
   the 150 ms delay. Spinners animate only while drawn, so a hidden palette
   never repaints for one.
 
+## Motion
+
+Tokens live in `core::motion`. Every
+animation changes paint only (`Ui::with_visual_transform`, opacity), so clicks
+and keys always act on final positions, and typing works from the first frame.
+
+| Moment | What moves | Time | Easing |
+| --- | --- | --- | --- |
+| Summon | Content fades in and scales 97% → 100% about the window center; the window frame and backdrop appear at once | 160 ms | ease out (cubic) |
+| Dismiss (Esc, click-away) | Content fades out and scales to 97%, input off, then the window hides; a summon meanwhile reverses it | 90 ms | ease in (cubic) |
+| Completed action (launch, paste, web search) | Nothing: the window hides at once | — | — |
+| View change, form open or close | Body slides 12 pt in (from the right going deeper, from the left going back) and fades in; the search line fades | 150 ms | ease out (cubic) |
+
+Animations request repaints only while they run; a resting palette is
+idle.
+
 ## Rules
 
 - **Write key names out.** Use "Enter", "Esc" and "Ctrl", not `↵` or `⌘`.
@@ -155,3 +173,5 @@ The font is Segoe UI, with egui's bundled fonts as fallbacks.
   text. Nothing else gets color.
 - **Check new views in both themes.** Also check them at 100%, 150% and 200%
   scaling.
+- **Animate paint, never input.** New motion goes through `core::motion`
+  tokens and stays under 200 ms.

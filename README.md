@@ -15,6 +15,7 @@ smolcast is a Windows take on [Tinycast](https://github.com/abue-ammar/tinycast)
 - **Scripts**: name a command in the config, run it from the palette or its own hotkey.
 - **Snippets**: save text you paste often, find it by name or keyword, and edit it right in the palette.
 - **Feels native**: Raycast-style look, Mica backdrop, rounded corners, light and dark themes, opens on the monitor under your cursor.
+- **Lively, never slow**: the palette settles in, views slide, and nothing waits on an animation.
 - **Forgiving**: dismiss by accident and the palette comes back as you left it for 30 seconds.
 - **Tidy**: offers to move broken Start Menu shortcuts to the Recycle Bin.
 
