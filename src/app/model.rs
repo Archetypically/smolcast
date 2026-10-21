@@ -330,8 +330,9 @@ impl AppModel {
         };
         model.set_palette_size(palette_size);
         let settings = &model.config.settings;
-        let (engine, custom) = (settings.search_engine, settings.web_search_url.clone());
-        model.launcher.set_search_engine(engine, &custom);
+        model
+            .launcher
+            .set_search_engine(settings.search_engine, &settings.web_search_url);
         model
     }
 
@@ -950,8 +951,9 @@ impl AppModel {
         // Escape before the receipt cancels injection; the clipboard content,
         // if already written, stays (§8.2).
         self.paste = PasteState::Idle;
-        self.hidden_at = Some(Instant::now());
-        self.presence.retarget(0.0, timing::DISMISS, Instant::now());
+        let now = Instant::now();
+        self.hidden_at = Some(now);
+        self.presence.retarget(0.0, timing::DISMISS, now);
     }
 
     /// Hide at once, keeping the palette's state for `keep_state_secs`. A
@@ -1059,10 +1061,7 @@ impl AppModel {
                 ui.multiply_opacity(nav_opacity);
                 // A fixed 28-point line (the back button's height) so the
                 // query sits at the same height with or without the button.
-                let line = egui::vec2(ui.available_width(), 28.0);
-                let layout = egui::Layout::left_to_right(egui::Align::Center);
-                ui.allocate_ui_with_layout(line, layout, |ui| {
-                    ui.set_min_size(line);
+                fixed_row(ui, 28.0, |ui| {
                     if crumb.is_some() {
                         back = theme::back_button(ui).on_hover_text("Back (Esc)").clicked();
                     }
@@ -1267,49 +1266,43 @@ impl AppModel {
         }
         .filter(|(since, _)| theme::busy_due(ui, *since))
         .map(|(_, label)| label);
-        let size = egui::vec2(ui.available_width(), theme::FOOTER_HEIGHT);
-        ui.allocate_ui_with_layout(
-            size,
-            egui::Layout::left_to_right(egui::Align::Center),
-            |ui| {
-                ui.set_min_size(size);
+        fixed_row(ui, theme::FOOTER_HEIGHT, |ui| {
+            ui.add_space(f32::from(theme::GUTTER));
+            ui.label(RichText::new(crumb.unwrap_or("smolcast")).small().weak());
+            match &self.hotkey_status {
+                HotkeyStatus::Active { canonical } if crumb.is_none() => {
+                    ui.scope(|ui| {
+                        ui.spacing_mut().item_spacing.x = 3.0;
+                        for key in crate::core::config::key_names(canonical) {
+                            theme::key_cap(ui, &key);
+                        }
+                    });
+                }
+                HotkeyStatus::Active { .. } => {}
+                HotkeyStatus::Conflict { requested } => {
+                    ui.label(
+                        RichText::new(format!("hotkey conflict: {requested}"))
+                            .small()
+                            .color(Color32::from_rgb(220, 120, 60)),
+                    );
+                }
+            }
+            // Right to left: the rightmost hint comes first.
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.add_space(f32::from(theme::GUTTER));
-                ui.label(RichText::new(crumb.unwrap_or("smolcast")).small().weak());
-                match &self.hotkey_status {
-                    HotkeyStatus::Active { canonical } if crumb.is_none() => {
-                        ui.scope(|ui| {
-                            ui.spacing_mut().item_spacing.x = 3.0;
-                            for key in crate::core::config::key_names(canonical) {
-                                theme::key_cap(ui, &key);
-                            }
-                        });
-                    }
-                    HotkeyStatus::Active { .. } => {}
-                    HotkeyStatus::Conflict { requested, .. } => {
-                        ui.label(
-                            RichText::new(format!("hotkey conflict: {requested}"))
-                                .small()
-                                .color(Color32::from_rgb(220, 120, 60)),
-                        );
+                if crumb.is_some() {
+                    theme::action_hint(ui, "Back", &["Esc"]);
+                    if action.is_some() {
+                        ui.label(RichText::new("|").small().color(theme::divider_color(ui)));
                     }
                 }
-                // Right to left: the rightmost hint comes first.
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.add_space(f32::from(theme::GUTTER));
-                    if crumb.is_some() {
-                        theme::action_hint(ui, "Back", &["Esc"]);
-                        if action.is_some() {
-                            ui.label(RichText::new("|").small().color(theme::divider_color(ui)));
-                        }
-                    }
-                    match (busy, action) {
-                        (Some(label), _) => theme::action_busy(ui, label),
-                        (None, Some((action, keys))) => theme::action_hint(ui, action, keys),
-                        (None, None) => {}
-                    }
-                });
-            },
-        );
+                match (busy, action) {
+                    (Some(label), _) => theme::action_busy(ui, label),
+                    (None, Some((action, keys))) => theme::action_hint(ui, action, keys),
+                    (None, None) => {}
+                }
+            });
+        });
     }
 
     /// Session-only replacement key (§5.2): record a pressed chord rather than
@@ -1445,6 +1438,25 @@ impl AppModel {
             self.notices.clear();
         }
     }
+}
+
+/// A full-width row `height` points tall, its items centered vertically. Its
+/// size is fixed, so the rows around it do not move with its contents.
+fn fixed_row<R>(
+    ui: &mut egui::Ui,
+    height: f32,
+    add_contents: impl FnOnce(&mut egui::Ui) -> R,
+) -> R {
+    let size = egui::vec2(ui.available_width(), height);
+    ui.allocate_ui_with_layout(
+        size,
+        egui::Layout::left_to_right(egui::Align::Center),
+        |ui| {
+            ui.set_min_size(size);
+            add_contents(ui)
+        },
+    )
+    .inner
 }
 
 fn is_modifier_key(key: Key) -> bool {
