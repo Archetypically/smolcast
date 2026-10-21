@@ -26,7 +26,7 @@ use crate::win::paste::{
     Destination, PasteOutcome, capture_destination, destination_intact, palette_is_foreground,
     restore_foreground,
 };
-use crate::win::persistence::{ClipboardStoreCommand, LoadedEntry};
+use crate::win::persistence::{ClipboardStoreCommand, LoadedEntry, Stored};
 use crate::win::placement::PaletteWindow;
 use crate::win::shell::{LaunchError, ScanOutcome};
 
@@ -268,8 +268,8 @@ impl AppModel {
     pub fn new(
         receiver: Receiver<AppEvent>,
         config: ConfigFile,
-        usage: Usage,
-        favorites: Favorites,
+        usage: Stored<Usage>,
+        favorites: Stored<Favorites>,
         startup_notices: Vec<Notice>,
         force_visible: bool,
     ) -> Self {
@@ -541,9 +541,14 @@ impl AppModel {
 
     /// Called by the host after a summon hotkey registered successfully.
     pub fn accept_config(&mut self, cfg: ConfigFile) {
-        self.hotkey_status = HotkeyStatus::Active {
-            canonical: cfg.settings.summon_hotkey.clone(),
-        };
+        // An unchanged key was not re-registered: keep the live status, which
+        // may name a session-only trial key rather than the configured one.
+        let key_changed = cfg.settings.summon_hotkey != self.config.settings.summon_hotkey;
+        if key_changed || matches!(self.hotkey_status, HotkeyStatus::Conflict { .. }) {
+            self.hotkey_status = HotkeyStatus::Active {
+                canonical: cfg.settings.summon_hotkey.clone(),
+            };
+        }
         self.clipboard.set_limits(history_limits(&cfg.settings));
         self.clipboard.set_setting(cfg.settings.clipboard_source);
         self.launcher.set_scripts(&cfg.scripts);
@@ -587,15 +592,20 @@ impl AppModel {
     /// A registration failure. Keep the old registration and registration state;
     /// force the palette visible so the recovery UI is observable (§5.2).
     pub fn report_hotkey_conflict(&mut self, requested: String, reason: Option<String>) {
-        self.settings.save_failed(format!(
-            "Saved, but {requested} could not be registered; the previous hotkey stays active."
+        // The reload is not applied while the key conflicts, so a snippet save
+        // in flight must not wait on it either.
+        self.reduce_config_save_failed(format!(
+            "Saved, but {requested} could not be registered; the previous hotkey stays active \
+             and the file applies once the hotkey is resolved."
         ));
         self.capture_hint = None;
         self.hotkey_status = HotkeyStatus::Conflict {
             requested: requested.clone(),
             reason,
         };
-        self.force_show = true;
+        // Already visible (a failed trial or settings save): nothing to force,
+        // and a stale flag would undo the next dismissal.
+        self.force_show = !self.visible;
         self.notices.push(Notice::new(
             Severity::Error,
             op::SUMMON_HOTKEY,
@@ -937,6 +947,9 @@ impl AppModel {
             }
             match self.view {
                 View::Root => {
+                    // Keys act on rows ranked against the current index, not
+                    // one a scan just replaced.
+                    self.launcher.refresh(&self.search);
                     self.launcher.handle_keys(ui);
                     if let Some(notice) = self.launcher.take_notice() {
                         self.notices.push(notice);

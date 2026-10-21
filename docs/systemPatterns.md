@@ -672,7 +672,9 @@ when it is evicted, deleted or cleared. At startup the stored entries load in
 the background, oldest first, unless the source is always `windows`; captures
 that arrive before the load finishes are applied after it. The history limits
 are re-applied as entries load. Files that fail to decrypt or decode are
-deleted, for example after a password reset invalidates the DPAPI key.
+deleted, for example after a password reset invalidates the DPAPI key. A file
+that cannot be read right now (locked by an indexer) and a record over the
+current item cap are skipped but kept.
 Exclusion hints still prevent capture, so excluded content never reaches
 disk. Pause was dropped (§7.0). Clear and delete remove the entries from
 memory and disk and drop their preview textures.
@@ -1046,7 +1048,9 @@ usage state, but schema version must equal 1.
 
 If usage JSON is malformed or has an unsupported version, atomically rename it to
 `usage.corrupt-<unix_ms>.json`, start empty, and show one notice. Usage is a cache;
-config is not and is never quarantined automatically.
+config is not and is never quarantined automatically. Favorites follow the same
+rule. A file that exists but cannot be read, or cannot be moved aside, is never
+overwritten: the session starts empty, keeps changes in memory only, and says so.
 
 ### 10.5 Atomic writes
 

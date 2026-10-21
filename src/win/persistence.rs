@@ -206,86 +206,98 @@ pub fn remove_stale_temps(dest: &Path) -> usize {
         .count()
 }
 
-/// Load usage state (§10.4). Missing means empty. A malformed or unsupported
-/// file is renamed to `usage.corrupt-<unix_ms>.json` and replaced by empty
-/// state, with one notice.
-pub fn load_usage(path: &Path) -> (Usage, Option<Notice>) {
+/// State read from disk at startup. `writable` is false when a file exists
+/// but could not be read or moved aside: saving would replace data that may
+/// still be good, so this session keeps changes in memory only.
+pub struct Stored<T> {
+    pub value: T,
+    pub writable: bool,
+}
+
+/// Load usage state (§10.4); see [`load_versioned`].
+pub fn load_usage(path: &Path) -> (Stored<Usage>, Option<Notice>) {
+    load_versioned(path, "usage", "Launch history", op::USAGE, Usage::decode)
+}
+
+/// Load favorites; see [`load_versioned`].
+pub fn load_favorites(path: &Path) -> (Stored<Favorites>, Option<Notice>) {
+    load_versioned(
+        path,
+        "favorites",
+        "Favorites",
+        op::LAUNCHER,
+        Favorites::decode,
+    )
+}
+
+/// Missing means empty and writable. A file that does not decode is renamed
+/// to `<stem>.corrupt-<unix_ms>.json` and replaced by empty state. A file
+/// that cannot be read (locked, access denied) or moved aside is never
+/// overwritten: the session starts empty without saving, and says so.
+fn load_versioned<T: Default, E: std::fmt::Display>(
+    path: &Path,
+    stem: &str,
+    what: &str,
+    operation: &'static str,
+    decode: impl Fn(&[u8]) -> Result<T, E>,
+) -> (Stored<T>, Option<Notice>) {
+    let empty = |writable, message: String| {
+        let notice = Notice::new(Severity::Warning, operation, message);
+        (
+            Stored {
+                value: T::default(),
+                writable,
+            },
+            Some(notice),
+        )
+    };
     let bytes = match fs::read(path) {
         Ok(bytes) => bytes,
-        Err(e) if e.kind() == io::ErrorKind::NotFound => return (Usage::default(), None),
+        Err(e) if e.kind() == io::ErrorKind::NotFound => {
+            let stored = Stored {
+                value: T::default(),
+                writable: true,
+            };
+            return (stored, None);
+        }
         Err(e) => {
-            return (
-                Usage::default(),
-                Some(Notice::new(
-                    Severity::Warning,
-                    op::USAGE,
-                    format!("Could not read launch history ({e}); starting empty."),
-                )),
+            return empty(
+                false,
+                format!("{what} could not be read ({e}); changes this session will not be saved."),
             );
         }
     };
-    match Usage::decode(&bytes) {
-        Ok(usage) => (usage, None),
+    match decode(&bytes) {
+        Ok(value) => (
+            Stored {
+                value,
+                writable: true,
+            },
+            None,
+        ),
         Err(decode_error) => {
-            let quarantine = path.with_file_name(format!("usage.corrupt-{}.json", unix_ms_now()));
-            let message = match fs::rename(path, &quarantine) {
-                Ok(()) => format!(
-                    "Launch history was unreadable ({decode_error}) and was reset; the old file \
-                     was kept as {}.",
-                    quarantine.display()
+            let aside = path.with_file_name(format!("{stem}.corrupt-{}.json", unix_ms_now()));
+            match fs::rename(path, &aside) {
+                Ok(()) => empty(
+                    true,
+                    format!(
+                        "{what} was unreadable ({decode_error}) and was reset; the old file was \
+                         kept as {}.",
+                        aside.display()
+                    ),
                 ),
-                Err(e) => format!(
-                    "Launch history was unreadable ({decode_error}) and was reset; moving it \
-                     aside failed ({e}), so it will be replaced on the next launch."
+                Err(e) => empty(
+                    false,
+                    format!(
+                        "{what} was unreadable ({decode_error}) and could not be moved aside \
+                         ({e}); changes this session will not be saved."
+                    ),
                 ),
-            };
-            (
-                Usage::default(),
-                Some(Notice::new(Severity::Warning, op::USAGE, message)),
-            )
+            }
         }
     }
 }
 
-/// Load favorites. Missing means none. An unreadable file is renamed to
-/// `favorites.corrupt-<unix_ms>.json`, never overwritten in place, since the
-/// user curated it; one notice says where it went.
-pub fn load_favorites(path: &Path) -> (Favorites, Option<Notice>) {
-    let bytes = match fs::read(path) {
-        Ok(bytes) => bytes,
-        Err(e) if e.kind() == io::ErrorKind::NotFound => return (Favorites::default(), None),
-        Err(e) => {
-            return (
-                Favorites::default(),
-                Some(Notice::new(
-                    Severity::Warning,
-                    op::LAUNCHER,
-                    format!("Could not read favorites ({e})."),
-                )),
-            );
-        }
-    };
-    match Favorites::decode(&bytes) {
-        Ok(favorites) => (favorites, None),
-        Err(decode_error) => {
-            let aside = path.with_file_name(format!("favorites.corrupt-{}.json", unix_ms_now()));
-            let message = match fs::rename(path, &aside) {
-                Ok(()) => format!(
-                    "Favorites were unreadable ({decode_error}); the file was kept as {}.",
-                    aside.display()
-                ),
-                Err(e) => format!(
-                    "Favorites were unreadable ({decode_error}) and could not be moved aside \
-                     ({e}); they will be replaced when you next change a favorite."
-                ),
-            };
-            (
-                Favorites::default(),
-                Some(Notice::new(Severity::Warning, op::LAUNCHER, message)),
-            )
-        }
-    }
-}
 /// Current UTC time in Unix milliseconds; a pre-1970 clock reads as 0.
 pub fn unix_ms_now() -> i64 {
     SystemTime::now()
@@ -501,18 +513,23 @@ fn clip_files(dir: &Path) -> Vec<PathBuf> {
 
 /// Read every stored entry, oldest first. Files that cannot be decrypted or
 /// decoded (for example after a Windows password reset invalidated the DPAPI
-/// key, or a record over the current item cap) are deleted.
+/// key) are deleted. A file that cannot be read right now (an antivirus or
+/// indexer holding it) is skipped and kept, as is a record over the current
+/// item cap, which a later higher cap can load again.
 fn load_clipboard(dir: &Path, item_cap: usize) -> Vec<LoadedEntry> {
     let mut loaded = Vec::new();
     for path in clip_files(dir) {
         let Some(token) = path.file_stem().map(|s| s.to_string_lossy().into_owned()) else {
             continue;
         };
-        let decoded = fs::read(&path)
+        let Ok(blob) = fs::read(&path) else {
+            continue;
+        };
+        let decoded = dpapi_unprotect(&blob)
             .ok()
-            .and_then(|blob| dpapi_unprotect(&blob).ok())
-            .and_then(|plain| decode_record(&plain, item_cap).ok());
+            .and_then(|plain| decode_record(&plain, usize::MAX).ok());
         match decoded {
+            Some((payload, _)) if payload.byte_len() > item_cap => {}
             Some((payload, captured_at_ms)) => loaded.push(LoadedEntry {
                 token,
                 payload,

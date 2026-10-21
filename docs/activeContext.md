@@ -7,9 +7,10 @@ contracts are in `systemPatterns.md` (cited as "plan §N"), decisions in
 ## Where the project is
 
 All seven milestones are implemented (§12). Committed on `main` through
-`bed3aab` (responsiveness pass). A large uncommitted batch from 2026-10-21 sits
-on top (next section). Windows 11 is the acceptance environment; Linux runs
-library tests and cross-links only.
+`bed3aab` (responsiveness pass), plus the 2026-10-21 batch and a full-codebase
+review pass, merged as logical commits on the user's request before the
+Windows check (next sections). Windows 11 is the acceptance environment;
+Linux runs library tests and cross-links only.
 
 | Milestone | State |
 | --- | --- |
@@ -21,9 +22,9 @@ library tests and cross-links only.
 | 6 Snippets, tier 1 | Implemented; Windows checklist pending (§12.6). |
 | 7 Polish | Placement, click-away, login item, appearance, settings, Raycast look verified in parts; the 2026-10-21 batch is unverified. |
 
-## Uncommitted batch (2026-10-21), unverified on Windows
+## 2026-10-21 batch, committed but unverified on Windows
 
-Commit as a few logical commits once checked. Contents:
+Contents:
 
 - **Icons**: fetched at a stock size ≥ 2× the drawn edge, padding trimmed for
   small-only icons (7-Zip), area-averaged to exact pixels, drawn
@@ -45,6 +46,18 @@ Commit as a few logical commits once checked. Contents:
   view; the calculator card stays put.
 - **Docs reorg** to this bank (decision 017); `.env` for machine paths
   (`.env.example`); public README.
+- **Review pass** (correctness): usage/favorites files that fail to read are
+  never overwritten (`persistence::Stored`); clipboard entries are deleted
+  only when they fail to decrypt or decode, not on I/O errors; shortcuts are
+  called broken only on a definite "not found"; a failed AppsFolder
+  enumeration keeps the old index; the taskbar/desktop is never a paste
+  destination; re-applying the live summon key is a no-op; stale launcher
+  and snippet indices after a reload no longer panic; the web row waits for
+  the first scan; a trial hotkey survives an unrelated save; lists clamp
+  their scroll when they shrink; calculator rejects non-finite steps.
+  Deferred: unsaved Settings edits are dropped by Esc (snippet editor warns);
+  a failed thumbnail thread leaves "Loading preview…"; a failed clipboard
+  write can leave the clipboard empty.
 
 ## Pending Windows checks
 
@@ -61,9 +74,11 @@ Commit as a few logical commits once checked. Contents:
 
 ## Next, in order
 
-1. User's Windows pass over the batch above; fix findings.
-2. Commit the batch as logical commits (user signs; never trigger a GPG
-   prompt from the agent; hand over the commands).
+1. User's Windows pass over the batch above, including the review fixes;
+   fix findings.
+2. Decide the deferred review items above, and the structural refactors the
+   review proposed (one texture LRU, a list cursor, a worker abstraction,
+   an effect outbox instead of ~40 `take_*` accessors).
 3. Flag-capable emoji font for the Flags group (backlog below).
 4. **Before making the GitHub repo public**: history was rewritten on
    2026-09-25, but GitHub still serves the pre-rewrite commits. Delete and

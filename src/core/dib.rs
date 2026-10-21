@@ -173,7 +173,7 @@ pub fn decode_dib(bytes: &[u8], item_cap: usize) -> Result<ImagePayload, DibErro
     let patched;
     let bytes = if compression == BI_BITFIELDS
         && header >= 108
-        && !has_trailing_masks(bytes, header as usize)
+        && !has_trailing_masks(bytes, header as usize, needed)
     {
         let header = header as usize;
         let mut copy = Vec::with_capacity(bytes.len() + 12);
@@ -237,8 +237,10 @@ pub fn encode_dib24(image: &ImagePayload) -> Vec<u8> {
 }
 
 /// True when the 12 bytes after a V4/V5 header repeat its red/green/blue masks.
-fn has_trailing_masks(bytes: &[u8], header: usize) -> bool {
-    bytes.len() >= header + 12 && bytes[header..header + 12] == bytes[40..52]
+/// The length must leave room for them as well as the pixels (`needed`), or
+/// pixels that happen to equal the masks would be mistaken for them.
+fn has_trailing_masks(bytes: &[u8], header: usize, needed: u64) -> bool {
+    bytes.len() as u64 >= needed + 12 && bytes[header..header + 12] == bytes[40..52]
 }
 
 /// Encode as `CF_DIBV5` (§7.4): a 124-byte `BITMAPV5HEADER` (top-down, 32 bpp,
@@ -470,5 +472,18 @@ mod tests {
         trailing.extend_from_slice(&plain[124..]);
         assert_eq!(decode_dib(&trailing, CAP).unwrap(), image);
         assert_eq!(decode_dib(&plain, CAP).unwrap(), image);
+    }
+
+    #[test]
+    fn dibv5_pixels_equal_to_the_masks_are_not_masks() {
+        // Transparent pure red, green, blue: BGRA bytes match the masks.
+        let image = ImagePayload {
+            width: 3,
+            height: 1,
+            rgba: vec![255, 0, 0, 0, 0, 255, 0, 0, 0, 0, 255, 0],
+        };
+        let encoded = encode_dibv5(&image);
+        assert_eq!(encoded[124..136], encoded[40..52]);
+        assert_eq!(decode_dib(&encoded, CAP).unwrap(), image);
     }
 }

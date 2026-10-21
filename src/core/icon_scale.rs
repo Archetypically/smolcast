@@ -34,7 +34,8 @@ pub fn trim_padding(width: u32, height: u32, rgba: &[u8]) -> (u32, u32, Vec<u8>)
         return (width, height, rgba.to_vec());
     };
     let side = (x1 - x0 + 1).max(y1 - y0 + 1);
-    if side * 10 > w.max(h) * 6 {
+    // A square that cannot fit a non-square image is left alone.
+    if side * 10 > w.max(h) * 6 || side > w.min(h) {
         return (width, height, rgba.to_vec());
     }
     // A square around the art's center, kept inside the image.
@@ -154,6 +155,18 @@ mod tests {
         }
         assert_eq!(trim_padding(50, 50, &px).0, 50);
         assert_eq!(trim_padding(50, 50, &vec![0u8; 50 * 50 * 4]).0, 50);
+    }
+
+    #[test]
+    fn non_square_art_wider_than_the_image_passes_through() {
+        // A 31-row column of art in a 4×100 strip fits no 31×31 square.
+        let mut px = vec![0u8; 4 * 100 * 4];
+        for y in 69..100 {
+            for x in 1..4 {
+                px[(y * 4 + x) * 4 + 3] = 255;
+            }
+        }
+        assert_eq!(trim_padding(4, 100, &px), (4, 100, px.clone()));
     }
 
     #[test]
