@@ -5,7 +5,7 @@ author: archetypically
 status: resolved
 created: 2026-10-21
 updated: 2026-10-21
-tags: [ui, motion]
+tags: [ui, motion, accessibility]
 ---
 
 # Animate the palette's content in paint, not the window
@@ -15,7 +15,8 @@ tags: [ui, motion]
 Spawn, dismiss and navigation animations transform and fade what
 egui paints (`Ui::with_visual_transform`, opacity); the OS window is shown and
 hidden at once, as before. Dismissals fade out for 90 ms before hiding;
-completed actions hide immediately.
+completed actions hide immediately. A `reduce_motion` setting (default:
+follow Windows' Animation effects) keeps fades and drops movement.
 
 ## Context
 
@@ -43,17 +44,20 @@ shows DWM-cloaked (§2.1), and paste-back depends on hiding promptly (§8.2).
 
 Paint-only motion cannot slow input: the search field has focus and takes
 keys on the first frame, and clicks hit final positions. It needs no new Win32
-calls, works the same with and without Mica, and costs nothing at rest because egui repaints only while an
+calls beyond reading `SPI_GETCLIENTAREAANIMATION`, works the same with and
+without Mica, and costs nothing at rest because egui repaints only while an
 animation runs. The tradeoff is that the window frame and backdrop appear and
 vanish at once while the content animates inside them.
 
 ## Consequences
 
 - `core::motion` owns the timing tokens and the interruptible `Tween`
-  (host-tested). DESIGN.md has the Motion table.
+  (host-tested); `app::motion` holds the reduced-motion flag. DESIGN.md has
+  the Motion table.
 - `AppModel::dismiss` fades and keeps the paste destination until the window
   hides, so a summon during the fade returns in place; `hide` is immediate.
   The host paints while `is_painted()` and starts the appear clock after a
   fast-path summon is uncloaked.
 - Content is always wrapped in the transform scopes, even at rest, so egui
   widget ids (and the search field's focus) never change mid-session.
+- New `[settings]` key `reduce_motion` (§10.2, §12.7).

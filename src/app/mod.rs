@@ -7,6 +7,7 @@ pub mod emoji_view;
 pub mod launcher;
 pub mod list;
 pub mod model;
+pub mod motion;
 pub mod notice;
 pub mod settings_view;
 pub mod snippet_view;
