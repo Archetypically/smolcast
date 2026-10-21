@@ -73,8 +73,9 @@ rename the old one aside first.
 
 ## CI
 
-`.github/workflows/ci.yml` runs the MSVC build on Windows and the GNU
-cross-link plus host tests, fmt and clippy on Linux (§11). CI passing is not
+`.github/workflows/ci.yml` runs fmt, clippy and the MSVC release build on
+Windows, and the host tests plus the GNU release cross-link on Linux, with
+dependency builds cached between runs (§11). CI passing is not
 runtime acceptance: each milestone's Windows smoke gate (§12) is.
 
 ## Agent workflow notes

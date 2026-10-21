@@ -1158,7 +1158,6 @@ rustup toolchain install 1.98.1 --profile minimal --component rustfmt,clippy
 rustup target add x86_64-pc-windows-msvc --toolchain 1.98.1
 cargo fmt --all -- --check
 cargo clippy --locked --target x86_64-pc-windows-msvc --all-targets -- -D warnings
-cargo build --locked --target x86_64-pc-windows-msvc
 cargo build --locked --release --target x86_64-pc-windows-msvc
 ```
 
@@ -1167,9 +1166,13 @@ GNU target, then run:
 
 ```text
 cargo test --locked --lib
-cargo build --locked --target x86_64-pc-windows-gnu
 cargo build --locked --release --target x86_64-pc-windows-gnu
 ```
+
+Both jobs cache the dependency build (`Swatinem/rust-cache`), and a newer push
+to the same ref cancels the run it supersedes. CI builds no debug binary:
+clippy type-checks every target and the release build proves linking; debug
+builds stay a local command (2026-10-21).
 
 Use an MSVC developer-command environment or `llvm-objdump -p` to capture the
 release import table. Upload both release executables, byte counts, and import
