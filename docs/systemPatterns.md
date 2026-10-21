@@ -1,16 +1,13 @@
-# smolcast engineering implementation plan — approved
+# System patterns: smolcast architecture contracts
 
-Status: implementation-ready plan; no `Cargo.toml`, `Cargo.lock`, or application
-source exists yet. `task build` must continue to fail until milestone 1 creates the
-package. This document is the plan of record. `BRIEF.md` is the product source and
-`README.md` is the human-facing status document.
-
-The original architecture decisions were approved on 2026-09-18. This revision
-incorporates the subsequent adversarial review: wakeups are explicit, the root
-window is never destroyed while it owns hotkey/tray delivery, the package has a
-real library target, clipboard access is serialized on one thread, paste-back no
-longer relies on `AllowSetForegroundWindow` or synthetic modifier releases, and
-persistence/ranking schemas are concrete.
+The normative engineering spec, moved here from the former
+`plans/IMPLEMENTATION_PLAN.md` (approved 2026-09-18, adversarially revised).
+Section numbers are unchanged because code comments cite them as
+"plan §N" / "§N". Later choices that refine or replace a section are recorded
+in `decisions/`; where a decision and this file disagree, the decision wins
+and this file should be updated in the same change. Current status, pending
+Windows checks and next steps are in `activeContext.md`; visual design is in
+`docs/DESIGN.md`.
 
 ---
 
@@ -925,6 +922,11 @@ clipboard_max_item_bytes = 8388608
 clipboard_max_total_bytes = 67108864
 clipboard_source = "auto" # optional: "auto" | "windows" | "smolcast"
 start_at_login = false     # optional (§12.7)
+palette_size = "medium"    # optional: window size "small" | "medium" | "large" (§12.7)
+text_size = "medium"       # optional: font sizes "small" | "medium" | "large" (§12.7)
+keep_state_secs = 30       # optional: 0..=3600; 0 always starts fresh (§12.7)
+search_engine = "google"   # optional: google | bing | duckduckgo | brave | ecosia | startpage | kagi | custom
+web_search_url = "https://www.google.com/search?q=%s" # optional; used by "custom"
 
 [scripts.open-project]
 name = "Open project"
@@ -957,6 +959,11 @@ struct Settings {
     clipboard_max_total_bytes: usize,
     clipboard_source: ClipboardSource, // #[serde(default)] = Auto (§7.0)
     start_at_login: bool,              // #[serde(default)] = false (§12.7)
+    palette_size: PaletteSize,         // #[serde(default)] = Medium (§12.7)
+    text_size: TextSize,               // #[serde(default)] = Medium (§12.7)
+    keep_state_secs: u32,              // #[serde(default)] = 30, max 3600 (§12.7)
+    search_engine: SearchEngine,       // #[serde(default)] = Google
+    web_search_url: String,            // #[serde(default)]; http(s), contains %s
 }
 
 struct ScriptConfig {
@@ -1353,7 +1360,7 @@ made DWM draw minimize/maximize/close buttons over the palette.
 Raycast look (2026-10-20, `app/theme.rs`): both egui themes are restyled once
 at startup to match Raycast. The palette has a frameless search field, the
 view, and a footer action bar pinned to the bottom. The base window is 640×460.
-[`docs/DESIGN.md`](../docs/DESIGN.md) holds the layout, tokens, and rules.
+[`docs/DESIGN.md`](DESIGN.md) holds the layout, tokens, and rules.
 
 Settings form (2026-09-25, `app/settings_view.rs`, `core/config_edit.rs`): a
 root command "smolcast settings" (named to differ from Windows Settings) opens a structured form for every `[settings]` field
@@ -1378,57 +1385,3 @@ Gate on a clean Windows 11 standard-user account:
   theme, 100/150/200% DPI, and multi-monitor movement smoke successfully;
 - release size/imports and OS/build-specific Mica limits are recorded;
 - no clipboard or script content leaves the device.
-
----
-
-## 13. Intentional divergences from BRIEF
-
-- **Hotkey ownership:** hotkey/tray stay on eframe's main Win32 event loop and use
-  callback-to-channel-to-repaint wakeups. The dedicated message-only HWND owns all
-  clipboard reads/writes, not the hotkey.
-- **Resident lifetime:** the eframe root viewport is hidden, never destroyed for
-  normal operation. If its measured idle cost fails, the approved response is a
-  clean host cutover, not an un-wakeable destroy/recreate loop.
-- **Second launch:** exits silently; v1 has no incomplete broadcast IPC.
-- **Tray pulled forward:** Open, Refresh, and Quit ship in milestone 1 so the app
-  is operable during hotkey conflict and always has an exit path.
-- **Clipboard representation:** images normalize to bounded RGBA and write back as
-  CF_DIBV5. This makes validation, dedup, memory accounting, thumbnails, and Paint
-  compatibility deterministic.
-- **Emoji color:** v1 preview is monochrome and destination color is explicitly not
-  guaranteed. Exact pasted grapheme codepoints are the product contract.
-- **Index cache:** no disk index in v1. Background startup/summon rescan is simpler;
-  add a cache only after cold-start measurement justifies schema and invalidation
-  weight.
-
-## 14. Approved decisions and closed questions
-
-Approved on 2026-09-18 and retained after adversarial revision:
-
-1. eframe + Glow, with a measured clean cutover to direct egui-winit/egui_glow if
-   the milestone-1 footprint gate fails; no raw Direct2D/GDI implementation.
-2. Monochrome emoji preview; no color atlas in v1.
-3. Clipboard bounds and eviction: 100 entries, 8 MiB item, 64 MiB total; oversize
-   rejected; exact duplicate promoted; oldest-first eviction.
-4. Named-mutex single instance acquired before any UI/resource initialization.
-5. MSVC + GNU cross-link CI, host core tests, release size/import artifacts, and no
-   dependency-free claim from linking alone.
-
-Closed by this revision:
-
-- receiver polling alone is forbidden; every external event explicitly repaints;
-- destroy-on-hide is rejected under main-loop hotkey ownership;
-- `src/lib.rs` is mandatory for `cargo test --lib`;
-- clipboard access is serialized on its HWND thread;
-- `AllowSetForegroundWindow`, `AttachThreadInput`, and synthetic physical-modifier
-  releases are not the v1 paste strategy;
-- candidate versions are validated and locked in milestone 1, not described as
-  already known good;
-- persistence, dedup, ranking, retries, and schemas are specified above.
-
-## Out of scope until later
-
-Extension ecosystem, AI, window management, calculator, OCR, automatic
-password/secret detection, clipboard persistence, directory watchers, index cache,
-second-launch IPC, automatic elevation, bundled ANGLE, a color emoji atlas, and
-Wine as a verification target.

@@ -1,8 +1,16 @@
 version: '3'
 
+# Machine-specific paths come from the environment or a gitignored .env
+# (see .env.example); none are tracked.
+dotenv: ['.env']
+
 vars:
   TARGET: '{{if eq OS "windows"}}x86_64-pc-windows-msvc{{else}}x86_64-pc-windows-gnu{{end}}'
   CARGO: '{{if .CARGO_HOME}}{{.CARGO_HOME}}/bin/cargo{{if eq OS "windows"}}.exe{{end}}{{else if eq OS "windows"}}{{.USERPROFILE}}/.cargo/bin/cargo.exe{{else}}{{.HOME}}/.cargo/bin/cargo{{end}}'
+  # INSTALL_DIR holds the single installed copy of the app; STAGE_DIR holds
+  # throwaway dev builds. In WSL both are Windows-drive paths under /mnt.
+  INSTALL_DIR: '{{.INSTALL_DIR}}'
+  STAGE_DIR: '{{.STAGE_DIR}}'
 
 tasks:
   default:
@@ -35,13 +43,36 @@ tasks:
     cmds:
       - '"{{.CARGO}}" build --locked --release --target {{.TARGET}}'
 
+  install:
+    desc: Build the release app and install it to INSTALL_DIR (set in .env)
+    platforms: [linux]
+    preconditions:
+      - sh: test -n '{{.INSTALL_DIR}}'
+        msg: 'INSTALL_DIR is not set; copy .env.example to .env and set it to a Windows-drive path under /mnt.'
+      - sh: test -d "$(dirname '{{.INSTALL_DIR}}')"
+        msg: 'Install parent for {{.INSTALL_DIR}} is missing; set INSTALL_DIR to a Windows-drive path under /mnt.'
+    cmds:
+      - task: build-release
+      - mkdir -p '{{.INSTALL_DIR}}'
+      # A running exe cannot be overwritten but can be renamed: move it aside so
+      # installing works while the previous build is still resident. The
+      # moved-aside copy is dropped afterwards; it survives only while the old
+      # build is still running.
+      - for old in '{{.INSTALL_DIR}}'/smolcast.old-*.exe; do rm -f "$old" 2>/dev/null || true; done
+      - '[ ! -e "{{.INSTALL_DIR}}/smolcast.exe" ] || mv "{{.INSTALL_DIR}}/smolcast.exe" "{{.INSTALL_DIR}}/smolcast.old-$(date +%s).exe"'
+      - cp 'target/{{.TARGET}}/release/smolcast.exe' '{{.INSTALL_DIR}}/smolcast.exe'
+      - rm -f '{{.INSTALL_DIR}}'/smolcast.old-*.exe 2>/dev/null || true
+      - echo 'Installed {{.INSTALL_DIR}}/smolcast.exe'
+      - sha256sum '{{.INSTALL_DIR}}/smolcast.exe'
+
   stage:
     desc: Cross-build in WSL and copy the exe to a Windows-local drive (PROFILE=debug|release)
     platforms: [linux]
     vars:
       PROFILE: '{{.PROFILE | default "release"}}'
-      STAGE_DIR: '{{.STAGE_DIR | default "/mnt/e/Projects/smolcast"}}'
     preconditions:
+      - sh: test -n '{{.STAGE_DIR}}'
+        msg: 'STAGE_DIR is not set; copy .env.example to .env and set it to a Windows-drive path under /mnt.'
       - sh: test -d "$(dirname '{{.STAGE_DIR}}')"
         msg: 'Staging parent for {{.STAGE_DIR}} is missing; set STAGE_DIR to a Windows-drive path under /mnt.'
     cmds:
@@ -56,7 +87,7 @@ tasks:
       - echo 'Staged {{.STAGE_DIR}}/{{.PROFILE}}/smolcast.exe'
 
   run:
-    desc: Build and launch on Windows, or stage to drive E and launch via WSL Windows interop
+    desc: Build and launch on Windows, or stage to STAGE_DIR and launch via WSL Windows interop
     preconditions:
       - sh: '[ "{{OS}}" = "windows" ] || test -e /proc/sys/fs/binfmt_misc/WSLInterop'
         msg: Run on Windows or WSL with Windows interop enabled; Wine is not a verification target.
@@ -67,7 +98,7 @@ tasks:
         platforms: [windows]
       - cmd: task stage PROFILE=debug
         platforms: [linux]
-      - cmd: '"{{.STAGE_DIR | default "/mnt/e/Projects/smolcast"}}/debug/smolcast.exe" {{.CLI_ARGS}}'
+      - cmd: '"{{.STAGE_DIR}}/debug/smolcast.exe" {{.CLI_ARGS}}'
         platforms: [linux]
 
   check:
