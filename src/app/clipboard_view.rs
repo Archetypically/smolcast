@@ -6,6 +6,7 @@
 //! model and host. This view only raises requests (`take_*`).
 
 use std::collections::{HashMap, VecDeque};
+use std::time::Instant;
 
 use egui::{Color32, Key, Modifiers, RichText, TextureHandle, TextureOptions, Vec2};
 use fuzzy_matcher::FuzzyMatcher;
@@ -53,6 +54,12 @@ pub enum PasteRequest {
     },
     /// Text that is pasted but not recorded in history (an emoji sequence).
     Text(String),
+}
+
+/// A large stored image the host should downscale off the UI thread.
+pub struct ThumbnailRequest {
+    pub id: u64,
+    pub image: ImagePayload,
 }
 
 /// A borrowed, source-neutral row.
@@ -124,25 +131,51 @@ struct Thumbnails {
     textures: HashMap<RowKey, TextureHandle>,
     /// Least recently used at the front.
     recency: VecDeque<RowKey>,
+    /// Stored images being downscaled by the host, and since when.
+    pending: HashMap<u64, Instant>,
+    requests: Vec<ThumbnailRequest>,
 }
 
 impl Thumbnails {
-    fn get_or_create(
+    /// The texture for `key`. Images that need downscaling are requested from
+    /// the host; until they arrive this is the request time. Small ones load
+    /// inline.
+    fn get(
         &mut self,
         ctx: &egui::Context,
         key: &RowKey,
         image: &ImagePayload,
-    ) -> TextureHandle {
+    ) -> Result<TextureHandle, Instant> {
         if let Some(texture) = self.textures.get(key).cloned() {
             if let Some(pos) = self.recency.iter().position(|x| x == key) {
                 self.recency.remove(pos);
             }
             self.recency.push_back(key.clone());
-            return texture;
+            return Ok(texture);
         }
-        let texture = ctx.load_texture("clip-thumb", thumbnail(image), TextureOptions::LINEAR);
+        match key {
+            RowKey::Local(id) if needs_downscale(image) => {
+                Err(*self.pending.entry(*id).or_insert_with(|| {
+                    self.requests.push(ThumbnailRequest {
+                        id: *id,
+                        image: image.clone(),
+                    });
+                    Instant::now()
+                }))
+            }
+            _ => Ok(self.insert(ctx, key.clone(), thumbnail(image))),
+        }
+    }
+
+    fn insert(
+        &mut self,
+        ctx: &egui::Context,
+        key: RowKey,
+        image: egui::ColorImage,
+    ) -> TextureHandle {
+        let texture = ctx.load_texture("clip-thumb", image, TextureOptions::LINEAR);
         self.textures.insert(key.clone(), texture.clone());
-        self.recency.push_back(key.clone());
+        self.recency.push_back(key);
         while self.recency.len() > THUMBNAIL_CACHE_CAP {
             if let Some(old) = self.recency.pop_front() {
                 self.textures.remove(&old);
@@ -153,6 +186,9 @@ impl Thumbnails {
 
     /// Drop the texture of a deleted or evicted entry.
     fn forget(&mut self, key: &RowKey) {
+        if let RowKey::Local(id) = key {
+            self.pending.remove(id);
+        }
         if self.textures.remove(key).is_some() {
             self.recency.retain(|x| x != key);
         }
@@ -161,23 +197,36 @@ impl Thumbnails {
     fn clear(&mut self) {
         self.textures.clear();
         self.recency.clear();
+        self.pending.clear();
     }
 }
 
-/// Downscale to fit within `THUMBNAIL_EDGE` (never upscale).
-fn thumbnail(image: &ImagePayload) -> egui::ColorImage {
+fn thumbnail_size(image: &ImagePayload) -> (u32, u32) {
     let scale = (THUMBNAIL_EDGE as f32 / image.width.max(image.height) as f32).min(1.0);
-    let (w, h) = (
+    (
         ((image.width as f32 * scale).round() as u32).max(1),
         ((image.height as f32 * scale).round() as u32).max(1),
-    );
-    let pixels = if (w, h) == (image.width, image.height) {
-        image.rgba.clone()
-    } else {
-        let source = image::RgbaImage::from_raw(image.width, image.height, image.rgba.clone())
-            .expect("payload length is width * height * 4");
-        image::imageops::thumbnail(&source, w, h).into_raw()
-    };
+    )
+}
+
+fn needs_downscale(image: &ImagePayload) -> bool {
+    thumbnail_size(image) != (image.width, image.height)
+}
+
+/// Downscale to fit within `THUMBNAIL_EDGE` (never upscale). A full-size image
+/// takes milliseconds, so the host runs it off the UI thread for stored images.
+pub fn thumbnail(image: &ImagePayload) -> egui::ColorImage {
+    let (w, h) = thumbnail_size(image);
+    if (w, h) == (image.width, image.height) {
+        return egui::ColorImage::from_rgba_unmultiplied([w as usize, h as usize], &image.rgba);
+    }
+    let source = image::ImageBuffer::<image::Rgba<u8>, &[u8]>::from_raw(
+        image.width,
+        image.height,
+        &image.rgba[..],
+    )
+    .expect("payload length is width * height * 4");
+    let pixels = image::imageops::thumbnail(&source, w, h).into_raw();
     egui::ColorImage::from_rgba_unmultiplied([w as usize, h as usize], &pixels)
 }
 
@@ -190,6 +239,8 @@ pub struct ClipboardView {
     windows: Option<WindowsSnapshot>,
     windows_error: Option<String>,
     windows_generation: u64,
+    /// When the newest Windows refresh was requested, while it is in flight.
+    windows_refreshing: Option<Instant>,
     thumbnails: Thumbnails,
     /// Row keys matching `filtered_for`, newest first.
     filtered: Vec<RowKey>,
@@ -225,6 +276,7 @@ impl ClipboardView {
             windows: None,
             windows_error: None,
             windows_generation: 0,
+            windows_refreshing: None,
             thumbnails: Thumbnails::default(),
             filtered: Vec::new(),
             filtered_for: None,
@@ -383,6 +435,18 @@ impl ClipboardView {
         std::mem::take(&mut self.store)
     }
 
+    pub fn take_thumbnail_requests(&mut self) -> Vec<ThumbnailRequest> {
+        std::mem::take(&mut self.thumbnails.requests)
+    }
+
+    /// A downscaled stored image. Dropped when the entry is gone or was
+    /// cleared meanwhile.
+    pub fn on_thumbnail(&mut self, ctx: &egui::Context, id: u64, image: egui::ColorImage) {
+        if self.thumbnails.pending.remove(&id).is_some() && self.history.get(id).is_some() {
+            let _ = self.thumbnails.insert(ctx, RowKey::Local(id), image);
+        }
+    }
+
     pub fn on_windows_history(
         &mut self,
         generation: u64,
@@ -391,6 +455,7 @@ impl ClipboardView {
         if generation != self.windows_generation {
             return; // superseded by a newer refresh
         }
+        self.windows_refreshing = None;
         match result {
             Ok(snapshot) => {
                 self.windows_error = None;
@@ -434,6 +499,7 @@ impl ClipboardView {
     }
 
     fn refresh_windows(&mut self) {
+        self.windows_refreshing.get_or_insert_with(Instant::now);
         self.windows_generation += 1;
         self.commands.push(ClipboardCommand::WindowsRefresh {
             generation: self.windows_generation,
@@ -580,11 +646,17 @@ impl ClipboardView {
                 ui.set_width(LIST_WIDTH);
                 if filtered.is_empty() {
                     let text = match self.active {
-                        None => "Loading…",
-                        Some(_) if rows.is_empty() => "Nothing copied yet.",
-                        Some(_) => "No matches.",
+                        None => None,
+                        Some(Active::Smolcast) if !self.loaded => None,
+                        Some(_) if rows.is_empty() => Some("Nothing copied yet."),
+                        Some(_) => Some("No matches."),
                     };
-                    ui.label(RichText::new(text).weak());
+                    match text {
+                        Some(text) => {
+                            ui.label(RichText::new(text).weak());
+                        }
+                        None => theme::busy(ui, "Loading clipboard history…"),
+                    }
                 }
                 let end = (first_row + VISIBLE_ROWS).min(filtered.len());
                 for (index, key) in filtered.iter().enumerate().take(end).skip(first_row) {
@@ -648,6 +720,14 @@ impl ClipboardView {
     }
 
     fn source_line(&self, ui: &mut egui::Ui) {
+        if self.active == Some(Active::Windows)
+            && self
+                .windows_refreshing
+                .is_some_and(|since| theme::busy_due(ui, since))
+        {
+            theme::busy_small(ui, "Windows clipboard history · updating…");
+            return;
+        }
         let text = match (self.active, self.setting) {
             (Some(Active::Windows), _) => "Windows clipboard history".to_owned(),
             (Some(Active::Smolcast), ClipboardSource::Auto) => format!(
@@ -691,12 +771,20 @@ fn preview_ui(ui: &mut egui::Ui, row: &Row<'_>, thumbnails: &mut Thumbnails) {
             height,
             pixels,
         } => {
-            let texture = thumbnails.get_or_create(ui.ctx(), &row.key, pixels);
-            let size = texture.size_vec2();
-            let fit = (ui.available_width() / size.x)
-                .min((LIST_HEIGHT - 24.0) / size.y)
-                .min(1.0);
-            ui.add(egui::Image::new(&texture).fit_to_exact_size(size * fit));
+            match thumbnails.get(ui.ctx(), &row.key, pixels) {
+                Ok(texture) => {
+                    let size = texture.size_vec2();
+                    let fit = (ui.available_width() / size.x)
+                        .min((LIST_HEIGHT - 24.0) / size.y)
+                        .min(1.0);
+                    ui.add(egui::Image::new(&texture).fit_to_exact_size(size * fit));
+                }
+                Err(since) => {
+                    if theme::busy_due(ui, since) {
+                        theme::busy(ui, "Loading preview…");
+                    }
+                }
+            }
             ui.label(RichText::new(format!("{width} × {height}")).weak().small());
         }
         RowContent::Other => {
@@ -708,13 +796,13 @@ fn preview_ui(ui: &mut egui::Ui, row: &Row<'_>, thumbnails: &mut Thumbnails) {
 fn row_ui(ui: &mut egui::Ui, row: &Row<'_>, selected: bool, now: i64) -> egui::Response {
     let (glyph, text) = match &row.content {
         RowContent::Text(text) => {
-            let first = text
-                .lines()
-                .map(str::trim)
-                .find(|l| !l.is_empty())
-                .unwrap_or("");
-            let mut shown: String = first.chars().take(ROW_CHARS).collect();
-            if first.chars().count() > ROW_CHARS || text.trim().lines().count() > 1 {
+            // Runs every frame for every visible row over items of up to
+            // 8 MiB, so it stops at the second non-blank line.
+            let mut lines = text.lines().map(str::trim).filter(|l| !l.is_empty());
+            let first = lines.next().unwrap_or("");
+            let mut chars = first.chars();
+            let mut shown: String = chars.by_ref().take(ROW_CHARS).collect();
+            if chars.next().is_some() || lines.next().is_some() {
                 shown.push('…');
             }
             ("📄", shown)

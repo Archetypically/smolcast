@@ -21,7 +21,11 @@ use windows::Win32::Security::Cryptography::{
 use windows::Win32::Storage::FileSystem::{
     MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH, MoveFileExW,
 };
-use windows::core::PCWSTR;
+use windows::Win32::System::Com::CoTaskMemFree;
+use windows::Win32::UI::Shell::{
+    FOLDERID_LocalAppData, FOLDERID_RoamingAppData, KF_FLAG_DEFAULT, SHGetKnownFolderPath,
+};
+use windows::core::{GUID, PCWSTR};
 
 use crate::app::model::{AppEvent, Wake};
 use crate::app::notice::{Notice, Severity, op};
@@ -47,13 +51,22 @@ pub struct StatePaths {
 
 impl StatePaths {
     pub fn resolve() -> Option<Self> {
-        let base = directories::BaseDirs::new()?;
+        let roaming = known_folder(&FOLDERID_RoamingAppData)?.join("smolcast");
+        let local = known_folder(&FOLDERID_LocalAppData)?.join("smolcast");
         Some(Self {
-            config: base.config_dir().join("smolcast").join("config.toml"),
-            usage: base.data_local_dir().join("smolcast").join("usage.json"),
-            clipboard_dir: base.data_local_dir().join("smolcast").join("clipboard"),
+            config: roaming.join("config.toml"),
+            usage: local.join("usage.json"),
+            clipboard_dir: local.join("clipboard"),
         })
     }
+}
+
+/// A known folder's current path (`%APPDATA%`, `%LOCALAPPDATA%`).
+fn known_folder(id: &GUID) -> Option<PathBuf> {
+    let raw = unsafe { SHGetKnownFolderPath(id, KF_FLAG_DEFAULT, None) }.ok()?;
+    let path = unsafe { raw.to_string() }.ok().map(PathBuf::from);
+    unsafe { CoTaskMemFree(Some(raw.0 as *const _)) };
+    path.filter(|p| p.is_absolute())
 }
 
 /// A persistence failure. Carries the operation and path, never file content.

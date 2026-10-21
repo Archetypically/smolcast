@@ -15,7 +15,6 @@ path = "src/lib.rs"
 [dependencies]
 fuzzy-matcher = "=0.3.7"
 image = { version = "=0.25.10", default-features = false, features = ["bmp"] }
-parking_lot = "0.12"
 serde = { version = "=1.0.229", features = ["derive"] }
 serde_json = "=1.0.151"
 toml = "=1.1.6"
@@ -25,7 +24,6 @@ unicode-segmentation = "=1.13.3"
 # Windows-only UI/OS stack. These never compile on the Linux host; the binary
 # and every win/ module are gated on cfg(windows).
 [target.'cfg(windows)'.dependencies]
-directories = "=6.0.0"
 eframe = { version = "=0.36.2", default-features = false, features = ["glow", "default_fonts"] }
 egui = { version = "=0.36.2", default-features = false, features = ["default_fonts"] }
 global-hotkey = "=0.8.0"
