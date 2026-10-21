@@ -1,7 +1,7 @@
 //! Launcher ranking: fuzzy score plus integer usage bonuses, with a total
 //! deterministic order.
 //!
-//! Windows-free and host-testable (see `plans/IMPLEMENTATION_PLAN.md` §6.3).
+//! Windows-free and host-testable (see `docs/systemPatterns.md` §6.3).
 //!
 //! ```text
 //! frequency_bonus = min(launch_count, 100) * 4

@@ -42,7 +42,12 @@ From top to bottom, all sections span the full window width:
    `Back Esc` in sub-views. While that action runs ("Launching…",
    "Pasting…"), a spinner and the label replace its key caps.
 
-The base window is 640×460. It grows to fit notices and the hotkey recovery UI
+The base window follows `palette_size`: small 560×418, medium 640×460,
+large 760×544 points. Heights differ by whole rows (`theme::window_size`), so
+a larger palette shows more results: −1 row for small and +2 for large in
+every list. The emoji grid has 11, 12 or 15 columns. Text, rows and spacing do
+not change with it; `text_size` sets the fonts separately. The window grows to
+fit notices and the hotkey recovery UI
 and shrinks back when they go. The host measures content without the footer's
 bottom padding so that shrinking works.
 
@@ -61,13 +66,17 @@ bottom padding so that shrinking works.
 
 | Size | Value |
 | --- | --- |
-| Search text | 18 pt |
-| Body / button / small / monospace text | 14 / 13 / 12 / 13 pt |
+| Search text (`text_size` small / medium / large) | 16 / 18 / 20 pt |
+| Body / button / small / monospace text, medium | 14 / 13 / 12 / 13 pt |
+| Same, small / large | 13 / 12 / 11 / 12 and 16 / 14 / 13 / 14 pt |
 | Corner radius: rows, windows | 8 pt |
 | Corner radius: buttons | 6 pt |
 | Corner radius: key caps | 4 pt |
 | Result row height | 38 pt, 4 pt apart (`ROW_STRIDE` = 42) |
-| Side gutter | 16 pt |
+| Side gutter (`GUTTER`): where all content starts and ends | 16 pt |
+| Body margin (`BODY_MARGIN`): where row and cell fills start | 8 pt |
+| Row content inset (`ROW_INSET` = gutter − body margin) | 8 pt |
+| Gap between body sections (`SECTION_GAP`) | 8 pt |
 | App icon | 22 pt |
 | Emoji cell / glyph | 44 / 28 pt |
 
@@ -78,12 +87,41 @@ The font is Segoe UI, with egui's bundled fonts as fallbacks.
 - **Result row** (`list::row`). Leading icon, then the name, then gray
   trailing text (the entry type, the age, or a snippet keyword). Selected:
   rounded selection fill. Hovered: hover fill. The text color does not change.
+- **Favorites.** Up to 5 pinned entries (`core::favorites`) lead the empty
+  root list under a "Favorites" header, followed by a "Suggestions" header
+  (which takes one row). While searching they rank normally, and their trailing
+  text reads "Favorite · Application". Toggle with Ctrl+Shift+F or the row's
+  right-click menu, which also has Move Up and Move Down (Ctrl+Shift+Up and
+  Ctrl+Shift+Down).
+- **Web search row.** When nothing matches (no app, no calculation), the only
+  row is "Search Google for "query"", led by the engine's monogram badge
+  (`theme::engine_badge`: its letter on a circle in its color; logos are not
+  bundled) with a gray "Web Search" label. Enter opens the default browser.
+- **Broken shortcuts offer.** Under the root list, separated by a rule: a
+  small gray line naming them (full paths on hover), then "Move to Recycle Bin"
+  and "Ignore" buttons. A spinner shows while the move runs.
+- **Calculator card** (`launcher::answer_card`). When the root query is a
+  calculation or a unit conversion (`core::calc`), the section reads
+  "Calculator". A full-width rounded card shows the input and the result side
+  by side, in large text (1.4× the search size). Each sits over a gray caption
+  pill ("Centimeters", "Inches"; "Expression", "Result" for math), with a
+  painted arrow between them. The apps follow under a "Results" header. The
+  card and that header take exactly three list rows, so the window keeps its
+  height. The card is selected first; Enter pastes the result (the footer
+  reads "Paste Answer"). Fill: control at rest, hover fill on hover,
+  selection fill when selected.
 - **Row icons.** Use the program's real icon wherever one exists. For
   applications, it comes from the Start Menu shortcut or the packaged app. For
   scripts, it comes from the interpreter executable, with bare names such as
   `pwsh.exe` resolved through the search path. A glyph is used only when no
   icon exists: built-in commands, clipboard entries, snippets, or a failed
   lookup (▶ for scripts).
+- **Settings form.** Sections (General, Palette, Clipboard), each headed by
+  `theme::section_label` (the same small gray style as "Suggestions"). Labels
+  sit in a shared 112-point column so controls align across sections. Rows
+  are 6 points apart and sections 16 points apart. Short gray hints sit beside
+  controls. Save, Revert and the status are on the left of the bottom row, and
+  "Edit config file…" is on the right.
 - **Key cap** (`theme::key_cap`). Small gray text on a rounded selection fill.
   It is painted at the text's size so centered layouts cannot stretch it.
 - **Action hint** (`theme::action_hint`). A label followed by its key caps,
@@ -102,6 +140,15 @@ The font is Segoe UI, with egui's bundled fonts as fallbacks.
 - **Draw icons, don't type them.** If a symbol is not certain to be in Segoe
   UI or Segoe UI Emoji, paint it with the painter instead of using a text
   glyph. The existing command glyphs (📋 😀 📝 ✏ ⚙ ▶) are covered by those fonts.
+- **One content edge.** Text, icons, buttons and fields start and end on the
+  16-point gutter in every section and view. Only row and cell fills reach
+  out to the 8-point body margin. Body content that is not a row goes inside
+  `theme::inset`. Put space between sections with `theme::SECTION_GAP`,
+  not ad-hoc numbers.
+- **No outlines on focused fields.** The red text cursor shows focus.
+- **Scroll by whole rows.** Lists are windows of rows, not scroll areas. The
+  mouse wheel moves the window a row at a time (`list::wheel_rows`), and the
+  selection follows into view rather than pulling the window back.
 - **Size lists from the stride.** List heights are row counts times
   `theme::ROW_STRIDE`, never magic numbers.
 - **Color only for status.** Warnings are amber and errors are red, in small

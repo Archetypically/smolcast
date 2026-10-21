@@ -11,10 +11,17 @@ use egui::{
     Color32, Context, CornerRadius, FontFamily, FontId, RichText, Stroke, TextStyle, Theme, Vec2,
 };
 
-/// Search field text size; Raycast's query line is larger than the body.
-pub const SEARCH_SIZE: f32 = 18.0;
-/// Horizontal inset shared by the search bar, list, and footer.
+use crate::core::config::{PaletteSize, SearchEngine, TextSize};
+
+/// Horizontal inset of content shared by the search bar, list, and footer.
 pub const GUTTER: i8 = 16;
+/// Body padding. Row and cell fills start here; their content starts at
+/// [`GUTTER`].
+pub const BODY_MARGIN: i8 = 8;
+/// Horizontal inset of row content inside its fill, so it meets the gutter.
+pub const ROW_INSET: f32 = (GUTTER - BODY_MARGIN) as f32;
+/// Vertical gap between body sections: a list and its buttons, form groups.
+pub const SECTION_GAP: f32 = 8.0;
 /// Result row height.
 pub const ROW_HEIGHT: f32 = 38.0;
 /// Vertical item spacing.
@@ -23,10 +30,50 @@ pub const SPACING: f32 = 4.0;
 pub const ROW_STRIDE: f32 = ROW_HEIGHT + SPACING;
 /// Footer bar height, excluding its divider.
 pub const FOOTER_HEIGHT: f32 = 40.0;
+/// The medium window, in points.
+const BASE_WINDOW: Vec2 = Vec2::new(640.0, 460.0);
+
+/// List rows a palette size adds to (or removes from) each view's medium
+/// row count.
+pub fn extra_rows(size: PaletteSize) -> isize {
+    match size {
+        PaletteSize::Small => -1,
+        PaletteSize::Medium => 0,
+        PaletteSize::Large => 2,
+    }
+}
+
+/// The base window for a palette size: wider, and taller by whole rows so
+/// lists show more entries rather than more empty space.
+pub fn window_size(size: PaletteSize) -> Vec2 {
+    let width = match size {
+        PaletteSize::Small => 560.0,
+        PaletteSize::Medium => BASE_WINDOW.x,
+        PaletteSize::Large => 760.0,
+    };
+    Vec2::new(width, BASE_WINDOW.y + extra_rows(size) as f32 * ROW_STRIDE)
+}
+
+/// A view's visible row count at `size`, from its medium count.
+pub fn visible_rows(medium: usize, size: PaletteSize) -> usize {
+    medium.saturating_add_signed(extra_rows(size)).max(1)
+}
+
+/// Font sizes for a text size: search, body, button, small, monospace.
+fn font_sizes(size: TextSize) -> [f32; 5] {
+    match size {
+        TextSize::Small => [16.0, 13.0, 12.0, 11.0, 12.0],
+        TextSize::Medium => [18.0, 14.0, 13.0, 12.0, 13.0],
+        TextSize::Large => [20.0, 16.0, 14.0, 13.0, 14.0],
+    }
+}
 
 const RADIUS: u8 = 8;
 /// Raycast's brand red, used only for the text cursor, text selection, and links.
 const ACCENT: Color32 = Color32::from_rgb(255, 99, 99);
+/// Status colors, in small text only (DESIGN.md).
+pub const WARNING: Color32 = Color32::from_rgb(230, 180, 60);
+pub const ERROR: Color32 = Color32::from_rgb(230, 90, 90);
 
 struct Palette {
     background: Color32,
@@ -65,21 +112,25 @@ fn palette(dark: bool) -> &'static Palette {
     if dark { &DARK } else { &LIGHT }
 }
 
-/// Style both egui themes.
-pub fn install(ctx: &Context) {
+/// Style both egui themes. Called again when the text size changes.
+pub fn install(ctx: &Context, text: TextSize) {
     for theme in [Theme::Dark, Theme::Light] {
-        ctx.style_mut_of(theme, |style| apply(style, palette(theme == Theme::Dark)));
+        ctx.style_mut_of(theme, |style| {
+            apply(style, palette(theme == Theme::Dark), text)
+        });
     }
 }
 
-fn apply(style: &mut egui::Style, p: &Palette) {
+fn apply(style: &mut egui::Style, p: &Palette, text: TextSize) {
     use FontFamily::{Monospace, Proportional};
+    // The search text is the Heading style.
+    let [search, body, button, small, mono] = font_sizes(text);
     style.text_styles = [
-        (TextStyle::Small, FontId::new(12.0, Proportional)),
-        (TextStyle::Body, FontId::new(14.0, Proportional)),
-        (TextStyle::Button, FontId::new(13.0, Proportional)),
-        (TextStyle::Heading, FontId::new(SEARCH_SIZE, Proportional)),
-        (TextStyle::Monospace, FontId::new(13.0, Monospace)),
+        (TextStyle::Small, FontId::new(small, Proportional)),
+        (TextStyle::Body, FontId::new(body, Proportional)),
+        (TextStyle::Button, FontId::new(button, Proportional)),
+        (TextStyle::Heading, FontId::new(search, Proportional)),
+        (TextStyle::Monospace, FontId::new(mono, Monospace)),
     ]
     .into();
 
@@ -100,7 +151,10 @@ fn apply(style: &mut egui::Style, p: &Palette) {
     v.hyperlink_color = ACCENT;
     // Text selection needs contrast; rows and key caps use `selected_fill`.
     v.selection.bg_fill = ACCENT.gamma_multiply(0.35);
-    v.selection.stroke = Stroke::new(1.0, p.text);
+    // Only the color is used for selected text; egui also strokes a focused
+    // text field with this, which drew a white outline. The red cursor
+    // marks focus instead.
+    v.selection.stroke = Stroke::new(0.0, p.text);
     v.text_cursor.stroke = Stroke::new(2.0, ACCENT);
     v.window_corner_radius = radius;
     v.menu_corner_radius = radius;
@@ -144,6 +198,58 @@ pub fn divider(ui: &mut egui::Ui) {
         rect.center().y,
         Stroke::new(1.0, divider_color(ui)),
     );
+}
+
+/// Body content that is not a row or cell (labels, buttons, forms, notices),
+/// inset so it lines up with the gutter like row content does.
+pub fn inset<R>(ui: &mut egui::Ui, add_contents: impl FnOnce(&mut egui::Ui) -> R) -> R {
+    egui::Frame::new()
+        .inner_margin(egui::Margin::symmetric(ROW_INSET as i8, 0))
+        .show(ui, add_contents)
+        .inner
+}
+
+/// A search engine's monogram badge: its letter on a circle in its color.
+/// Painted, since engine logos are not bundled.
+pub fn engine_badge(ui: &mut egui::Ui, engine: SearchEngine, edge: f32) -> egui::Response {
+    let (rect, response) = ui.allocate_exact_size(Vec2::splat(edge), egui::Sense::hover());
+    let (letter, [r, g, b]) = engine.badge();
+    let painter = ui.painter();
+    painter.circle_filled(rect.center(), edge * 0.45, Color32::from_rgb(r, g, b));
+    painter.text(
+        rect.center(),
+        egui::Align2::CENTER_CENTER,
+        letter,
+        FontId::proportional((edge * 0.55).round()),
+        Color32::WHITE,
+    );
+    response
+}
+
+/// A small gray section heading ("Suggestions", "General").
+pub fn section_label(ui: &mut egui::Ui, text: &str) {
+    ui.label(RichText::new(text).small().weak());
+}
+
+/// Height a list section header takes, including the spacing after it.
+pub const SECTION_HEADER_HEIGHT: f32 = 2.0 + 24.0 + SPACING + 2.0;
+
+/// A list section header ("Suggestions", "Calculator", "Results") aligned
+/// with row content, with an optional busy status on the right.
+pub fn section_header(ui: &mut egui::Ui, text: &str, status: Option<&str>) {
+    ui.add_space(2.0);
+    ui.horizontal(|ui| {
+        ui.set_height(24.0);
+        ui.add_space(ROW_INSET);
+        section_label(ui, text);
+        if let Some(status) = status {
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.add_space(ROW_INSET);
+                action_busy(ui, status);
+            });
+        }
+    });
+    ui.add_space(2.0);
 }
 
 /// Hovered-row fill.

@@ -17,7 +17,7 @@ use crate::app::model::loads_stored_history;
 use crate::app::model::{AppEvent, AppModel, HotkeyStatus, Wake};
 use crate::app::notice::{Notice, Severity, op};
 use crate::app::theme;
-use crate::core::config::{self, ConfigFile};
+use crate::core::config::{self, ConfigFile, PaletteSize, TextSize};
 use crate::core::config_edit::{self, ConfigEdit};
 use crate::win::clipboard::ClipboardThread;
 use crate::win::emoji_render::EmojiRenderer;
@@ -36,9 +36,6 @@ pub struct Startup {
     /// The window was created transparent for a Mica backdrop (§12.7).
     pub mica: bool,
 }
-
-/// Base palette size in points; the height grows to fit content.
-pub const PALETTE_SIZE: [f32; 2] = [640.0, 460.0];
 
 /// Frames a fast-path summon may stay cloaked waiting for a stable size; it
 /// is uncloaked after this many even if the size is still changing.
@@ -81,6 +78,8 @@ pub struct EframeApp {
     reveal_settled: bool,
     /// Common glyphs were laid out ahead of the first summon.
     glyphs_warmed: bool,
+    /// The palette and text sizes the window and style were last set for.
+    applied_look: Option<(PaletteSize, TextSize)>,
 }
 
 impl EframeApp {
@@ -113,7 +112,9 @@ impl EframeApp {
             appearance::style_window(window, startup.mica);
         }
         install_system_font(&ctx);
-        theme::install(&ctx);
+        // The style is installed by `sync_look` on the first step. Sizes
+        // come from the settings; Ctrl+plus/minus must not zoom egui.
+        ctx.options_mut(|o| o.zoom_with_keyboard = false);
 
         // Hotkey manager + initial summon registration (§5.2). A conflict forces
         // the visible recovery state; a missing manager leaves hotkeys off but
@@ -137,11 +138,7 @@ impl EframeApp {
 
         // Launcher workers (§6): the usage writer and the icon extractor. A
         // failure disables that piece only and is reported.
-        let state_writer = match StateWriter::start(
-            paths.usage.clone(),
-            paths.clipboard_dir.clone(),
-            wake.clone(),
-        ) {
+        let state_writer = match StateWriter::start(&paths, wake.clone()) {
             Ok(writer) => {
                 // Stored clipboard history (§7.2): load it, or delete it when
                 // persistence is off.
@@ -232,7 +229,23 @@ impl EframeApp {
             reveal_frames: 0,
             reveal_settled: false,
             glyphs_warmed: false,
+            applied_look: None,
         }
+    }
+
+    /// Follow the `palette_size` and `text_size` settings: restyle fonts,
+    /// and resize the window when the palette size changes.
+    fn sync_look(&mut self, ctx: &Context) {
+        let settings = &self.model.config().settings;
+        let look = (settings.palette_size, settings.text_size);
+        if self.applied_look == Some(look) {
+            return;
+        }
+        theme::install(ctx, look.1);
+        if self.applied_look.is_none_or(|(size, _)| size != look.0) {
+            ctx.send_viewport_cmd(ViewportCommand::InnerSize(theme::window_size(look.0)));
+        }
+        self.applied_look = Some(look);
     }
 
     /// Per-callback tick: drain events, service refresh/trial requests, and
@@ -240,6 +253,7 @@ impl EframeApp {
     /// `ui` pass.
     fn step(&mut self, ctx: &Context) {
         self.model.step(ctx);
+        self.sync_look(ctx);
 
         // Reap a finished refresh worker; only one runs at a time (§1.4).
         if self
@@ -305,6 +319,14 @@ impl EframeApp {
                 Err(e) => self.model.scan_start_failed(generation, &e.to_string()),
             }
         }
+        // Shell jobs share `launch_jobs`: each delivers one event and is
+        // joined on shutdown.
+        if let Some(paths) = self.model.take_recycle_request() {
+            match shell::spawn_recycle(paths, self.wake()) {
+                Ok(job) => self.launch_jobs.push(job),
+                Err(e) => self.model.recycle_start_failed(&e.to_string()),
+            }
+        }
         if let Some(request) = self.model.take_launch_request() {
             match shell::spawn_launch(request.app_id, request.spec, self.wake()) {
                 Ok(job) => self.launch_jobs.push(job),
@@ -327,6 +349,11 @@ impl EframeApp {
             (&self.state_writer, self.model.take_usage_snapshot())
         {
             writer.save_usage(generation, bytes);
+        }
+        if let (Some(writer), Some(bytes)) =
+            (&self.state_writer, self.model.take_favorites_snapshot())
+        {
+            writer.save_favorites(bytes);
         }
     }
 
@@ -603,7 +630,8 @@ impl eframe::App for EframeApp {
                     inner.response.rect.height() - inner.inner
                 })
                 .inner;
-            let resized = fit_height(&ctx, content_height);
+            let base = theme::window_size(self.model.config().settings.palette_size);
+            let resized = fit_height(&ctx, content_height, base.y);
             self.advance_reveal(&ctx, resized);
         } else if let Some(window) = &self.palette_window {
             // A fast-path show the model did not follow (it dropped the
@@ -633,7 +661,7 @@ impl eframe::App for EframeApp {
 /// recovery UI can exceed the base height. Never shrinks below the base, so
 /// typing does not make the window jump, and never exceeds most of the monitor.
 /// Returns whether a resize was requested.
-fn fit_height(ctx: &Context, wanted: f32) -> bool {
+fn fit_height(ctx: &Context, wanted: f32, base: f32) -> bool {
     let (current, monitor) = ctx.input(|i| {
         let info = i.viewport();
         (info.inner_rect.map(|r| r.size()), info.monitor_size)
@@ -642,9 +670,7 @@ fn fit_height(ctx: &Context, wanted: f32) -> bool {
         return false;
     };
     let max = monitor.map_or(f32::INFINITY, |m| m.y * 0.85);
-    let height = wanted
-        .ceil()
-        .clamp(PALETTE_SIZE[1], max.max(PALETTE_SIZE[1]));
+    let height = wanted.ceil().clamp(base, max.max(base));
     let resize = (height - current.y).abs() >= 1.0;
     if resize {
         ctx.send_viewport_cmd(ViewportCommand::InnerSize(egui::vec2(current.x, height)));
