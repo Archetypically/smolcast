@@ -166,6 +166,14 @@ create the Pages project and DNS, deploy, then point `Cargo.toml`
 
 ## Open questions and parked ideas
 
+- **Website pages** (user, 2026-10-22): comparison pages for SEO
+  ("smolcast vs Tinycast", "smolcast vs Raycast" and similar), and a
+  separate Privacy page: the app (local data, the GitHub update check and
+  its switch, clipboard encryption and exclusions), the site (no cookies,
+  analytics or third-party requests; Cloudflare's request logs), a contact
+  and a date, linked from the footer and the Privacy section, listed in
+  `sitemap.xml` and `llms.txt`. Store and winget listings want its URL.
+  Open: the contact to list.
 - **Dictionary**: tabled by the user (2026-10-21). Windows has no definitions
   API (only ISpellChecker). Options if revived: "define <word>" via web
   search, bundled WordNet (+10–30 MB), or an online API.
