@@ -3,6 +3,7 @@
 
 pub mod about_view;
 pub mod clipboard_view;
+pub mod effect;
 pub mod eframe_host;
 pub mod emoji_view;
 pub mod file_view;

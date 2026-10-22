@@ -109,6 +109,19 @@ Producer invariant:
 rendering. It ignores stale `IndexReady` generations. It must not call blocking
 `recv`.
 
+The reverse direction is the effect outbox (decision 025). The model never
+starts threads or calls a worker; it queues an `app::effect::Effect` (scan,
+launch, icon, glyph, file search, clipboard command, store write, thumbnail,
+paste finisher, update work, config save/reload/apply/open, trial hotkey).
+After `AppModel::step`, the host takes them all with `take_effects` and
+executes them in order. The model's own effects keep their push order; the
+views' request slots follow in a fixed order, and keep coalescing (one scan,
+one launch, the latest snapshot); the host applies only the latest config
+reload and trial key of a drain. A shell job, file search, update or paste
+finisher that cannot start reports back through a model `*_failed` method; a
+request to a worker that never started (icons, glyphs, state writer) is
+dropped, as that worker's startup already raised a notice. A config save waits for the refresh worker slot in the host.
+
 For hotkeys, call `GlobalHotKeyEvent::set_event_handler(Some(...))`; filter to
 registered IDs and the pressed state, send `SummonRequested` or the mapped script
 action, then request repaint. For tray/menu events, use their event handlers, not
@@ -354,6 +367,7 @@ src/
     mod.rs
     model.rs              // backend-neutral app state + ui(ctx), event reduction
     eframe_host.rs        // thin impl eframe::App; viewport lifecycle only
+    effect.rs             // the model's outbox of host work (§1.2)
     notice.rs             // bounded, content-safe user notices
     file_view.rs          // Search Files view (§6.6)
   core/
