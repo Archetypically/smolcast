@@ -1,0 +1,26 @@
+version: 2
+
+# Version updates for Cargo and GitHub Actions land in one weekly pull
+# request. Security updates are not delayed into this schedule.
+# Action references must stay `uses: owner/repo@<commit> # vX.Y.Z`; Dependabot
+# moves the SHA and the version comment together.
+multi-ecosystem-groups:
+  dependencies:
+    schedule:
+      interval: weekly
+
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    patterns:
+      - "*"
+    multi-ecosystem-group: dependencies
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+    patterns:
+      - "*"
+    multi-ecosystem-group: dependencies
