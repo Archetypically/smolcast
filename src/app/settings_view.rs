@@ -155,6 +155,13 @@ impl SettingsView {
             ui.checkbox(&mut draft.start_at_login, "Start smolcast when you sign in");
             ui.end_row();
 
+            ui.label("Updates");
+            ui.checkbox(
+                &mut draft.check_for_updates,
+                "Check GitHub for a new version once a day",
+            );
+            ui.end_row();
+
             ui.label("Web search");
             egui::ComboBox::from_id_salt("search_engine")
                 .width(COMBO_WIDTH)

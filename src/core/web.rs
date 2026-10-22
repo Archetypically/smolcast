@@ -109,7 +109,7 @@ pub fn search_url(template: &str, query: &str) -> String {
 }
 
 /// Percent-encode UTF-8, keeping only RFC 3986 unreserved characters.
-fn encode(text: &str) -> String {
+pub(crate) fn encode(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     for byte in text.bytes() {
         if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b'~') {

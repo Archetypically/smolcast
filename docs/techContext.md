@@ -78,6 +78,12 @@ Windows, and the host tests plus the GNU release cross-link on Linux, with
 dependency builds cached between runs (§11). CI passing is not
 runtime acceptance: each milestone's Windows smoke gate (§12) is.
 
+To release, bump `version` in `Cargo.toml`, merge, then push a matching tag
+(`git tag v0.2.0 && git push origin v0.2.0`). `.github/workflows/release.yml`
+builds the MSVC exe and publishes `smolcast-<version>-x86_64.exe` with its
+`.sha256`, which running copies offer as an update (§13). A tag with a `-`
+(`v0.2.0-rc.1`) is a prerelease and is never offered.
+
 ## Agent workflow notes
 
 - Develop in WSL; nothing is installed on the Windows system drive. Try

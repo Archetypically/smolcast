@@ -355,6 +355,7 @@ src/
     model.rs              // backend-neutral app state + ui(ctx), event reduction
     eframe_host.rs        // thin impl eframe::App; viewport lifecycle only
     notice.rs             // bounded, content-safe user notices
+    file_view.rs          // Search Files view (§6.6)
   core/
     mod.rs
     app_index.rs          // AppId, IndexedApp, dedup selection
@@ -365,6 +366,9 @@ src/
     dib.rs                // checked DIB metadata + BMP-without-header decode
     emoji_data.rs         // generated static table
     emoji.rs              // keyword matching and grapheme validation
+    quicklink.rs          // {query} expansion and keyword split (§10.7)
+    file_search.rs        // Windows Search SQL and result order (§6.6)
+    update.rs             // versions, release choice, check schedule (§13)
   win/
     mod.rs
     hotkey.rs             // main-thread manager + conflict mapping
@@ -378,6 +382,10 @@ src/
     autostart.rs          // opt-in Run key
     backdrop.rs           // DWM attributes
     icon.rs               // HICON -> owned RGBA
+    system.rs             // lock, sleep, restart, shut down, etc. (§6.5)
+    file_search.rs        // OLE DB session with Windows Search (§6.6)
+    http.rs               // WinHTTP GET (§13)
+    update.rs             // update worker, download, swap, relaunch (§13)
 scripts/
   generate_emoji.py       // maintainer-only deterministic data generator
 ```
@@ -457,6 +465,13 @@ milestone 3, Emoji in milestone 4); scripts join the root list in milestone 5
 as the `Script` type. In a sub-view, Escape or Backspace on an empty search
 returns to the root. Escape at the root hides the palette. Every summon opens
 at the root with an empty search.
+
+System actions (`System`, §6.5) and quicklinks (`Quicklink`, §10.7) join the
+same ranked list (2026-10-22). After the ranked entries of any query that is
+not a calculation or a quicklink query come two fallback rows, the web search
+and "Search Files" (§6.6), under a `Search for "query"` header that takes one
+list row (left out when there are no results). Fallbacks scroll with the list
+(decision 022).
 
 ---
 
@@ -574,6 +589,53 @@ simple recency queue; dropping an entry drops its egui texture.
 A broken/removed shortcut is skipped on the next scan and produces at most one
 content-free notice per scan. A launch race after indexing reports the launch
 error and does not increment usage.
+
+### 6.5 System actions (2026-10-22)
+
+`SystemAction` entries are built in (`AppId::Command { name: "system-…" }`,
+so they share ranking and usage) and run on the launch thread through
+`win/system.rs`; success hides the palette like a launch.
+
+| Action | Windows call |
+| --- | --- |
+| Lock Screen | `LockWorkStation` |
+| Sleep | `SetSuspendState(false, false, false)` |
+| Restart | `ExitWindowsEx(EWX_REBOOT)` |
+| Shut Down | `ExitWindowsEx(EWX_POWEROFF \| EWX_HYBRID_SHUTDOWN)` |
+| Sign Out | `ExitWindowsEx(EWX_LOGOFF)` |
+| Empty Recycle Bin | `SHEmptyRecycleBinW(SHERB_NOCONFIRMATION)`; an empty bin is success |
+| Toggle Dark Mode | flips `AppsUseLightTheme` and `SystemUsesLightTheme`, then broadcasts `WM_SETTINGCHANGE("ImmersiveColorSet")` |
+| Toggle Mute | `SendInput(VK_VOLUME_MUTE)`, which shows Windows' volume flyout |
+| Turn Off Display | posts `WM_SYSCOMMAND(SC_MONITORPOWER, 2)` to `HWND_BROADCAST` |
+
+Restart, Shut Down and Sign Out enable `SeShutdownPrivilege` and never force:
+apps with unsaved work can still object. They and Empty Recycle Bin need a
+second Enter (or click): the first marks the row "Press Enter again to
+confirm" and the footer reads "Confirm"; moving the selection, changing the
+query or re-showing the palette clears it.
+
+### 6.6 File search (2026-10-22, decision 020)
+
+smolcast keeps no file index. `win/file_search.rs` runs one STA thread that
+holds an OLE DB session with the Windows Search provider
+(`CLSID_CollatorDataSource`, initialized on first use and again after a
+failure) and executes `core::file_search::sql`:
+
+```sql
+SELECT TOP 40 System.ItemPathDisplay, System.ItemType FROM SystemIndex
+WHERE SCOPE='file:' AND CONTAINS(System.FileName, '"word1*" AND "word2*"')
+ORDER BY System.Search.Rank DESC
+```
+
+Words are name-word prefixes; `"`, `*` and control characters are dropped and
+`'` is doubled, so typed text cannot leave the literal. Rows are read one at a
+time through `IGetRow::GetRowFromHROW` as `IPropertyStore`
+(`System.ItemPathDisplay`); paths that no longer exist are skipped, and names
+starting with the whole query move to the front. The worker drains its queue
+and runs only the newest query; the view sends a query only after the text has
+been unchanged for 120 ms and drops answers for older generations
+(`AppEvent::FilesFound`). Enter opens the item with the shell; Ctrl+Enter runs
+`explorer.exe /select,"<path>"`. Both are completed actions.
 
 ---
 
@@ -930,6 +992,7 @@ reduce_motion = "system"   # optional: "system" (Windows Animation effects) | "o
 keep_state_secs = 30       # optional: 0..=3600; 0 always starts fresh (§12.7)
 search_engine = "google"   # optional: google | bing | duckduckgo | brave | ecosia | startpage | kagi | custom
 web_search_url = "https://www.google.com/search?q=%s" # optional; used by "custom"
+check_for_updates = true   # optional: daily GitHub release check (§13)
 
 [scripts.open-project]
 name = "Open project"
@@ -942,6 +1005,10 @@ hotkey = "control+alt+KeyP" # optional
 name = "Email signature"
 keyword = ";sig"
 text = "Best,\nMe"
+
+[quicklinks.gh]            # optional table (§10.7)
+name = "Search GitHub"
+url = "https://github.com/search?q={query}"
 ```
 
 Rust shape:
@@ -952,6 +1019,7 @@ struct ConfigFile {
     settings: Settings,
     scripts: BTreeMap<String, ScriptConfig>,
     snippets: BTreeMap<String, SnippetConfig>, // §10.6
+    quicklinks: BTreeMap<String, QuicklinkConfig>, // §10.7
 }
 
 struct Settings {
@@ -968,6 +1036,7 @@ struct Settings {
     keep_state_secs: u32,              // #[serde(default)] = 30, max 3600 (§12.7)
     search_engine: SearchEngine,       // #[serde(default)] = Google
     web_search_url: String,            // #[serde(default)]; http(s), contains %s
+    check_for_updates: bool,           // #[serde(default)] = true (§13)
 }
 
 struct ScriptConfig {
@@ -1149,6 +1218,31 @@ existing literal braces never change meaning.
 
 ---
 
+### 10.7 Quicklinks (2026-10-22, decision 021)
+
+```rust
+struct QuicklinkConfig {
+    name: String, // nonempty, at most 128 Unicode scalar values
+    url: String,  // nonempty, at most 2048; any scheme, file or folder path
+}
+```
+
+The table id follows the script-id rule and is the quicklink's keyword and an
+alias. Neither field may contain a control character. Quicklinks are
+`AppId::Quicklink { id }` with `LaunchSpec::Quicklink { target }` and open
+through `ShellExecuteExW` on the launch thread.
+
+A `url` containing `{query}` takes a query. A root query of the form
+`<id> <text>` (id matched ignoring ASCII case, text nonempty) puts that
+quicklink at row 0, shown as `Name "text"`; Enter opens `url` with every
+`{query}` replaced by the trimmed text, percent-encoded as in the web search
+(decision 014), or inserted as typed when `url` starts with a drive (`C:\`)
+or UNC (`\\`) path. Selecting a query-taking quicklink without text (Enter,
+click, or Tab) replaces the search with `<id> ` and keeps the palette open.
+Nothing else in `url` is expanded.
+
+---
+
 ## 11. CI and verification
 
 Create `.github/workflows/ci.yml` in milestone 1.
@@ -1184,6 +1278,12 @@ never be described as both.
 No CI job claims runtime/UI behavior. The release gate is an interactive Windows
 11 desktop smoke on a clean standard-user account without Rust, Visual Studio,
 PowerShell 7, or other developer tools.
+
+Releases (2026-10-22, §13): `.github/workflows/release.yml` runs on a pushed
+`v*` tag. It refuses a tag that differs from `v` + the Cargo.toml version,
+builds the MSVC release, and publishes `smolcast-<version>-x86_64.exe` with a
+`.sha256` (`<hex>  <name>`, LF) through `gh release create --generate-notes`;
+a tag with `-` becomes a prerelease, which the updater never offers.
 
 ---
 
@@ -1408,3 +1508,52 @@ Gate on a clean Windows 11 standard-user account:
   theme, 100/150/200% DPI, and multi-monitor movement smoke successfully;
 - release size/imports and OS/build-specific Mica limits are recorded;
 - no clipboard or script content leaves the device.
+
+---
+
+## 13. Self-update (2026-10-22, decision 019)
+
+`win/update.rs` owns one worker thread, started by the host with
+`StatePaths::update_state` (`%LOCALAPPDATA%\smolcast\update.json`) and the
+`check_for_updates` setting; the host forwards setting changes.
+
+Checking. `GET https://api.github.com/repos/Archetypically/smolcast/releases/latest`
+over WinHTTP (`win/http.rs`: system proxy and certificates, https only,
+redirects followed, 10 s connect / 30 s receive timeouts, user agent
+`smolcast/<version>`, body capped at 1 MiB). `core::update::newer_release`
+offers the release when its tag parses as semver, is greater than the running
+version (semver precedence), is not a draft or prerelease, and carries
+`smolcast-<version>-x86_64.exe` (size 1 B..=64 MiB) and
+`smolcast-<version>-x86_64.exe.sha256`, both served under
+`https://github.com/Archetypically/smolcast/releases/download/` (GitHub's
+redirect to its download host is followed). The notes link opens only if it
+is under the repository's `/releases/` pages, else the releases page opens.
+A 404 means no published release and reads as up to date.
+
+Schedule. Automatic checks run when due: 24 h after the last automatic check,
+2 h after a failed one, and never sooner than 30 s after startup. The worker
+waits in `recv_timeout` between checks (no wakeups while idle, §1.4); with the
+setting off, or in a debug build, it waits on requests only. `update.json`
+holds `last_check_ms`, `last_check_failed` and `skipped`; unreadable state
+starts over. An automatic check does not offer a skipped version and fails
+silently; "Check for Updates" (a root command) ignores the skip and reports
+"latest version" or the failure as a notice.
+
+Offer. The model keeps the newest offer and shows it under the root list when
+the query is empty: "smolcast X is available (you have Y)." with Install and
+Restart, What's New (the release page) and Skip This Version.
+
+Install. Download the `.sha256` (≤ 4 KiB) and the exe (≤ its listed size),
+require the exact size and a matching SHA-256 (`BCryptHash`), write
+`smolcast.exe.new` beside the running exe, rename the running exe to
+`smolcast.exe.old`, and rename `.new` into place; if the second rename fails,
+the first is undone. Any failure leaves the running build in place and shows
+an error notice (an unwritable folder points at the release page). Success
+sets `quit_requested`; after `shutdown_resources` the host starts the new exe
+with `--wait-pid <pid>` (a failed start shows a message box, the one UI left). `main` waits (≤ 20 s) for that process to exit before
+taking the single-instance mutex (§5.1). The update worker removes `.old` and
+`.new` leftovers when it starts.
+
+Trust. The checksum detects corruption only; builds are unsigned. Before
+signing ships, an attacker who can publish a release can ship code. Signing
+will add a signature check before the swap.

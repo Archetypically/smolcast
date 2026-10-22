@@ -5,6 +5,7 @@ pub mod about_view;
 pub mod clipboard_view;
 pub mod eframe_host;
 pub mod emoji_view;
+pub mod file_view;
 pub mod launcher;
 pub mod list;
 pub mod model;

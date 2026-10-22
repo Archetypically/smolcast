@@ -1,0 +1,59 @@
+name: release
+
+# Pushing a version tag (v0.2.0) publishes a GitHub release that the in-app
+# updater offers (docs/systemPatterns.md §13): the exe as
+# smolcast-<version>-x86_64.exe plus its .sha256. The tag must match the
+# version in Cargo.toml. Builds are not signed yet.
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and publish
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pinned toolchain
+        shell: pwsh
+        run: |
+          rustup toolchain install 1.98.1 --profile minimal
+          rustup target add x86_64-pc-windows-msvc --toolchain 1.98.1
+      - name: Check the tag matches Cargo.toml
+        id: version
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $line = Select-String -Path Cargo.toml -Pattern '^version = "(.+)"$' | Select-Object -First 1
+          $version = $line.Matches[0].Groups[1].Value
+          if ($tag -ne "v$version") {
+            Write-Error "Tag $tag does not match Cargo.toml version $version"
+            exit 1
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+      - name: Build release
+        run: cargo build --locked --release --target x86_64-pc-windows-msvc
+      - name: Name the asset and its checksum
+        shell: pwsh
+        run: |
+          $name = "smolcast-${{ steps.version.outputs.version }}-x86_64.exe"
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Copy-Item target/x86_64-pc-windows-msvc/release/smolcast.exe "dist/$name"
+          $hash = (Get-FileHash -Algorithm SHA256 "dist/$name").Hash.ToLowerInvariant()
+          # sha256sum format, LF only, so `sha256sum -c` accepts it too.
+          [IO.File]::WriteAllText("$PWD/dist/$name.sha256", "$hash  $name`n")
+      - name: Publish the release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $arguments = @('release', 'create', $tag) + (Get-ChildItem dist).FullName
+          $arguments += @('--title', "smolcast ${{ steps.version.outputs.version }}", '--generate-notes')
+          # The updater reads releases/latest, which never lists prereleases.
+          if ($tag.Contains('-')) { $arguments += '--prerelease' }
+          gh @arguments

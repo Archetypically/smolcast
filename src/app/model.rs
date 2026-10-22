@@ -5,6 +5,7 @@
 //! (`docs/systemPatterns.md` §4). Event handling lives here so the eframe
 //! adapter can stay a thin lifecycle shim.
 
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver};
@@ -17,8 +18,10 @@ use crate::core::app_index::{AppId, Command};
 use crate::core::config::{ClipboardSource, ConfigError, ConfigFile, PaletteSize, Settings};
 use crate::core::config_edit::ConfigEdit;
 use crate::core::favorites::Favorites;
+use crate::core::file_search::FileHit;
 use crate::core::history::{Limits, Payload};
 use crate::core::motion::{self as timing, Tween};
+use crate::core::update::{Update, Version};
 use crate::core::usage::Usage;
 use crate::win::clipboard::{
     ClipboardCommand, ClipboardError, ClipboardWriteReceipt, WindowsSnapshot,
@@ -31,10 +34,12 @@ use crate::win::paste::{
 use crate::win::persistence::{ClipboardStoreCommand, LoadedEntry, Stored};
 use crate::win::placement::PaletteWindow;
 use crate::win::shell::{LaunchError, ScanOutcome};
+use crate::win::update::CheckOutcome;
 
 use super::about_view::AboutView;
 use super::clipboard_view::{ClipboardView, PasteRequest, ThumbnailRequest};
 use super::emoji_view::{EmojiView, GlyphRequest};
+use super::file_view::{FileAction, FileView};
 use super::launcher::{IconRequest, LaunchRequest, Launcher};
 use super::motion;
 use super::notice::{Notice, NoticeStore, Severity, op};
@@ -103,6 +108,33 @@ pub enum AppEvent {
     },
     PasteFinished(PasteOutcome),
     Notice(Notice),
+    /// Windows Search answered a file query (§6.6).
+    FilesFound {
+        generation: u64,
+        result: Result<Vec<FileHit>, String>,
+    },
+    /// An update check finished (§13); `manual` when the user asked.
+    UpdateChecked {
+        manual: bool,
+        outcome: CheckOutcome,
+    },
+    /// A chosen update was swapped in (the exe to relaunch), or not.
+    UpdateInstalled(Result<PathBuf, String>),
+}
+
+/// Work for the host's update worker (§13).
+pub enum UpdateRequest {
+    Check,
+    Install(Update),
+    Skip(Version),
+}
+
+/// What the updater is doing, for the root view's update row.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum UpdateStatus {
+    Idle,
+    Checking,
+    Installing,
 }
 
 /// The palette view (§5.4). Every summon opens at `Root`.
@@ -114,6 +146,7 @@ enum View {
     Snippets,
     Settings,
     About,
+    Files,
 }
 
 /// What a recorded key chord is for.
@@ -222,6 +255,7 @@ pub struct AppModel {
     clipboard: ClipboardView,
     emoji: EmojiView,
     snippets: SnippetView,
+    files: FileView,
     paste: PasteState,
     next_request_id: u64,
     /// Cancel flag of the most recent finisher; a new summon sets it.
@@ -263,6 +297,15 @@ pub struct AppModel {
     scene: Option<(View, bool)>,
     /// The body is sliding in since then, forward (deeper) or back.
     navigating: Option<(Instant, bool)>,
+    /// Put the search field's cursor at the end on the next frame (after
+    /// the launcher filled in a quicklink's keyword).
+    search_cursor_to_end: bool,
+    /// A newer release the user can install (§13).
+    update: Option<Update>,
+    update_status: UpdateStatus,
+    update_requests: Vec<UpdateRequest>,
+    /// The installed update to start once this process has quit.
+    relaunch: Option<PathBuf>,
 }
 
 impl AppModel {
@@ -293,7 +336,7 @@ impl AppModel {
             search: String::new(),
             focus_search: false,
             view: View::Root,
-            launcher: Launcher::new(usage, favorites, &config.scripts),
+            launcher: Launcher::new(usage, favorites, &config.scripts, &config.quicklinks),
             clipboard: ClipboardView::new(
                 history_limits(&config.settings),
                 config.settings.clipboard_source,
@@ -302,6 +345,7 @@ impl AppModel {
             ),
             emoji: EmojiView::new(),
             snippets: SnippetView::new(&config.snippets),
+            files: FileView::new(),
             paste: PasteState::Idle,
             next_request_id: 0,
             paste_cancel: None,
@@ -326,6 +370,11 @@ impl AppModel {
             dismissing: false,
             scene: None,
             navigating: None,
+            search_cursor_to_end: false,
+            update: None,
+            update_status: UpdateStatus::Idle,
+            update_requests: Vec::new(),
+            relaunch: None,
             config,
         };
         model.set_palette_size(palette_size);
@@ -342,6 +391,7 @@ impl AppModel {
         self.clipboard.set_palette_size(size);
         self.snippets.set_palette_size(size);
         self.emoji.set_palette_size(size);
+        self.files.set_palette_size(size);
     }
 
     /// Drain queued events and apply viewport transitions. Called before every
@@ -537,6 +587,131 @@ impl AppModel {
         self.launcher.take_favorites_snapshot()
     }
 
+    /// A file search for the host's worker (§6.6).
+    pub fn take_file_search_request(&mut self) -> Option<(u64, String)> {
+        self.files.take_request()
+    }
+
+    pub fn file_search_unavailable(&mut self, error: &str) {
+        self.files
+            .set_unavailable(format!("File search is unavailable: {error}"));
+    }
+
+    // ---- updates (§13) -----------------------------------------------------------
+
+    pub fn take_update_requests(&mut self) -> Vec<UpdateRequest> {
+        std::mem::take(&mut self.update_requests)
+    }
+
+    /// The installed update to start after this process exits.
+    pub fn take_relaunch(&mut self) -> Option<PathBuf> {
+        self.relaunch.take()
+    }
+
+    /// The host has no update worker.
+    pub fn updates_unavailable(&mut self, error: &str) {
+        self.update_status = UpdateStatus::Idle;
+        self.notices.push(Notice::new(
+            Severity::Warning,
+            op::UPDATE,
+            format!("Updates are unavailable: {error}"),
+        ));
+    }
+
+    fn check_for_updates(&mut self) {
+        if self.update_status == UpdateStatus::Idle {
+            self.update_status = UpdateStatus::Checking;
+            self.update_requests.push(UpdateRequest::Check);
+        }
+    }
+
+    fn on_update_checked(&mut self, manual: bool, outcome: CheckOutcome) {
+        if self.update_status == UpdateStatus::Checking {
+            self.update_status = UpdateStatus::Idle;
+        }
+        match outcome {
+            CheckOutcome::Available(update) => self.update = Some(update),
+            CheckOutcome::UpToDate => {
+                self.update = None;
+                if manual {
+                    self.notices.push(Notice::new(
+                        Severity::Info,
+                        op::UPDATE,
+                        format!(
+                            "smolcast {} is the latest version.",
+                            env!("CARGO_PKG_VERSION")
+                        ),
+                    ));
+                }
+            }
+            // An automatic check fails quietly and is retried later.
+            CheckOutcome::Failed(message) if manual => {
+                self.notices
+                    .push(Notice::new(Severity::Warning, op::UPDATE, message));
+            }
+            CheckOutcome::Failed(_) => {}
+        }
+    }
+
+    fn on_update_installed(&mut self, result: Result<PathBuf, String>) {
+        self.update_status = UpdateStatus::Idle;
+        match result {
+            Ok(exe) => {
+                self.relaunch = Some(exe);
+                self.quit_requested = true;
+            }
+            Err(message) => self
+                .notices
+                .push(Notice::new(Severity::Error, op::UPDATE, message)),
+        }
+    }
+
+    /// The update row under the root list: what is available, and buttons
+    /// to install it, read its notes, or skip it.
+    fn update_ui(&mut self, ui: &mut egui::Ui) {
+        if self.update_status == UpdateStatus::Checking {
+            ui.separator();
+            theme::busy_small(ui, "Checking for updates…");
+            return;
+        }
+        let Some(update) = &self.update else {
+            return;
+        };
+        let version = &update.version;
+        ui.separator();
+        if self.update_status == UpdateStatus::Installing {
+            theme::busy_small(ui, &format!("Downloading smolcast {version}…"));
+            return;
+        }
+        ui.label(
+            RichText::new(format!(
+                "smolcast {version} is available (you have {}).",
+                env!("CARGO_PKG_VERSION")
+            ))
+            .small(),
+        );
+        let (mut install, mut skip) = (false, false);
+        ui.horizontal(|ui| {
+            install = ui
+                .button("Install and Restart")
+                .on_hover_text("Downloads the release from GitHub and restarts smolcast")
+                .clicked();
+            if ui.button("What's New").clicked() {
+                crate::win::shell::open_uri(update.page_url.clone());
+            }
+            skip = ui.button("Skip This Version").clicked();
+        });
+        if install {
+            let update = update.clone();
+            self.update_status = UpdateStatus::Installing;
+            self.update_requests.push(UpdateRequest::Install(update));
+        } else if skip {
+            let version = version.clone();
+            self.update_requests.push(UpdateRequest::Skip(version));
+            self.update = None;
+        }
+    }
+
     // ---- clipboard and paste requests executed by the host ----------------------
 
     pub fn take_clipboard_commands(&mut self) -> Vec<ClipboardCommand> {
@@ -603,6 +778,7 @@ impl AppModel {
         self.clipboard.set_limits(history_limits(&cfg.settings));
         self.clipboard.set_setting(cfg.settings.clipboard_source);
         self.launcher.set_scripts(&cfg.scripts);
+        self.launcher.set_quicklinks(&cfg.quicklinks);
         self.launcher
             .set_search_engine(cfg.settings.search_engine, &cfg.settings.web_search_url);
         if cfg.settings.palette_size != self.config.settings.palette_size {
@@ -738,6 +914,11 @@ impl AppModel {
             }
             AppEvent::PasteFinished(outcome) => self.on_paste_finished(outcome),
             AppEvent::Notice(n) => self.notices.push(n),
+            AppEvent::FilesFound { generation, result } => {
+                self.files.on_results(generation, result);
+            }
+            AppEvent::UpdateChecked { manual, outcome } => self.on_update_checked(manual, outcome),
+            AppEvent::UpdateInstalled(result) => self.on_update_installed(result),
         }
     }
 
@@ -890,6 +1071,7 @@ impl AppModel {
             View::Snippets => self.snippets.open(),
             View::Settings => self.settings.open(),
             View::About => self.about.open(),
+            View::Files => self.files.open(),
         }
     }
 
@@ -948,6 +1130,8 @@ impl AppModel {
         self.visible = false;
         self.dismissing = true;
         self.recording = false;
+        // Kept state never includes a half-confirmed Shut Down (§6.5).
+        self.launcher.cancel_confirmation();
         // Escape before the receipt cancels injection; the clipboard content,
         // if already written, stays (§8.2).
         self.paste = PasteState::Idle;
@@ -983,7 +1167,7 @@ impl AppModel {
         match self.view {
             View::Settings | View::About => true,
             View::Snippets => self.snippets.is_editing(),
-            View::Root | View::Clipboard | View::Emoji => false,
+            View::Root | View::Clipboard | View::Emoji | View::Files => false,
         }
     }
 
@@ -992,7 +1176,12 @@ impl AppModel {
     fn view_escape(&mut self) -> bool {
         match self.view {
             View::Snippets => self.snippets.escape(),
-            View::Root | View::Clipboard | View::Emoji | View::Settings | View::About => false,
+            View::Root
+            | View::Clipboard
+            | View::Emoji
+            | View::Settings
+            | View::About
+            | View::Files => false,
         }
     }
 
@@ -1012,6 +1201,7 @@ impl AppModel {
             View::Snippets => Some(self.snippets.title()),
             View::Settings => Some(Command::Settings.title()),
             View::About => Some(Command::About.title()),
+            View::Files => Some(Command::SearchFiles.title()),
         };
         let paste_enabled = matches!(self.paste, PasteState::Idle);
         if self.dismissing {
@@ -1043,6 +1233,7 @@ impl AppModel {
                 View::Snippets => self.snippets.handle_keys(ui, paste_enabled),
                 View::Settings => self.settings.handle_keys(ui),
                 View::About => {}
+                View::Files => self.files.handle_keys(ui),
             }
         }
         let (nav_offset, nav_opacity) = self.navigation(ui.ctx());
@@ -1051,6 +1242,7 @@ impl AppModel {
             View::Clipboard => "Search clipboard history…",
             View::Emoji => "Search emoji…",
             View::Snippets => "Search snippets…",
+            View::Files => "Search file names…",
             // Forms have no search field.
             View::Settings | View::About => "",
         };
@@ -1082,6 +1274,15 @@ impl AppModel {
                         );
                         if std::mem::take(&mut self.focus_search) {
                             search.request_focus();
+                        }
+                        if std::mem::take(&mut self.search_cursor_to_end)
+                            && let Some(mut state) = egui::TextEdit::load_state(ui.ctx(), search.id)
+                        {
+                            let end = egui::text::CCursor::new(self.search.chars().count());
+                            state
+                                .cursor
+                                .set_char_range(Some(egui::text::CCursorRange::one(end)));
+                            state.store(ui.ctx(), search.id);
                         }
                     }
                 });
@@ -1168,6 +1369,16 @@ impl AppModel {
                     let ctx = ui.ctx().clone();
                     self.finish(&ctx);
                 }
+                if let Some(query) = self.launcher.take_open_files() {
+                    self.open_view(View::Files);
+                    self.search = query;
+                    self.search_cursor_to_end = true;
+                }
+                if let Some(query) = self.launcher.take_set_query() {
+                    self.search = query;
+                    self.focus_search = true;
+                    self.search_cursor_to_end = true;
+                }
                 if let Some(command) = self.launcher.take_open_command() {
                     match command {
                         Command::ClipboardHistory => self.open_view(View::Clipboard),
@@ -1179,9 +1390,17 @@ impl AppModel {
                         }
                         Command::Settings => self.open_view(View::Settings),
                         Command::About => self.open_view(View::About),
+                        Command::SearchFiles => self.open_view(View::Files),
+                        Command::CheckForUpdates => {
+                            self.search.clear();
+                            self.check_for_updates();
+                        }
                     }
                 }
                 theme::inset(ui, |ui| self.launcher.broken_shortcuts_ui(ui));
+                if self.search.is_empty() {
+                    theme::inset(ui, |ui| self.update_ui(ui));
+                }
             }
             View::Clipboard => {
                 self.clipboard.ui(ui, &self.search, paste_enabled);
@@ -1217,6 +1436,19 @@ impl AppModel {
                 }
             }
             View::About => theme::inset(ui, |ui| self.about.ui(ui)),
+            View::Files => {
+                self.files.ui(ui, &self.search);
+                // Opening a file is a completed action: the palette hides
+                // and the next summon starts fresh.
+                if let Some(action) = self.files.take_action() {
+                    match action {
+                        FileAction::Open(path) => crate::win::shell::open_uri(path),
+                        FileAction::Reveal(path) => crate::win::shell::reveal(path),
+                    }
+                    let ctx = ui.ctx().clone();
+                    self.finish(&ctx);
+                }
+            }
             View::Settings => {
                 let recording = self.recording && self.record_target == RecordTarget::Settings;
                 theme::inset(ui, |ui| {
@@ -1256,6 +1488,7 @@ impl AppModel {
             View::Snippets if self.snippets.is_editing() => Some(("Save", &["Ctrl", "S"])),
             View::Settings => Some(("Save", &["Ctrl", "S"])),
             View::Clipboard | View::Emoji | View::Snippets => Some(("Paste", &["Enter"])),
+            View::Files => Some(("Open", &["Enter"])),
             View::About => None,
         };
         // An action in flight replaces its key hint until it finishes.
