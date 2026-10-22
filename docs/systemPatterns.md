@@ -317,6 +317,7 @@ eframe/egui family versions identical.
 | `directories` | `6.0.0` | exact APPDATA/LOCALAPPDATA bases. |
 | `image` | `0.25.10` | `default-features = false`, `bmp`; DIB decode only. |
 | `unicode-segmentation` | `1.13.3` | generation/runtime validation of complete graphemes. |
+| `winresource` | `0.1.34` | build dependency only: icon and VERSIONINFO resources (decision 026). |
 
 Keep `fuzzy-matcher`, serde/TOML/JSON, `image`, and
 `unicode-segmentation` host-compatible because `src/lib.rs` uses them. Put eframe,
@@ -457,6 +458,8 @@ single-instance signal. On failure:
 - never rewrite a user-authored TOML file merely to save this fallback.
 
 The tray menu exists in milestone 1 with `Open palette`, `Refresh`, and `Quit`.
+The tray icon is the exe's icon resource 1 at the startup system DPI's small-icon size
+(decision 026).
 A left-button release on the icon also opens the palette. Refresh parses config
 off the UI thread and starts an app-index scan. A valid new summon key is
 registered before the old one is unregistered. On conflict, retain the old
