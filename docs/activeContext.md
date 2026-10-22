@@ -56,10 +56,6 @@ powrprof, propsys (all system DLLs).
   Icons / MDL2, loaded from `%WINDIR%\Fonts`), emoji only as fallback;
   Search Files rows show Explorer's icon per item.
 
-## Effect outbox (2026-10-22), on main, unverified on Windows
-
-Decision 025, plan §1.2: one ordered `Vec<Effect>` from `take_effects`.
-
 ## App icon and file properties (2026-10-22), on main, unverified
 
 Decision 026: new "s." logo (`assets/smolcast.svg` →
@@ -86,16 +82,18 @@ key caps with a lower lip. Not seen on Windows yet: check every view in both
 themes, at 100/150/200%, reduced motion and high contrast; divider crispness
 at 150%.
 
-## Desktop smoke test in CI (2026-10-22), PR #10, green on CI
+## Desktop smoke test in CI (2026-10-22), on main
 
-Decision 029: `tests/smoke.rs` launches the release exe on the
-`windows-latest` desktop and drives it with real `SendInput` (the user
-chose real input over the earlier in-app replay sketch): single instance,
-summon/Esc, calculator, clipboard history and emoji paste into a Win32 edit
-window, launching a Start Menu shortcut. Opt-in only
-(`SMOLCAST_SMOKE_DESKTOP=disposable` + `--ignored`). Runner needs Mesa (no
-GPU). If the step gets slow, make it a release `example`: `cargo test`
-rebuilds every dependency with unwinding.
+Decision 029; see techContext CI. If slow, make it a release `example`.
+
+## Website (2026-10-22), branch, not deployed
+
+Decision 030: `website/`, a static one-pager for Cloudflare Pages (`task
+web:*`), whose hero is a working recreation of the palette. Domain
+`smolcast.evanlee.engineer` is hard-coded in `public/` (canonical, OG, JSON-
+LD, sitemap, robots, llms.txt): grep and replace it on a move. To do: check
+touch scrolling on a real phone; create the Pages project and DNS, deploy,
+then point `Cargo.toml` `homepage` and the README at it.
 
 ## Pending Windows checks
 

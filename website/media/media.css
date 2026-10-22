@@ -1,0 +1,51 @@
+/* Render-only layout for the social card (scripts/render.mjs); not deployed. */
+
+body.card {
+  display: grid;
+  grid-template-columns: 470px 1fr;
+  align-items: center;
+  width: 1200px;
+  height: 630px;
+  margin: 0;
+  padding: 0 0 0 72px;
+  overflow: hidden;
+  background: radial-gradient(70% 80% at 85% 60%, rgb(255 255 255 / 5%), transparent 70%), var(--page);
+}
+
+.card-brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 0 0 40px;
+  font: 650 26px/1 var(--font-display);
+  letter-spacing: -0.01em;
+}
+
+.card-brand img {
+  border-radius: 10px;
+}
+
+.card h1 {
+  margin: 0;
+  font-size: 54px;
+  line-height: 1.04;
+}
+
+.card-lead {
+  margin: 22px 0 0;
+  color: var(--muted);
+  font-size: 21px;
+  line-height: 1.45;
+}
+
+.card-url {
+  margin: 36px 0 0;
+  color: var(--weak);
+  font-size: 17px;
+}
+
+.card-stage {
+  --rows: 2.3;
+  width: 640px;
+  margin: 0 0 0 48px;
+}
