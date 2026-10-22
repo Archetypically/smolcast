@@ -84,6 +84,12 @@ desktop screenshot. It only runs with `--ignored` and
 tests default to this level, not unit tests. CI passing is not runtime
 acceptance: each milestone's Windows smoke gate (§12) is.
 
+Action `uses:` references are full commit SHAs with a `# vX.Y.Z` comment, not
+floating tags. `.github/dependabot.yml` checks Cargo and GitHub Actions weekly
+and opens one pull request for every version update. Security updates stay on
+Dependabot's own schedule. The pinned toolchain (`rust-toolchain.toml`) is not
+a Dependabot ecosystem; bump it by hand.
+
 To release, bump `version` in `Cargo.toml`, merge, then push a matching tag
 (`git tag v0.2.0 && git push origin v0.2.0`). `.github/workflows/release.yml`
 builds the MSVC exe and publishes `smolcast-<version>-x86_64.exe` with its

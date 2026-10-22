@@ -1334,6 +1334,11 @@ builds the MSVC release, and publishes `smolcast-<version>-x86_64.exe` with a
 `.sha256` (`<hex>  <name>`, LF) through `gh release create --generate-notes`;
 a tag with `-` becomes a prerelease, which the updater never offers.
 
+Action `uses:` references are full commit SHAs. A trailing `# vX.Y.Z` comment
+records the release so Dependabot can move the pin. `.github/dependabot.yml`
+checks Cargo and GitHub Actions weekly and opens one pull request for every
+version update; security updates are not delayed into that pull request.
+
 ---
 
 ## 12. Milestones and observable gates
