@@ -1,6 +1,6 @@
 # smolcast
 
-**A small, fully native command palette for Windows 11. One hotkey for your apps, clipboard, emoji, scripts and snippets, in a single executable that sits idle until you need it.**
+**A small, fully native command palette for Windows 11. One hotkey for your apps, files, clipboard, emoji, scripts and snippets, in a single executable that sits idle until you need it.**
 
 smolcast is a Windows take on [Tinycast](https://github.com/abue-ammar/tinycast) and Raycast's core features, written in Rust with egui and the Windows APIs. No Electron, no WebView, no Node runtime, no extensions, no AI, and no telemetry: about a 7 MB exe that imports only Windows system DLLs and uses no CPU while hidden.
 
@@ -9,7 +9,10 @@ smolcast is a Windows take on [Tinycast](https://github.com/abue-ammar/tinycast)
 - **App launcher**: fuzzy search across Start Menu shortcuts and Store apps, ranked by how often and how recently you use them, with each program's real icon.
 - **Favorites**: pin up to 5 entries to the top of the list (Ctrl+Shift+F), and reorder them with Ctrl+Shift+Up/Down.
 - **Calculator and conversions**: type `2^10`, `40cm to in`, `100f to c` or `3 GiB as MB` and the answer appears inline. Enter pastes it. Length, weight, volume, temperature, time, data, area, speed and angles, all offline.
-- **Web search fallback**: when nothing matches, search Google, Bing, DuckDuckGo, Brave, Ecosia, Startpage, Kagi or your own URL in your default browser.
+- **Web search fallback**: every search ends with a row to search Google, Bing, DuckDuckGo, Brave, Ecosia, Startpage, Kagi or your own URL in your default browser.
+- **File search**: find files and folders by name through the Windows Search index, with no index of smolcast's own. Type **Search Files**, or pick the "Search Files for …" row at the end of any search. Enter opens, Ctrl+Enter shows the item in Explorer.
+- **System commands**: Lock Screen, Sleep, Restart, Shut Down, Sign Out, Empty Recycle Bin, Toggle Dark Mode, Toggle Mute and Turn Off Display. The ones that close your apps or delete files ask for a second Enter.
+- **Quicklinks**: open a URL, file or folder by name, or type a query after its keyword (`gh rust egui`).
 - **Clipboard history**: text and images, searchable, with a preview, pasted straight back into the app you came from. Uses Windows clipboard history (Win+V) when it is on, or smolcast's own, encrypted on disk.
 - **Emoji picker**: searchable grid of every Unicode 17.0 emoji, in color, pasted exactly.
 - **Scripts**: name a command in the config, run it from the palette or its own hotkey.
@@ -18,21 +21,22 @@ smolcast is a Windows take on [Tinycast](https://github.com/abue-ammar/tinycast)
 - **Lively, never slow**: the palette settles in, views slide, the selection glides, and nothing waits on an animation. Reduced motion follows Windows' Animation effects setting or your choice.
 - **Forgiving**: dismiss by accident and the palette comes back as you left it for 30 seconds.
 - **Tidy**: offers to move broken Start Menu shortcuts to the Recycle Bin.
+- **Self-updating**: checks for a new release once a day and installs it in place when you say so.
 
 ## Install
 
-There are no prebuilt releases yet. Build it from source (below), then put `smolcast.exe` anywhere and run it. Turn on **Start smolcast when you sign in** in its settings to keep it around.
+Download `smolcast-<version>-x86_64.exe` from the latest [release](https://github.com/Archetypically/smolcast/releases/latest), or build it from source (below). Put it in a folder you can write to, such as `%LOCALAPPDATA%\Programs\smolcast`, rename it `smolcast.exe` if you like, and run it. Turn on **Start smolcast when you sign in** in its settings to keep it around.
 
-smolcast runs as a normal user and needs no installer, admin rights, or runtime.
+smolcast runs as a normal user and needs no installer, admin rights, or runtime. Releases are not code-signed yet, so Windows SmartScreen may warn about the first download; updates installed from inside smolcast are checked against the release's SHA-256 checksum.
 
 ## Using it
 
 1. Press **Ctrl+Alt+Space** (change it in settings).
 2. Type to search; **Up/Down** to choose; **Enter** to open, paste, or run.
-3. Type `clipboard`, `emoji`, `snippets` or `settings` to open those views; **Esc** or **Backspace** on an empty search goes back.
+3. Type `clipboard`, `emoji`, `snippets`, `files` or `settings` to open those views; **Esc** or **Backspace** on an empty search goes back.
 4. Right-click any app to add it to your favorites.
 
-The footer always shows what Enter will do. The tray icon has Open, Refresh and Quit. **About smolcast** shows the version and credits.
+The footer always shows what Enter will do. The tray icon has Open, Refresh and Quit. **About smolcast** shows the version and credits, and **Check for Updates** asks for a new release right away.
 
 ## Configuration
 
@@ -42,6 +46,7 @@ Open **smolcast settings** from the palette, or edit `%APPDATA%\smolcast\config.
 | --- | --- | --- |
 | `summon_hotkey` | `control+alt+Space` | Global hotkey that opens the palette |
 | `start_at_login` | `false` | Start smolcast when you sign in |
+| `check_for_updates` | `true` | Check GitHub once a day for a new release |
 | `palette_size` | `medium` | `small`, `medium` or `large` window; larger shows more results |
 | `text_size` | `medium` | `small`, `medium` or `large` text |
 | `reduce_motion` | `system` | `system` (follow Windows' Animation effects), `on` (fades only, no sliding or zooming) or `off` |
@@ -54,7 +59,7 @@ Open **smolcast settings** from the palette, or edit `%APPDATA%\smolcast\config.
 | `clipboard_max_entries` | `100` | History length |
 | `clipboard_max_item_bytes` / `clipboard_max_total_bytes` | 8 MiB / 64 MiB | Size limits |
 
-Scripts and snippets live in the same file:
+Scripts, snippets and quicklinks live in the same file:
 
 ```toml
 [scripts.open-project]
@@ -68,13 +73,21 @@ hotkey = "control+alt+KeyP"   # optional
 name = "Email signature"
 keyword = ";sig"
 text = "Best,\nMe"
+
+[quicklinks.gh]
+name = "Search GitHub"
+url = "https://github.com/search?q={query}"   # type "gh rust egui"
+
+[quicklinks.downloads]
+name = "Downloads"
+url = 'C:\Users\me\Downloads'
 ```
 
-Scripts run exactly the interpreter and arguments you write: nothing is interpolated from your search.
+Scripts run exactly the interpreter and arguments you write: nothing is interpolated from your search. A quicklink's id is its keyword: type it, a space, then your query, and `{query}` in its URL is replaced (URL-encoded, or as typed for a folder path). Choose a quicklink without a query, or press Tab on it, to fill in its keyword.
 
 ## Privacy
 
-Nothing leaves your computer. smolcast has no network code except opening a web search in your browser when you choose one. Clipboard contents never go into logs, and smolcast's own clipboard history is encrypted for your Windows account. It honors apps that mark clipboard data as excluded from history, but it cannot detect every password.
+Your data stays on your computer. The only request smolcast makes on its own is a daily check of this project's GitHub releases (turn it off with `check_for_updates`); it sends nothing about you beyond smolcast's version in its user agent. Web searches and quicklinks open in your browser only when you choose them, and file search uses the Windows Search index on your PC. Clipboard contents never go into logs, and smolcast's own clipboard history is encrypted for your Windows account. It honors apps that mark clipboard data as excluded from history, but it cannot detect every password.
 
 ## Building from source
 
@@ -92,7 +105,7 @@ It also cross-compiles from Linux or WSL (`task up` there installs MinGW). See [
 Issues and pull requests are welcome. Start with [docs/activeContext.md](docs/activeContext.md) for the current state and [docs/systemPatterns.md](docs/systemPatterns.md) for the architecture. Design choices and their reasons are in [docs/decisions/](docs/decisions/), and the visual rules are in [docs/DESIGN.md](docs/DESIGN.md).
 
 > [!IMPORTANT]
-> smolcast stays small on purpose. Features that need an extension system, a browser engine, a background service, or the network are out of scope ([docs/projectbrief.md](docs/projectbrief.md)).
+> smolcast stays small on purpose. Features that need an extension system, a browser engine, a background service, or the network (beyond the update check) are out of scope ([docs/projectbrief.md](docs/projectbrief.md)).
 
 ## License
 

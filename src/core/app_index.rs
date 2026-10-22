@@ -18,7 +18,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::core::config::ScriptConfig;
+use crate::core::config::{QuicklinkConfig, ScriptConfig};
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
@@ -46,6 +46,10 @@ pub enum AppId {
     Script {
         id: String,
     },
+    /// A configured quicklink, by its config table id (§10.7).
+    Quicklink {
+        id: String,
+    },
 }
 
 /// Where an entry was enumerated. Declaration order is selection priority.
@@ -56,7 +60,7 @@ pub enum AppSource {
     AppsFolder,
     /// Built into smolcast; never deduplicated with enumerated apps.
     Builtin,
-    /// A `[scripts.<id>]` entry in config.toml.
+    /// A `[scripts.<id>]` or `[quicklinks.<id>]` entry in config.toml.
     Config,
 }
 
@@ -73,6 +77,12 @@ pub enum LaunchSpec {
     Command(Command),
     /// Spawns a configured script (§10.3).
     Script(ScriptSpec),
+    /// Runs a system action such as Lock Screen or Restart.
+    System(SystemAction),
+    /// Opens a URL, file or folder with the shell (§10.7). In the index it
+    /// holds the quicklink's template; a launch request holds the expanded
+    /// target.
+    Quicklink { target: String },
 }
 
 /// The exact process a script runs: the interpreter executable, its argument
@@ -111,6 +121,29 @@ pub fn script_entries(scripts: &BTreeMap<String, ScriptConfig>) -> Vec<IndexedAp
         .collect()
 }
 
+/// Root-list entries for configured quicklinks (§10.7). The id is the
+/// keyword that takes a query (`gh rust egui`), and an alias.
+pub fn quicklink_entries(quicklinks: &BTreeMap<String, QuicklinkConfig>) -> Vec<IndexedApp> {
+    quicklinks
+        .iter()
+        .map(|(id, link)| IndexedApp {
+            id: AppId::Quicklink { id: id.clone() },
+            display_name: link.name.clone(),
+            sort_name: link.name.to_lowercase(),
+            aliases: if id.eq_ignore_ascii_case(&link.name) {
+                Vec::new()
+            } else {
+                vec![id.clone()]
+            },
+            source: AppSource::Config,
+            launch: LaunchSpec::Quicklink {
+                target: link.url.clone(),
+            },
+            icon_key: String::new(),
+        })
+        .collect()
+}
+
 /// Built-in commands listed at the palette root (§5.4).
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Command {
@@ -122,16 +155,22 @@ pub enum Command {
     Settings,
     /// The version and credits.
     About,
+    /// Opens the file search view (§6.6).
+    SearchFiles,
+    /// Asks GitHub for a newer release now (§13).
+    CheckForUpdates,
 }
 
 impl Command {
-    pub const ALL: [Command; 6] = [
+    pub const ALL: [Command; 8] = [
         Command::ClipboardHistory,
         Command::Emoji,
         Command::Snippets,
         Command::CreateSnippet,
         Command::Settings,
         Command::About,
+        Command::SearchFiles,
+        Command::CheckForUpdates,
     ];
 
     pub fn title(self) -> &'static str {
@@ -142,6 +181,8 @@ impl Command {
             Command::CreateSnippet => "Create Snippet",
             Command::Settings => "smolcast settings",
             Command::About => "About smolcast",
+            Command::SearchFiles => "Search Files",
+            Command::CheckForUpdates => "Check for Updates",
         }
     }
 
@@ -149,6 +190,8 @@ impl Command {
     pub fn aliases(self) -> &'static [&'static str] {
         match self {
             Command::About => &["Credits"],
+            Command::SearchFiles => &["Find Files", "Documents"],
+            Command::CheckForUpdates => &["Update smolcast"],
             _ => &[],
         }
     }
@@ -162,6 +205,8 @@ impl Command {
             Command::CreateSnippet => "create-snippet",
             Command::Settings => "settings",
             Command::About => "about",
+            Command::SearchFiles => "search-files",
+            Command::CheckForUpdates => "check-for-updates",
         }
     }
 
@@ -172,20 +217,129 @@ impl Command {
     }
 }
 
-/// Root-list entries for every built-in command.
+/// System actions listed at the palette root. They run on a shell job like
+/// a launch; the ones that end the session or delete files ask for a second
+/// Enter first.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum SystemAction {
+    LockScreen,
+    Sleep,
+    Restart,
+    ShutDown,
+    SignOut,
+    EmptyRecycleBin,
+    /// Switches Windows between light and dark mode.
+    ToggleDarkMode,
+    ToggleMute,
+    TurnOffDisplay,
+}
+
+impl SystemAction {
+    pub const ALL: [SystemAction; 9] = [
+        SystemAction::LockScreen,
+        SystemAction::Sleep,
+        SystemAction::Restart,
+        SystemAction::ShutDown,
+        SystemAction::SignOut,
+        SystemAction::EmptyRecycleBin,
+        SystemAction::ToggleDarkMode,
+        SystemAction::ToggleMute,
+        SystemAction::TurnOffDisplay,
+    ];
+
+    pub fn title(self) -> &'static str {
+        match self {
+            SystemAction::LockScreen => "Lock Screen",
+            SystemAction::Sleep => "Sleep",
+            SystemAction::Restart => "Restart",
+            SystemAction::ShutDown => "Shut Down",
+            SystemAction::SignOut => "Sign Out",
+            SystemAction::EmptyRecycleBin => "Empty Recycle Bin",
+            SystemAction::ToggleDarkMode => "Toggle Dark Mode",
+            SystemAction::ToggleMute => "Toggle Mute",
+            SystemAction::TurnOffDisplay => "Turn Off Display",
+        }
+    }
+
+    pub fn aliases(self) -> &'static [&'static str] {
+        match self {
+            SystemAction::LockScreen => &["Lock Computer"],
+            SystemAction::Sleep => &["Suspend"],
+            SystemAction::Restart => &["Reboot"],
+            SystemAction::ShutDown => &["Power Off", "Turn Off Computer"],
+            SystemAction::SignOut => &["Log Out", "Log Off"],
+            SystemAction::EmptyRecycleBin => &["Empty Trash"],
+            SystemAction::ToggleDarkMode => &["Light Mode", "Appearance"],
+            SystemAction::ToggleMute => &["Mute", "Unmute", "Volume"],
+            SystemAction::TurnOffDisplay => &["Screen Off", "Monitor Off"],
+        }
+    }
+
+    /// Stable usage-state key.
+    pub fn key(self) -> &'static str {
+        match self {
+            SystemAction::LockScreen => "system-lock-screen",
+            SystemAction::Sleep => "system-sleep",
+            SystemAction::Restart => "system-restart",
+            SystemAction::ShutDown => "system-shut-down",
+            SystemAction::SignOut => "system-sign-out",
+            SystemAction::EmptyRecycleBin => "system-empty-recycle-bin",
+            SystemAction::ToggleDarkMode => "system-toggle-dark-mode",
+            SystemAction::ToggleMute => "system-toggle-mute",
+            SystemAction::TurnOffDisplay => "system-turn-off-display",
+        }
+    }
+
+    /// Whether a second Enter must confirm it: it closes every app or
+    /// deletes files for good.
+    pub fn confirms(self) -> bool {
+        matches!(
+            self,
+            SystemAction::Restart
+                | SystemAction::ShutDown
+                | SystemAction::SignOut
+                | SystemAction::EmptyRecycleBin
+        )
+    }
+
+    pub fn id(self) -> AppId {
+        AppId::Command {
+            name: self.key().into(),
+        }
+    }
+}
+
+/// Root-list entries for every built-in command and system action.
 pub fn builtin_commands() -> Vec<IndexedApp> {
-    Command::ALL
-        .into_iter()
-        .map(|command| IndexedApp {
-            id: command.id(),
-            display_name: command.title().into(),
-            sort_name: command.title().to_lowercase(),
-            aliases: command.aliases().iter().map(|&a| a.to_owned()).collect(),
-            source: AppSource::Builtin,
-            launch: LaunchSpec::Command(command),
-            icon_key: String::new(),
-        })
-        .collect()
+    let commands = Command::ALL.into_iter().map(|command| {
+        builtin_entry(
+            command.id(),
+            command.title(),
+            command.aliases(),
+            LaunchSpec::Command(command),
+        )
+    });
+    let actions = SystemAction::ALL.into_iter().map(|action| {
+        builtin_entry(
+            action.id(),
+            action.title(),
+            action.aliases(),
+            LaunchSpec::System(action),
+        )
+    });
+    commands.chain(actions).collect()
+}
+
+fn builtin_entry(id: AppId, title: &str, aliases: &[&str], launch: LaunchSpec) -> IndexedApp {
+    IndexedApp {
+        id,
+        display_name: title.into(),
+        sort_name: title.to_lowercase(),
+        aliases: aliases.iter().map(|&a| a.to_owned()).collect(),
+        source: AppSource::Builtin,
+        launch,
+        icon_key: String::new(),
+    }
 }
 
 /// One enumerated row before deduplication.
@@ -354,6 +508,8 @@ fn launch_order_key(launch: &LaunchSpec) -> String {
         LaunchSpec::Packaged { aumid } => aumid.clone(),
         LaunchSpec::Command(command) => command.key().into(),
         LaunchSpec::Script(spec) => spec.interpreter.clone(),
+        LaunchSpec::System(action) => action.key().into(),
+        LaunchSpec::Quicklink { target } => target.clone(),
     }
 }
 
@@ -602,15 +758,67 @@ mod tests {
     #[test]
     fn builtin_commands_have_stable_ids() {
         let commands = builtin_commands();
-        assert_eq!(commands.len(), Command::ALL.len());
+        assert_eq!(commands.len(), Command::ALL.len() + SystemAction::ALL.len());
         assert_eq!(
             serde_json::to_string(&commands[0].id).unwrap(),
             r#"{"kind":"command","name":"clipboard-history"}"#
         );
         assert_eq!(commands[0].source, AppSource::Builtin);
-        let about = commands.last().unwrap();
+        let about = commands
+            .iter()
+            .find(|c| c.id == Command::About.id())
+            .unwrap();
         assert_eq!(about.display_name, "About smolcast");
         assert_eq!(about.aliases, vec!["Credits"]);
+        // Usage keys never collide between commands and system actions.
+        let ids: BTreeSet<&AppId> = commands.iter().map(|c| &c.id).collect();
+        assert_eq!(ids.len(), commands.len());
+        let lock = commands
+            .iter()
+            .find(|c| c.launch == LaunchSpec::System(SystemAction::LockScreen))
+            .unwrap();
+        assert_eq!(
+            serde_json::to_string(&lock.id).unwrap(),
+            r#"{"kind":"command","name":"system-lock-screen"}"#
+        );
+    }
+
+    #[test]
+    fn only_session_ending_and_deleting_actions_confirm() {
+        let confirming: Vec<SystemAction> = SystemAction::ALL
+            .into_iter()
+            .filter(|a| a.confirms())
+            .collect();
+        assert_eq!(
+            confirming,
+            [
+                SystemAction::Restart,
+                SystemAction::ShutDown,
+                SystemAction::SignOut,
+                SystemAction::EmptyRecycleBin
+            ]
+        );
+    }
+
+    #[test]
+    fn quicklink_entries_use_the_id_as_an_alias() {
+        let mut links = BTreeMap::new();
+        links.insert(
+            "gh".to_string(),
+            QuicklinkConfig {
+                name: "Search GitHub".into(),
+                url: "https://github.com/search?q={query}".into(),
+            },
+        );
+        let entries = quicklink_entries(&links);
+        assert_eq!(entries[0].id, AppId::Quicklink { id: "gh".into() });
+        assert_eq!(entries[0].aliases, vec!["gh"]);
+        assert_eq!(
+            entries[0].launch,
+            LaunchSpec::Quicklink {
+                target: "https://github.com/search?q={query}".into()
+            }
+        );
     }
 
     #[test]

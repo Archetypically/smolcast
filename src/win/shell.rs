@@ -63,7 +63,7 @@ pub struct LaunchError {
 }
 
 impl LaunchError {
-    fn from_win(operation: &'static str, e: &windows::core::Error) -> Self {
+    pub(crate) fn from_win(operation: &'static str, e: &windows::core::Error) -> Self {
         let (message, code) = win_error_parts(e);
         Self {
             operation,
@@ -98,10 +98,10 @@ pub struct BrokenShortcut {
 }
 
 /// STA membership for the current thread; uninitializes on drop.
-struct ComApartment;
+pub(crate) struct ComApartment;
 
 impl ComApartment {
-    fn enter() -> Result<Self, LaunchError> {
+    pub(crate) fn enter() -> Result<Self, LaunchError> {
         unsafe { CoInitializeEx(None, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE) }
             .ok()
             .map_err(|e| LaunchError::from_win("initialize COM", &e))?;
@@ -128,7 +128,7 @@ fn shell_execute(file: &[u16]) -> windows::core::Result<()> {
 }
 
 /// Take ownership of a COM-allocated string.
-fn take_pwstr(p: PWSTR) -> String {
+pub(crate) fn take_pwstr(p: PWSTR) -> String {
     if p.is_null() {
         return String::new();
     }
@@ -453,6 +453,10 @@ fn launch(spec: &LaunchSpec) -> Result<(), LaunchError> {
             shell_execute(&file).map_err(|e| LaunchError::from_win("launch shortcut", &e))
         }
         LaunchSpec::Script(script) => crate::win::process::spawn_script(script),
+        LaunchSpec::System(action) => crate::win::system::run(*action),
+        LaunchSpec::Quicklink { target } => {
+            shell_execute(&wide(target)).map_err(|e| LaunchError::from_win("open quicklink", &e))
+        }
         LaunchSpec::Command(_) => Err(LaunchError {
             operation: "launch",
             message: "built-in commands open in the palette".into(),
@@ -608,6 +612,16 @@ fn resolve_executable(name: &str) -> Option<Vec<u16>> {
     }
     buffer.truncate(len + 1); // keep the terminator `PCWSTR` needs
     Some(buffer)
+}
+
+/// Show a file or folder selected in a new Explorer window.
+pub fn reveal(path: String) {
+    use std::os::windows::process::CommandExt;
+    // Explorer parses its own command line: the path is quoted as one
+    // `/select,` argument, and paths cannot contain quotes.
+    let _ = std::process::Command::new("explorer.exe")
+        .raw_arg(format!("/select,\"{path}\""))
+        .spawn();
 }
 
 /// Open a URI (`ms-settings:clipboard`, or a web search in the default

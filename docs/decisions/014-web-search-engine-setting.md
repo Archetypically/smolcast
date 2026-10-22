@@ -2,9 +2,10 @@
 id: 014
 slug: web-search-engine-setting
 author: archetypically
-status: resolved
+status: superseded
 created: 2026-10-21
-updated: 2026-10-21
+updated: 2026-10-22
+superseded_by: 022
 tags: [launcher, settings]
 ---
 

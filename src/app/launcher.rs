@@ -16,12 +16,14 @@ use egui::{
 use std::collections::BTreeMap;
 
 use crate::core::app_index::{
-    AppId, Command, IndexedApp, LaunchSpec, builtin_commands, script_entries,
+    AppId, Command, IndexedApp, LaunchSpec, SystemAction, builtin_commands, quicklink_entries,
+    script_entries,
 };
 use crate::core::calc::{self, Answer};
-use crate::core::config::{PaletteSize, ScriptConfig, SearchEngine};
+use crate::core::config::{PaletteSize, QuicklinkConfig, ScriptConfig, SearchEngine};
 use crate::core::favorites::{Favorites, MAX_FAVORITES};
 use crate::core::matcher::{Ranked, rank};
+use crate::core::quicklink;
 use crate::core::usage::Usage;
 use crate::core::web;
 use crate::win::icon::IconRgba;
@@ -39,6 +41,15 @@ const ICON_CACHE_CAP: usize = 128;
 const MEDIUM_ROWS: usize = 7;
 /// Row icon edge in points.
 const ICON_POINTS: f32 = 22.0;
+
+/// A row below the ranked entries that hands the query to something else.
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum Fallback {
+    /// Search the web for it.
+    Web(String),
+    /// Search file names for it (§6.6).
+    Files(String),
+}
 
 /// A launch the host should start.
 pub struct LaunchRequest {
@@ -107,9 +118,11 @@ pub struct Launcher {
     /// True once any scan delivered apps; before that only commands and
     /// scripts are listed.
     indexed: bool,
-    /// Latest scan result; `apps` is this plus commands and scripts.
+    /// Latest scan result; `apps` is this plus commands, scripts and
+    /// quicklinks.
     scanned: Vec<IndexedApp>,
     scripts: Vec<IndexedApp>,
+    quicklinks: Vec<IndexedApp>,
     ranked: Vec<Ranked>,
     /// Query the current `ranked` was computed for; `None` forces a re-rank.
     ranked_for: Option<String>,
@@ -161,11 +174,20 @@ pub struct Launcher {
     /// The web search fallback's engine, and the template for a custom one.
     search_engine: SearchEngine,
     custom_search_url: String,
-    /// The query offered as a web search: set only when nothing else
-    /// matches, so its row is the only one.
-    web_query: Option<String>,
+    /// Rows after the ranked entries: a web search and a file search for
+    /// any query (decision 022).
+    fallbacks: Vec<Fallback>,
     /// A search URL the user chose; the model opens it in the browser.
     open_url: Option<String>,
+    /// A file search the user chose; the model opens the Files view on it.
+    open_files: Option<String>,
+    /// The quicklink typed as a keyword (`gh rust`): its index in `apps`
+    /// and the query after it. It leads the ranked entries.
+    keyword_query: Option<(usize, String)>,
+    /// A new root query for the model to put in the search field.
+    set_query: Option<String>,
+    /// The system action waiting for a second Enter (`SystemAction::confirms`).
+    confirming: Option<AppId>,
 }
 
 impl Launcher {
@@ -174,8 +196,10 @@ impl Launcher {
         usage: Stored<Usage>,
         favorites: Stored<Favorites>,
         scripts: &BTreeMap<String, ScriptConfig>,
+        quicklinks: &BTreeMap<String, QuicklinkConfig>,
     ) -> Self {
         let scripts = script_entries(scripts);
+        let quicklinks = quicklink_entries(quicklinks);
         let mut launcher = Self {
             apps: Vec::new(),
             usage_writable: usage.writable,
@@ -187,6 +211,7 @@ impl Launcher {
             indexed: false,
             scanned: Vec::new(),
             scripts,
+            quicklinks,
             usage: usage.value,
             usage_generation: 0,
             ranked: Vec::new(),
@@ -214,10 +239,15 @@ impl Launcher {
             paste_answer: None,
             search_engine: SearchEngine::default(),
             custom_search_url: web::DEFAULT_SEARCH_URL.to_owned(),
-            web_query: None,
+            fallbacks: Vec::new(),
             open_url: None,
+            open_files: None,
+            keyword_query: None,
+            set_query: None,
+            confirming: None,
         };
-        // No scan has run yet, so the list is just commands and scripts.
+        // No scan has run yet, so the list is just commands, scripts and
+        // quicklinks.
         launcher.rebuild();
         launcher.request_scan();
         launcher
@@ -384,6 +414,17 @@ impl Launcher {
         self.open_url.take()
     }
 
+    /// A file search the user chose from the fallback row.
+    pub fn take_open_files(&mut self) -> Option<String> {
+        self.open_files.take()
+    }
+
+    /// A query to put in the search field: a quicklink's keyword, ready
+    /// for its query.
+    pub fn take_set_query(&mut self) -> Option<String> {
+        self.set_query.take()
+    }
+
     pub fn set_palette_size(&mut self, size: PaletteSize) {
         self.rows = theme::visible_rows(MEDIUM_ROWS, size);
     }
@@ -411,10 +452,17 @@ impl Launcher {
         self.rebuild();
     }
 
+    /// Replace the configured quicklinks after a config reload (§10.7).
+    pub fn set_quicklinks(&mut self, quicklinks: &BTreeMap<String, QuicklinkConfig>) {
+        self.quicklinks = quicklink_entries(quicklinks);
+        self.rebuild();
+    }
+
     fn rebuild(&mut self) {
         self.apps = self.scanned.clone();
         self.apps.extend(builtin_commands());
         self.apps.extend(self.scripts.iter().cloned());
+        self.apps.extend(self.quicklinks.iter().cloned());
         self.ranked_for = None;
     }
 
@@ -461,11 +509,17 @@ impl Launcher {
         ));
     }
 
+    /// Forget a system action waiting for its second Enter.
+    pub fn cancel_confirmation(&mut self) {
+        self.confirming = None;
+    }
+
     /// Selection returns to the top on every show.
     pub fn reset_view(&mut self) {
         self.selected = 0;
         self.first_row = 0;
         self.ranked_for = None;
+        self.confirming = None;
     }
 
     // ---- host requests ----------------------------------------------------------
@@ -600,13 +654,35 @@ impl Launcher {
     // ---- favorites --------------------------------------------------------------
 
     /// The app on list row `row`, if that row is an app (not the calculator
-    /// card or the web search).
+    /// card or a fallback).
     fn app_at(&self, row: usize) -> Option<&IndexedApp> {
-        if self.web_query.is_some() {
-            return None;
-        }
         let ranked = self.ranked.get(row.checked_sub(self.answer_rows())?)?;
         self.apps.get(ranked.index)
+    }
+
+    /// The fallback on list row `row`, if that row is one.
+    fn fallback_at(&self, row: usize) -> Option<&Fallback> {
+        let index = row.checked_sub(self.answer_rows() + self.ranked.len())?;
+        self.fallbacks.get(index)
+    }
+
+    /// The query typed after the keyword of the quicklink at `apps[index]`.
+    fn keyword_query_for(&self, index: usize) -> Option<&str> {
+        self.keyword_query
+            .as_ref()
+            .filter(|(at, _)| *at == index)
+            .map(|(_, query)| query.as_str())
+    }
+
+    /// Whether the row is a quicklink that still needs its query typed.
+    fn needs_query(&self, row: usize) -> bool {
+        let Some(ranked) = self.ranked.get(row.wrapping_sub(self.answer_rows())) else {
+            return false;
+        };
+        matches!(
+            &self.apps[ranked.index].launch,
+            LaunchSpec::Quicklink { target } if quicklink::takes_query(target)
+        ) && self.keyword_query_for(ranked.index).is_none()
     }
 
     /// Favorites whose app is in the index right now.
@@ -676,14 +752,24 @@ impl Launcher {
         if self.answer.is_some() && self.selected == 0 {
             return "Paste Answer";
         }
-        if self.web_query.is_some() {
-            return "Search Web";
+        match self.fallback_at(self.selected) {
+            Some(Fallback::Web(_)) => return "Search Web",
+            Some(Fallback::Files(_)) => return "Search Files",
+            None => {}
         }
-        match self.app_at(self.selected).map(|a| &a.launch) {
-            Some(LaunchSpec::Command(_)) => "Open Command",
-            Some(LaunchSpec::Script(_)) => "Run Script",
-            Some(_) => "Open Application",
-            None => "Open",
+        if self.needs_query(self.selected) {
+            return "Type Query";
+        }
+        let Some(app) = self.app_at(self.selected) else {
+            return "Open";
+        };
+        match &app.launch {
+            LaunchSpec::Command(_) => "Open Command",
+            LaunchSpec::Script(_) => "Run Script",
+            LaunchSpec::System(_) if self.confirming.as_ref() == Some(&app.id) => "Confirm",
+            LaunchSpec::System(_) => "Run Command",
+            LaunchSpec::Quicklink { .. } => "Open Quicklink",
+            LaunchSpec::Shortcut { .. } | LaunchSpec::Packaged { .. } => "Open Application",
         }
     }
 
@@ -700,7 +786,16 @@ impl Launcher {
         });
         let count = self.row_count();
         list::step_selection(&mut self.selected, count, down, up);
+        if down || up {
+            self.confirming = None;
+        }
         if enter {
+            self.commit(self.selected);
+        }
+        // Tab completes a quicklink's keyword so its query can be typed.
+        if self.needs_query(self.selected)
+            && ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Tab))
+        {
             self.commit(self.selected);
         }
         // Raycast's favorite shortcuts, with Ctrl for Cmd.
@@ -728,7 +823,12 @@ impl Launcher {
     }
 
     fn row_count(&self) -> usize {
-        self.answer_rows() + self.ranked.len() + usize::from(self.web_query.is_some())
+        self.answer_rows() + self.list_len()
+    }
+
+    /// Rows in the scrolling list: the ranked entries, then the fallbacks.
+    fn list_len(&self) -> usize {
+        self.ranked.len() + self.fallbacks.len()
     }
 
     /// Rank apps and evaluate the calculator for `query`, once per change.
@@ -740,6 +840,7 @@ impl Launcher {
                 // The query changed (not just the index): start from the top.
                 self.selected = 0;
                 self.first_row = 0;
+                self.confirming = None;
             }
             self.rank_now(query);
         }
@@ -765,14 +866,42 @@ impl Launcher {
             leading.append(&mut self.ranked);
             self.ranked = leading;
         }
+        // A quicklink's keyword followed by a query (`gh rust egui`) puts
+        // that quicklink first, ready to open with the query.
+        self.keyword_query = quicklink::split_keyword(trimmed).and_then(|(keyword, rest)| {
+            let index = self.apps.iter().position(|app| {
+                matches!(&app.id, AppId::Quicklink { id } if id.eq_ignore_ascii_case(keyword))
+                    && matches!(&app.launch, LaunchSpec::Quicklink { target }
+                        if quicklink::takes_query(target))
+            })?;
+            Some((index, rest.to_owned()))
+        });
+        if let Some((index, _)) = &self.keyword_query {
+            let ranked = match self.ranked.iter().position(|r| r.index == *index) {
+                Some(at) => self.ranked.remove(at),
+                None => Ranked {
+                    index: *index,
+                    fuzzy_score: 0,
+                    combined_score: 0,
+                },
+            };
+            self.ranked.insert(0, ranked);
+        }
         self.answer = calc::evaluate(query);
-        // Nothing matched: offer the query to the web, like Raycast's
-        // fallback commands. Not during the first scan, when the app may
+        // Fallbacks, like Raycast's: the web and file names, after the
+        // results of any query that is not a calculation or a quicklink's
+        // (decision 022). Not during the first scan, when the app may
         // simply not be indexed yet.
         let first_scan = !self.indexed && self.scan_active;
-        self.web_query =
-            (self.ranked.is_empty() && self.answer.is_none() && !trimmed.is_empty() && !first_scan)
-                .then(|| trimmed.to_owned());
+        self.fallbacks.clear();
+        if !trimmed.is_empty()
+            && !first_scan
+            && self.answer.is_none()
+            && self.keyword_query.is_none()
+        {
+            self.fallbacks.push(Fallback::Web(trimmed.to_owned()));
+            self.fallbacks.push(Fallback::Files(trimmed.to_owned()));
+        }
         self.ranked_for = Some(query.to_owned());
     }
 
@@ -795,59 +924,46 @@ impl Launcher {
             theme::inset(ui, |ui| ui.label(RichText::new(text).weak()));
             return;
         }
-        if let Some(query) = &self.web_query {
-            let engine = self.search_engine;
-            let leading = |ui: &mut egui::Ui| {
-                theme::engine_badge(ui, engine, ICON_POINTS);
-            };
-            let trailing = |ui: &mut egui::Ui| {
-                ui.label(RichText::new("Web Search").weak().small());
-            };
-            let name = match engine {
-                SearchEngine::Custom => format!("Search the web for \u{201C}{query}\u{201D}"),
-                _ => format!("Search {} for \u{201C}{query}\u{201D}", engine.name()),
-            };
-            if list::row(ui, true, &name, leading, trailing).clicked() {
-                self.commit(0);
-            }
-            return;
-        }
 
-        // The answer card stays put above the apps, which scroll in the rows
-        // the card and the "Results" header leave.
+        // The answer card stays put above the list, which scrolls in the
+        // rows the card and the "Results" header leave.
         let offset = self.answer_rows();
+        let list_len = self.list_len();
         // Favorites and the other suggestions are split by a "Suggestions"
         // header, which takes one row.
         let split = self.favorite_rows > 0 && self.ranked.len() > self.favorite_rows;
-        let app_rows = if offset == 1 {
+        // Fallbacks after results sit under their own header, which also
+        // takes a row. With no results they are the results: no header.
+        let fallback_header = !self.ranked.is_empty() && !self.fallbacks.is_empty();
+        let list_rows = if offset == 1 {
             self.rows.saturating_sub(CARD_ROWS).max(1)
-        } else if split {
+        } else if split || fallback_header {
             self.rows.saturating_sub(1).max(1)
         } else {
             self.rows
         };
         let step = list::wheel_rows(ui, theme::ROW_STRIDE, &mut self.wheel);
         if self.selected >= offset {
-            let app = list::scroll_window(
+            let row = list::scroll_window(
                 &mut self.first_row,
                 self.selected - offset,
-                self.ranked.len(),
-                app_rows,
+                list_len,
+                list_rows,
                 step,
             );
-            self.selected = app + offset;
-            list::keep_visible(self.selected - offset, &mut self.first_row, app_rows);
+            self.selected = row + offset;
+            list::keep_visible(self.selected - offset, &mut self.first_row, list_rows);
         } else {
-            // The calculator card stays selected; only the apps scroll.
+            // The calculator card stays selected; only the list scrolls.
             list::scroll_window(
                 &mut self.first_row,
                 self.selected,
-                self.ranked.len(),
-                app_rows,
+                list_len,
+                list_rows,
                 step,
             );
         }
-        let end = (self.first_row + app_rows).min(self.ranked.len());
+        let end = (self.first_row + list_rows).min(list_len);
         let icon_px = (ICON_POINTS * ui.ctx().pixels_per_point()).round() as u32;
         self.icons.set_edge(icon_px);
 
@@ -856,7 +972,7 @@ impl Launcher {
             if answer_card(ui, answer, self.selected == 0).clicked() {
                 clicked = Some(0);
             }
-            if !self.ranked.is_empty() {
+            if list_len > 0 {
                 theme::section_header(ui, "Results", None);
             }
         }
@@ -865,8 +981,18 @@ impl Launcher {
             if split && row - offset == self.favorite_rows {
                 theme::section_header(ui, "Suggestions", None);
             }
-            let app = &self.apps[self.ranked[row - offset].index];
+            if fallback_header && row - offset == self.ranked.len() {
+                theme::section_header(ui, &fallback_title(query), None);
+            }
             let selected = row == self.selected;
+            if let Some(fallback) = self.fallback_at(row) {
+                if self.fallback_row(ui, fallback, selected).clicked() {
+                    clicked = Some(row);
+                }
+                continue;
+            }
+            let index = self.ranked[row - offset].index;
+            let app = &self.apps[index];
             let favorite = self.favorites.contains(&app.id);
             let in_favorites = row - offset < self.favorite_rows;
             let icon = self.icons.textures.get(&app.id).cloned();
@@ -888,6 +1014,7 @@ impl Launcher {
                 .launch_pending
                 .as_ref()
                 .is_some_and(|(id, _)| *id == app.id);
+            let confirming = self.confirming.as_ref() == Some(&app.id);
             let leading = |ui: &mut egui::Ui| {
                 let size = Vec2::splat(ICON_POINTS);
                 match (&icon, &app.launch) {
@@ -913,6 +1040,12 @@ impl Launcher {
                     (None, LaunchSpec::Command(command)) => {
                         ui.add_sized(size, egui::Label::new(command_glyph(*command)));
                     }
+                    (None, LaunchSpec::System(action)) => {
+                        ui.add_sized(size, egui::Label::new(system_glyph(*action)));
+                    }
+                    (None, LaunchSpec::Quicklink { .. }) => {
+                        ui.add_sized(size, egui::Label::new("🔗"));
+                    }
                     (None, LaunchSpec::Script(_)) => {
                         ui.add_sized(size, egui::Label::new("▶"));
                     }
@@ -922,18 +1055,26 @@ impl Launcher {
                 }
             };
             // The right column is the entry type (§5.4); while searching, a
-            // favorite says so, since it is not in its own section then.
+            // favorite says so, since it is not in its own section then. A
+            // system action waiting for its second Enter says that instead.
             let kind = if launching {
-                "Launching…".to_owned()
+                RichText::new("Launching…").weak()
+            } else if confirming {
+                RichText::new("Press Enter again to confirm").color(theme::WARNING)
             } else if favorite && self.favorite_rows == 0 {
-                format!("Favorite · {}", kind_label(&app.launch))
+                RichText::new(format!("Favorite · {}", kind_label(&app.launch))).weak()
             } else {
-                kind_label(&app.launch).to_owned()
+                RichText::new(kind_label(&app.launch)).weak()
             };
             let trailing = |ui: &mut egui::Ui| {
-                ui.label(RichText::new(kind).weak().small());
+                ui.label(kind.small());
             };
-            let response = list::row(ui, selected, &app.display_name, leading, trailing);
+            // A quicklink typed as a keyword shows the query it will open.
+            let name = match self.keyword_query_for(index) {
+                Some(query) => format!("{} \u{201C}{query}\u{201D}", app.display_name),
+                None => app.display_name.clone(),
+            };
+            let response = list::row(ui, selected, &name, leading, trailing);
             if response.clicked() {
                 clicked = Some(row);
             }
@@ -970,9 +1111,46 @@ impl Launcher {
                 FavoriteAction::Down => self.move_favorite(row, false),
             }
         } else if let Some(row) = clicked {
+            if row != self.selected {
+                self.confirming = None;
+            }
             self.selected = row;
             self.commit(row);
         }
+    }
+
+    /// A web or file search row for the typed query.
+    fn fallback_row(
+        &self,
+        ui: &mut egui::Ui,
+        fallback: &Fallback,
+        selected: bool,
+    ) -> egui::Response {
+        let (name, kind) = match fallback {
+            Fallback::Web(query) => {
+                let name = match self.search_engine {
+                    SearchEngine::Custom => format!("Search the web for \u{201C}{query}\u{201D}"),
+                    engine => format!("Search {} for \u{201C}{query}\u{201D}", engine.name()),
+                };
+                (name, "Web Search")
+            }
+            Fallback::Files(query) => {
+                (format!("Search Files for \u{201C}{query}\u{201D}"), "Files")
+            }
+        };
+        let engine = self.search_engine;
+        let leading = |ui: &mut egui::Ui| match fallback {
+            Fallback::Web(_) => {
+                theme::engine_badge(ui, engine, ICON_POINTS);
+            }
+            Fallback::Files(_) => {
+                ui.add_sized(Vec2::splat(ICON_POINTS), egui::Label::new("🔍"));
+            }
+        };
+        let trailing = |ui: &mut egui::Ui| {
+            ui.label(RichText::new(kind).weak().small());
+        };
+        list::row(ui, selected, &name, leading, trailing)
     }
 
     fn commit(&mut self, row: usize) {
@@ -985,24 +1163,69 @@ impl Launcher {
             self.paste_answer = Some(answer.result.clone());
             return;
         }
-        if let Some(query) = &self.web_query {
-            let template = self.search_engine.template_or(&self.custom_search_url);
-            self.open_url = Some(web::search_url(template, query));
-            return;
+        match self.fallback_at(row) {
+            Some(Fallback::Web(query)) => {
+                let template = self.search_engine.template_or(&self.custom_search_url);
+                self.open_url = Some(web::search_url(template, query));
+                return;
+            }
+            Some(Fallback::Files(query)) => {
+                self.open_files = Some(query.clone());
+                return;
+            }
+            None => {}
         }
-        let Some(app) = self.app_at(row) else {
+        let Some(ranked) = self.ranked.get(row.wrapping_sub(self.answer_rows())) else {
             return;
         };
-        let (app_id, spec) = (app.id.clone(), app.launch.clone());
-        if let LaunchSpec::Command(command) = spec {
-            // Opening a command view counts as a use for ranking.
-            self.open_command = Some(command);
-            self.record_usage(&app_id);
-            return;
+        let index = ranked.index;
+        let app = &self.apps[index];
+        let (app_id, mut spec) = (app.id.clone(), app.launch.clone());
+        match &spec {
+            LaunchSpec::Command(command) => {
+                // Opening a command view counts as a use for ranking.
+                self.open_command = Some(*command);
+                self.record_usage(&app_id);
+                return;
+            }
+            LaunchSpec::System(action)
+                if action.confirms() && self.confirming.as_ref() != Some(&app_id) =>
+            {
+                self.confirming = Some(app_id);
+                return;
+            }
+            LaunchSpec::Quicklink { target } if quicklink::takes_query(target) => {
+                let Some(query) = self.keyword_query_for(index) else {
+                    // Put the keyword in the search field; the query comes next.
+                    if let AppId::Quicklink { id } = &app_id {
+                        self.set_query = Some(format!("{id} "));
+                    }
+                    return;
+                };
+                spec = LaunchSpec::Quicklink {
+                    target: quicklink::expand(target, query),
+                };
+            }
+            _ => {}
         }
+        self.confirming = None;
         self.launch_pending = Some((app_id.clone(), Instant::now()));
         self.launch_request = Some(LaunchRequest { app_id, spec });
     }
+}
+
+/// The fallback section's header: `Search for "query"`, the query cut
+/// with "…" so the header stays one line.
+fn fallback_title(query: &str) -> String {
+    const MAX_CHARS: usize = 40;
+    let query = query.trim();
+    let shown: String = query.chars().take(MAX_CHARS).collect();
+    let ellipsis = if query.chars().count() > MAX_CHARS {
+        "…"
+    } else {
+        ""
+    };
+    format!("Search for \u{201C}{shown}{ellipsis}\u{201D}")
 }
 
 /// A favorites change chosen from a row's context menu.
@@ -1097,6 +1320,8 @@ fn kind_label(launch: &LaunchSpec) -> &'static str {
         LaunchSpec::Shortcut { .. } | LaunchSpec::Packaged { .. } => "Application",
         LaunchSpec::Command(_) => "Command",
         LaunchSpec::Script(_) => "Script",
+        LaunchSpec::System(_) => "System",
+        LaunchSpec::Quicklink { .. } => "Quicklink",
     }
 }
 
@@ -1108,5 +1333,21 @@ fn command_glyph(command: Command) -> &'static str {
         Command::CreateSnippet => "✏",
         Command::Settings => "⚙",
         Command::About => "ℹ",
+        Command::SearchFiles => "🔍",
+        Command::CheckForUpdates => "🔄",
+    }
+}
+
+fn system_glyph(action: SystemAction) -> &'static str {
+    match action {
+        SystemAction::LockScreen => "🔒",
+        SystemAction::Sleep => "💤",
+        SystemAction::Restart => "🔃",
+        SystemAction::ShutDown => "🔌",
+        SystemAction::SignOut => "🚪",
+        SystemAction::EmptyRecycleBin => "🗑",
+        SystemAction::ToggleDarkMode => "🌗",
+        SystemAction::ToggleMute => "🔇",
+        SystemAction::TurnOffDisplay => "🖥",
     }
 }
