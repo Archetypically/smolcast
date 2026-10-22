@@ -12,8 +12,8 @@ This file is the source of truth for scope. Architecture contracts are in
 
 Shipped or in verification:
 
-- **App launcher**: fuzzy search across installed apps (Start Menu shortcuts
-  and packaged apps), usage-ranked, with up to 5 pinned favorites.
+- **App launcher**: fuzzy search across installed apps (Start Menu shortcuts,
+  packaged apps and installed programs), usage-ranked, with up to 5 pinned favorites.
 - **Clipboard history**: text and images, searchable, pasted back into the
   previously focused app. Uses Windows clipboard history when it is on, or
   smolcast's own encrypted history.

@@ -725,7 +725,9 @@ impl Launcher {
             LaunchSpec::System(_) if self.confirming.as_ref() == Some(&app.id) => "Confirm",
             LaunchSpec::System(_) => "Run Command",
             LaunchSpec::Quicklink { .. } => "Open Quicklink",
-            LaunchSpec::Shortcut { .. } | LaunchSpec::Packaged { .. } => "Open Application",
+            LaunchSpec::Shortcut { .. }
+            | LaunchSpec::Packaged { .. }
+            | LaunchSpec::Executable { .. } => "Open Application",
         }
     }
 
@@ -1251,7 +1253,9 @@ fn one_line(
 
 fn kind_label(launch: &LaunchSpec) -> &'static str {
     match launch {
-        LaunchSpec::Shortcut { .. } | LaunchSpec::Packaged { .. } => "Application",
+        LaunchSpec::Shortcut { .. }
+        | LaunchSpec::Packaged { .. }
+        | LaunchSpec::Executable { .. } => "Application",
         LaunchSpec::Command(_) => "Command",
         LaunchSpec::Script(_) => "Script",
         LaunchSpec::System(_) => "System",

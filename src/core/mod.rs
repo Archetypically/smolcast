@@ -12,6 +12,7 @@ pub mod file_search;
 pub mod emoji_data;
 pub mod history;
 pub mod icon_scale;
+pub mod installed_programs;
 pub mod list_cursor;
 pub mod matcher;
 pub mod motion;

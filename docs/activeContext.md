@@ -82,8 +82,18 @@ the tray loads the embedded icon. Author, `homepage`
 are in `Cargo.toml`. `release.yml` checks the embedded version. Resources
 verified in the GNU exe with `llvm-readobj`; MSVC `rc.exe` path untested.
 
+## Installed programs (2026-10-22), branch, unverified
+
+Decision 027, plan §6.1: the scan adds filtered Uninstall registry rows no
+Start Menu shortcut covers (Raycast found Overwatch and Battle.net; neither
+has a shortcut). A dry run here adds Overwatch, Battle.net, 1Password and the
+Windows 11 Installation Assistant. Linted for the GNU target only.
+
 ## Pending Windows checks
 
+- Installed programs: Overwatch and Battle.net appear with icons and launch
+  (Overwatch via Battle.net); no driver/runtime rows; no Edge/SteelSeries
+  duplicates.
 - App icon: Explorer icon at every view size, Properties > Details fields,
   taskbar/Alt+Tab where shown, tray icon sharp at 100/150/200%.
 
@@ -130,33 +140,23 @@ verified in the GNU exe with `llvm-readobj`; MSVC `rc.exe` path untested.
 
 1. User's Windows pass over the batches above (2026-10-21 on main, the
    2026-10-22 branch); fix findings.
-2. **Games missing from the launcher** (user report: Raycast finds
-   Overwatch, smolcast does not). Cause found in code: the scan reads only
-   `.lnk` files in the two Start Menu folders plus packaged apps
-   (`win/shell.rs`), so Steam's `.url` shortcuts (`steam://rungameid/…`)
-   and launchers that put no Start Menu shortcut at all (Battle.net often
-   makes only a desktop one) are invisible. Waiting on the user to check where
-   Overwatch's shortcut lives (Start > right-click > Open file location).
-   Likely fix: index `.url` files with a launcher scheme, and the
-   non-packaged AppsFolder rows no `.lnk` covers; desktop shortcuts would be
-   a scope change needing approval.
-3. **Before making the GitHub repo public**: history was rewritten on
+2. **Before making the GitHub repo public**: history was rewritten on
    2026-09-25, but GitHub still serves the pre-rewrite commits. Delete and
    recreate the repository (or have GitHub Support purge it), then push
    `main`. Also add release notes: license notices, checksum, first-run
    behavior, and the clean-account check (§12.7 gate). Updates only work
    once the repo is public and a `v*` tag has published a release.
-4. **Sign builds** (decision 019): Authenticode (e.g. Azure Trusted Signing)
+3. **Sign builds** (decision 019): Authenticode (e.g. Azure Trusted Signing)
    for SmartScreen, and/or an Ed25519 key embedded in the exe, verified
    before the update swap. Until then the checksum only catches corruption.
-5. Decide the deferred review items above. Branch `old-review-fixes` fixed
+4. Decide the deferred review items above. Branch `old-review-fixes` fixed
    the three older findings (icons and emoji glyphs fetched across a DPI
    change are dropped, not cached at the old size; calculator results below
    0.01 keep 10 significant digits; three doc comments moved) and moved every
    view onto `RequestCache` and `ListCursor` (decision 024). Windows check:
    icons, file icons, emoji and thumbnails load and stay sharp across a
    150%→100% monitor move; scrolling and selection in every list.
-6. Flag-capable emoji font for the Flags group (backlog below).
+5. Flag-capable emoji font for the Flags group (backlog below).
 
 ## Open questions and parked ideas
 
