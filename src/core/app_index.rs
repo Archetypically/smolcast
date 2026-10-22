@@ -14,7 +14,8 @@
 //! - An unresolved shortcut is keyed by its own `.lnk` path and never merges
 //!   with a resolved entry.
 //! - Duplicates keep one launch action chosen by source priority (current-user
-//!   Start Menu, common Start Menu, AppsFolder); discarded names become aliases.
+//!   Start Menu, common Start Menu, AppsFolder, installed programs); discarded
+//!   names become aliases.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -58,6 +59,8 @@ pub enum AppSource {
     UserStartMenu,
     CommonStartMenu,
     AppsFolder,
+    /// An Uninstall registry row with no Start Menu shortcut (decision 027).
+    InstalledPrograms,
     /// Built into smolcast; never deduplicated with enumerated apps.
     Builtin,
     /// A `[scripts.<id>]` or `[quicklinks.<id>]` entry in config.toml.
@@ -73,6 +76,9 @@ pub enum LaunchSpec {
     Shortcut { lnk_path: PathBuf },
     /// Launched through `IApplicationActivationManager::ActivateApplication`.
     Packaged { aumid: String },
+    /// An installed program's executable, started by the shell in its own
+    /// folder (decision 027).
+    Executable { path: PathBuf },
     /// Opens a palette view instead of launching a process.
     Command(Command),
     /// Spawns a configured script (§10.3).
@@ -506,6 +512,7 @@ fn launch_order_key(launch: &LaunchSpec) -> String {
     match launch {
         LaunchSpec::Shortcut { lnk_path } => lnk_path.to_string_lossy().into_owned(),
         LaunchSpec::Packaged { aumid } => aumid.clone(),
+        LaunchSpec::Executable { path } => path.to_string_lossy().into_owned(),
         LaunchSpec::Command(command) => command.key().into(),
         LaunchSpec::Script(spec) => spec.interpreter.clone(),
         LaunchSpec::System(action) => action.key().into(),

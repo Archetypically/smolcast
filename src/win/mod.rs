@@ -11,6 +11,7 @@ pub mod file_search;
 pub mod hotkey;
 pub mod http;
 pub mod icon;
+pub mod installed;
 pub mod paste;
 pub mod persistence;
 pub mod placement;

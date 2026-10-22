@@ -6,9 +6,9 @@ contracts are in `systemPatterns.md` (cited as "plan §N"), decisions in
 
 ## Where the project is
 
-All seven milestones are implemented (§12). `main` holds everything through
-the 2026-10-21 batches; the 2026-10-22 work is on a branch (next sections). Windows 11 is the acceptance environment;
-Linux runs library tests and cross-links only.
+All seven milestones are implemented (§12). `main` holds everything but the
+installed-programs branch. Windows 11 is the acceptance environment; Linux
+runs library tests and cross-links only.
 
 | Milestone | State |
 | --- | --- |
@@ -32,11 +32,10 @@ are dropped by Esc (the snippet editor warns); a failed thumbnail thread
 leaves "Loading preview…"; a failed clipboard write can leave the clipboard
 empty.
 
-## Launcher commands, files and updates (2026-10-22), branch, unverified
+## Launcher commands, files and updates (2026-10-22), on main, unverified
 
-Branch `launcher-commands-updates`. Built and linted for the Windows GNU
-target, host tests pass; never run on Windows. GNU release exe 7.82 → 7.96 MB;
-new imports winhttp, powrprof, propsys (all system DLLs).
+Never run on Windows. GNU release exe 7.82 → 7.96 MB; new imports winhttp,
+powrprof, propsys (all system DLLs).
 
 - **System commands** (§6.5): Lock Screen, Sleep, Restart, Shut Down, Sign
   Out, Empty Recycle Bin, Toggle Dark Mode, Toggle Mute, Turn Off Display, as
@@ -71,7 +70,7 @@ Decision 025, plan §1.2: the host drains one ordered `Vec<Effect>` from
 their coalescing slots; a config save waits in the host's `queued_save`.
 Meant to change nothing at runtime; built and linted for the GNU target only.
 
-## App icon and file properties (2026-10-22), branch, unverified
+## App icon and file properties (2026-10-22), on main, unverified
 
 Decision 026: new "s." logo (`assets/smolcast.svg` →
 `scripts/generate_icon.py` → `assets/smolcast.ico`; user picked it from six
@@ -82,8 +81,18 @@ the tray loads the embedded icon. Author, `homepage`
 are in `Cargo.toml`. `release.yml` checks the embedded version. Resources
 verified in the GNU exe with `llvm-readobj`; MSVC `rc.exe` path untested.
 
+## Installed programs (2026-10-22), branch, unverified
+
+Decision 027, plan §6.1: the scan adds filtered Uninstall registry rows no
+Start Menu shortcut covers (Raycast found Overwatch and Battle.net; neither
+has a shortcut). A dry run here adds Overwatch, Battle.net, 1Password and the
+Windows 11 Installation Assistant. Linted for the GNU target only.
+
 ## Pending Windows checks
 
+- Installed programs: Overwatch and Battle.net appear with icons and launch
+  (Overwatch via Battle.net); no driver/runtime rows; no Edge/SteelSeries
+  duplicates.
 - App icon: Explorer icon at every view size, Properties > Details fields,
   taskbar/Alt+Tab where shown, tray icon sharp at 100/150/200%.
 
@@ -128,35 +137,21 @@ verified in the GNU exe with `llvm-readobj`; MSVC `rc.exe` path untested.
 
 ## Next, in order
 
-1. User's Windows pass over the batches above (2026-10-21 on main, the
-   2026-10-22 branch); fix findings.
-2. **Games missing from the launcher** (user report: Raycast finds
-   Overwatch, smolcast does not). Cause found in code: the scan reads only
-   `.lnk` files in the two Start Menu folders plus packaged apps
-   (`win/shell.rs`), so Steam's `.url` shortcuts (`steam://rungameid/…`)
-   and launchers that put no Start Menu shortcut at all (Battle.net often
-   makes only a desktop one) are invisible. Waiting on the user to check where
-   Overwatch's shortcut lives (Start > right-click > Open file location).
-   Likely fix: index `.url` files with a launcher scheme, and the
-   non-packaged AppsFolder rows no `.lnk` covers; desktop shortcuts would be
-   a scope change needing approval.
-3. **Before making the GitHub repo public**: history was rewritten on
+1. User's Windows pass over the batches above; fix findings.
+2. **Before making the GitHub repo public**: history was rewritten on
    2026-09-25, but GitHub still serves the pre-rewrite commits. Delete and
    recreate the repository (or have GitHub Support purge it), then push
    `main`. Also add release notes: license notices, checksum, first-run
    behavior, and the clean-account check (§12.7 gate). Updates only work
    once the repo is public and a `v*` tag has published a release.
-4. **Sign builds** (decision 019): Authenticode (e.g. Azure Trusted Signing)
+3. **Sign builds** (decision 019): Authenticode (e.g. Azure Trusted Signing)
    for SmartScreen, and/or an Ed25519 key embedded in the exe, verified
    before the update swap. Until then the checksum only catches corruption.
-5. Decide the deferred review items above. Branch `old-review-fixes` fixed
-   the three older findings (icons and emoji glyphs fetched across a DPI
-   change are dropped, not cached at the old size; calculator results below
-   0.01 keep 10 significant digits; three doc comments moved) and moved every
-   view onto `RequestCache` and `ListCursor` (decision 024). Windows check:
-   icons, file icons, emoji and thumbnails load and stay sharp across a
+4. Decide the deferred review items above. `old-review-fixes` (on main) moved
+   every view onto `RequestCache` and `ListCursor` (decision 024). Windows
+   check: icons, file icons, emoji and thumbnails stay sharp across a
    150%→100% monitor move; scrolling and selection in every list.
-6. Flag-capable emoji font for the Flags group (backlog below).
+5. Flag-capable emoji font for the Flags group (backlog below).
 
 ## Open questions and parked ideas
 

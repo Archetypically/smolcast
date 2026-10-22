@@ -374,6 +374,7 @@ src/
   core/
     mod.rs
     app_index.rs          // AppId, IndexedApp, dedup selection
+    installed_programs.rs // Uninstall-row filter for the launcher (decision 027)
     matcher.rs            // scoring and total deterministic ordering
     usage.rs              // schema v1, ranking bonuses, saturating updates
     config.rs             // schema v1 + pure validation
@@ -392,6 +393,7 @@ src/
     tray.rs               // main-thread tray/menu IDs and callbacks
     clipboard.rs          // HWND thread, read/write/retry/marker ownership
     paste.rs              // destination identity + bounded paste state machine
+    installed.rs          // Uninstall registry reader
     shell.rs              // Start Menu/AppsFolder scan, icon, shell/AUMID launch
     single_instance.rs    // named mutex guard
     persistence.rs        // APPDATA paths, atomic replace, state writer
@@ -537,13 +539,32 @@ Enumerate:
 - current-user Start Menu known folder recursively for `.lnk`;
 - common Start Menu known folder recursively for `.lnk`;
 - shell `AppsFolder` for entries with package identity and an AUMID; skip
-  non-packaged AppsFolder rows because classic apps are sourced from shortcuts.
+  non-packaged AppsFolder rows because classic apps are sourced from shortcuts;
+- the Uninstall registry keys (HKLM 64-bit, HKLM `WOW6432Node`, HKCU) last,
+  per decision 027: skip `SystemComponent` = 1 and rows with a non-empty
+  `ParentKeyName` or `ReleaseType`; keep a row whose `DisplayIcon` (quotes
+  and `,<index>` stripped) is an absolute `.exe` outside `Package Cache`, the
+  Windows folder and `WindowsApps`, not `OfficeC2RClient.exe`, whose file stem
+  contains none of setup, unins, redist, maintenance, installer, update,
+  dpinst, and which exists on a fixed drive (other drives are not probed, so
+  a sleeping disk cannot stall the scan). Compare and launch its long path
+  (`GetLongPathNameW`). Drop it when the exe's folder equals a Start Menu
+  shortcut target's folder, or lies under it unless that folder is a drive
+  root, a profile (`C:\Users\<name>`) or a shared parent (Program Files,
+  ProgramData, Users, AppData, Local, Roaming, Programs, Games, Desktop,
+  Documents, Downloads). A trailing space-separated copy of `DisplayVersion`
+  is removed from the name.
 
 Resolve shortcut target, arguments, working directory, display name, icon location,
 and AppUserModelID when available, but launch classic entries by passing the
 original `.lnk` path to `ShellExecuteExW`. That preserves shortcut arguments and
 working directory. Launch packaged entries through
-`IApplicationActivationManager::ActivateApplication`.
+`IApplicationActivationManager::ActivateApplication`. Launch installed
+programs (`LaunchSpec::Executable { path }`) by passing the exe to
+`ShellExecuteExW` with its folder as the working directory; their identity is
+`AppId::Classic` with no arguments and that folder as `cwd_key`. Two
+Uninstall rows naming the same exe merge in §6.2; a shortcut never meets
+one, since the folder rule drops the row first.
 
 ### 6.2 Deduplication
 
@@ -558,7 +579,7 @@ Compute identity in this order:
    resolved entry.
 
 When duplicates share an ID, choose the launch/display source by priority:
-current-user shortcut, common shortcut, AppsFolder. Union the discarded display
+current-user shortcut, common shortcut, AppsFolder, installed program. Union the discarded display
 names into `aliases`, sort/dedup aliases, and retain only one launch action. This
 keeps alternative names searchable without displaying duplicate rows.
 
