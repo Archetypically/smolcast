@@ -71,7 +71,21 @@ Decision 025, plan §1.2: the host drains one ordered `Vec<Effect>` from
 their coalescing slots; a config save waits in the host's `queued_save`.
 Meant to change nothing at runtime; built and linted for the GNU target only.
 
+## App icon and file properties (2026-10-22), branch, unverified
+
+Decision 026: new "s." logo (`assets/smolcast.svg` →
+`scripts/generate_icon.py` → `assets/smolcast.ico`; user picked it from six
+directions),
+embedded with VERSIONINFO by `build.rs` (`winresource`, build dependency);
+the tray loads the embedded icon. Author, `homepage`
+(evanlee.engineer until smolcast.evanlee.engineer is live) and repository
+are in `Cargo.toml`. `release.yml` checks the embedded version. Resources
+verified in the GNU exe with `llvm-readobj`; MSVC `rc.exe` path untested.
+
 ## Pending Windows checks
+
+- App icon: Explorer icon at every view size, Properties > Details fields,
+  taskbar/Alt+Tab where shown, tray icon sharp at 100/150/200%.
 
 - Effect outbox: paste-back from clipboard, emoji and snippets (pastes, and
   the failure notices still appear); launch, recycle, rescan from the tray;

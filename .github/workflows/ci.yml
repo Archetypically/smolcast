@@ -33,6 +33,18 @@ jobs:
       # Clippy has type-checked every target; the release build proves it links.
       - name: Build release
         run: cargo build --locked --release --target x86_64-pc-windows-msvc
+      # build.rs embeds the icon and version information (decision 026).
+      - name: Check the embedded file properties
+        shell: pwsh
+        run: |
+          $exe = "target/x86_64-pc-windows-msvc/release/smolcast.exe"
+          $info = (Get-Item $exe).VersionInfo
+          $info | Format-List ProductName, FileVersion, LegalCopyright
+          Add-Type -AssemblyName System.Drawing
+          if ($info.ProductName -ne "smolcast" -or -not [System.Drawing.Icon]::ExtractAssociatedIcon((Resolve-Path $exe))) {
+            Write-Error "smolcast.exe is missing its version or icon resource"
+            exit 1
+          }
       - name: Capture release size and import table
         shell: pwsh
         run: |

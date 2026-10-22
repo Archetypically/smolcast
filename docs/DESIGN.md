@@ -23,6 +23,16 @@ reference for anyone changing the UI. The tokens live in
 - **Alive, never slow.** Motion is short, interruptible and paint-only: it
   never delays input or layout. See Motion.
 
+## App icon
+
+"s." : a white lowercase s (Inter Display Bold, as outlines) with the accent
+red as its full stop, on a dark squircle (`#2C2C30` to `#161618`) with a 10%
+white hairline rim. The accent appears once, as in the app. Source:
+`assets/smolcast.svg`; `scripts/generate_icon.py` renders it to the `.ico`
+at 16–256 px, dropping the rim and enlarging the mark at 24 px and below. It
+is the exe, taskbar and tray icon (decision 026). Change the SVG, never the
+`.ico`.
+
 ## Layout
 
 From top to bottom, all sections span the full window width:
