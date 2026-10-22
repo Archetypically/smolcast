@@ -4,10 +4,23 @@
 // timings are core::motion's. What it cannot reproduce: each app's own icon
 // (plain drawings stand in) and Windows' fonts (Selawik and Fluent assets,
 // see film/README.md). scripts/film.mjs records it.
+//
+// Around the simulation, and never inside it: a title card the film starts
+// and ends on (so it loops), a caption per chapter, the viewer's key caps,
+// and a camera that leans in while the palette is open.
 "use strict";
 
-const zoom = new URLSearchParams(location.search).get("zoom");
+const params = new URLSearchParams(location.search);
+const zoom = params.get("zoom");
 if (zoom) document.documentElement.style.setProperty("--zoom", zoom);
+const format = params.get("format") ?? "wide";
+document.documentElement.dataset.format = format;
+// Timers run this many times slower while recording (slowmo.js).
+const slow = Number(params.get("slow")) || 1;
+// One phrase of the music, in seconds (PHRASE in scripts/music.mjs): the
+// film's length is a whole number of them, and the backdrop drifts one
+// repeat of its tile in each.
+const PHRASE = Number(params.get("phrase")) || 12;
 
 const $ = (id) => document.getElementById(id);
 const wait = (ms) => new Promise((done) => setTimeout(done, ms));
@@ -466,6 +479,7 @@ async function typeQuery(text) {
 async function summonKey(settle) {
   showKeys("Ctrl", "Alt", "Space");
   await summon();
+  lean(true);
   await wait(settle);
 }
 
@@ -474,11 +488,169 @@ async function pressEnter() {
   showKeys("Enter");
   await wait(120);
   hideNow();
+  lean(false);
+}
+
+// ---------------------------------------------------------------- framing
+
+// The camera: a slow lean toward the palette while it is open, and back to
+// the whole desktop when it hides. `scale` about the point (x, y) of the
+// desktop, which stays put.
+function camera(scale, x, y, instant = false) {
+  const cam = $("camera");
+  if (instant) cam.style.transition = "none";
+  cam.style.transform = `translate(${x * (1 - scale)}px, ${y * (1 - scale)}px) scale(${scale})`;
+  if (instant) {
+    void cam.offsetWidth;
+    cam.style.transition = "";
+  }
+}
+
+const lean = (open) => camera(open ? 1.05 : 1, 640, 320);
+
+// A chapter caption: the numeral fades in, then the words rise one by one.
+// Captions run one at a time, in order, however they are called.
+let captions = Promise.resolve();
+function caption(step, text) {
+  return (captions = captions.then(() => showCaption(step, text)));
+}
+
+async function showCaption(step, text) {
+  await captionOut();
+  const box = $("caption");
+  const num = el("span", "step", step);
+  const words = text.split(" ").map((w) => el("span", "word", el("span", null, w)));
+  box.replaceChildren(num, ...words.flatMap((w, i) => (i ? [" ", w] : [w])));
+  box.style.opacity = "1";
+  num.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 500, easing: "ease-out" });
+  for (const [i, w] of words.entries()) {
+    w.firstChild.animate([{ transform: "translateY(105%)" }, { transform: "none" }], {
+      duration: 700,
+      delay: 120 + i * 55,
+      easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+      fill: "backwards",
+    });
+  }
+}
+
+async function captionOut() {
+  const box = $("caption");
+  if (!box.childElementCount) return;
+  // `translate` lifts it on top of each layout's own transform.
+  await box.animate(
+    [
+      { opacity: 1, translate: "0 0" },
+      { opacity: 0, translate: "0 -6px" },
+    ],
+    { duration: 320, easing: "ease-in", fill: "forwards" },
+  ).finished;
+  box.getAnimations().forEach((a) => a.cancel());
+  box.style.opacity = "0";
+  box.replaceChildren();
+}
+
+const CARD = () => [...$("end").children];
+
+// The backdrop drifts up and to the right, one diagonal repeat of its tile
+// per phrase, from the film's first frame; returns the moment it started.
+function drift() {
+  $("backdrop").animate([{ backgroundPosition: "0 0" }, { backgroundPosition: "96px -96px" }], {
+    duration: PHRASE * 1000,
+    iterations: Infinity,
+  });
+  return performance.now();
+}
+
+// Fade the desktop in or out under the title card.
+function stage(shown, duration) {
+  const s = $("stage");
+  return s
+    .animate([{ opacity: shown ? 0 : 1 }, { opacity: shown ? 1 : 0 }], {
+      duration,
+      easing: "ease-in-out",
+      fill: "forwards",
+    })
+    .finished.then(() => {
+      s.style.opacity = shown ? "1" : "0";
+      s.getAnimations().forEach((a) => a.cancel());
+    });
+}
+
+// The film opens on the title card, as it ends, then the card lifts away
+// and the desktop settles in beneath.
+async function titleOut() {
+  await wait(1300);
+  camera(1.08, 640, 360, true);
+  const end = $("end");
+  CARD().forEach((child, i) =>
+    child.animate(
+      [
+        { opacity: 1, transform: "none" },
+        { opacity: 0, transform: "translateY(-10px)" },
+      ],
+      { duration: 420, delay: i * 45, easing: "ease-in", fill: "forwards" },
+    ),
+  );
+  await wait(260);
+  camera(1, 640, 360);
+  await stage(true, 800);
+  end.style.visibility = "hidden";
+  end.getAnimations({ subtree: true }).forEach((a) => a.cancel());
+}
+
+// The desktop fades away and the title card returns, element by element,
+// coming to rest exactly as the film's first frame once the film is whole
+// phrases long (`started`, from drift()).
+async function titleIn(started) {
+  const end = $("end");
+  end.style.visibility = "visible";
+  camera(1.04, 640, 360);
+  stage(false, 800);
+  const rise = { duration: 900, easing: "cubic-bezier(0.22, 1, 0.36, 1)", fill: "backwards" };
+  const [img, h1, line, url] = CARD();
+  img.animate(
+    [
+      { opacity: 0, transform: "scale(0.94)" },
+      { opacity: 1, transform: "none" },
+    ],
+    { ...rise, delay: 350 },
+  );
+  for (const [i, node] of [h1, line, url].entries()) {
+    node.animate(
+      [
+        { opacity: 0, transform: "translateY(12px)" },
+        { opacity: 1, transform: "none" },
+      ],
+      { ...rise, delay: 480 + i * 110 },
+    );
+  }
+  // The underline draws under "smol", then the full stop lands.
+  line.querySelector(".smol").animate([{ backgroundSize: "0% 0.09em" }, { backgroundSize: "100% 0.09em" }], {
+    ...rise,
+    duration: 700,
+    delay: 1150,
+  });
+  line.querySelector(".dot").animate(
+    [
+      { opacity: 0, transform: "translateY(-0.3em)" },
+      { opacity: 1, transform: "none" },
+    ],
+    { ...rise, duration: 600, delay: 1500 },
+  );
+  await wait(2100);
+  camera(1, 640, 360, true);
+  // Hold on the rest frame until the next phrase ends (and at least 0.6 s).
+  const played = (performance.now() - started) / slow / 1000;
+  await wait((Math.ceil((played + 0.6) / PHRASE) * PHRASE - played) * 1000);
 }
 
 async function play() {
   drawNotes();
+  const started = drift();
+  window.filmMark?.("start");
+  await titleOut();
   $("notes").classList.remove("inactive");
+  await caption("01", "Answers as you type.");
   await wait(900);
   await typeNotes("Desk depth: ");
   await wait(500);
@@ -486,11 +658,13 @@ async function play() {
   // A conversion, pasted where you were typing.
   await summonKey(350);
   await typeQuery("40cm to in");
-  await wait(1300);
+  window.filmMark?.("poster");
+  await wait(1600);
   await pressEnter();
   writeNotes(ANSWERS["40cm to in"].result);
-  await wait(1100);
+  await wait(1500);
   writeNotes("\n");
+  caption("02", "Every emoji, by name.");
   await typeNotes("Party on Friday ");
   await wait(400);
 
@@ -503,15 +677,16 @@ async function play() {
   navigate("emoji", true);
   await wait(650);
   await typeQuery("party");
-  await wait(800);
+  await wait(1100);
   showKeys("→");
   select(1);
   await wait(900);
   await pressEnter();
   notes.parts.push({ emoji: ui.rows[ui.sel].code });
   drawNotes();
-  await wait(1100);
+  await wait(1500);
   writeNotes("\n");
+  caption("03", "Your clipboard, remembered.");
   await typeNotes("Repo: ");
   await wait(400);
 
@@ -522,7 +697,7 @@ async function play() {
   showKeys("Enter");
   await wait(100);
   navigate("clipboard", true);
-  await wait(900);
+  await wait(1100);
   showKeys("↓");
   select(1);
   await wait(700);
@@ -534,19 +709,22 @@ async function play() {
   await wait(1300);
 
   // Anything else falls through to the web or your files.
+  await caption("04", "No match? The web or your files.");
+  await wait(500);
   await summonKey(300);
   await typeQuery("rust egui");
-  await wait(1100);
+  await wait(1400);
   showKeys("↓");
   select(1);
-  await wait(900);
+  await wait(1300);
   showKeys("Esc");
   await wait(80);
   await dismiss();
-  await wait(1200);
-
-  $("end").classList.add("show");
-  await wait(3600);
+  lean(false);
+  await wait(600);
+  await captionOut();
+  await wait(700);
+  await titleIn(started);
 }
 
 // Ready once the search results and the fonts are in.
