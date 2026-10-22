@@ -1,5 +1,5 @@
-//! Windows shell work for the launcher (plan §1.4, §6): Start Menu +
-//! AppsFolder enumeration, icon extraction, and shortcut/AUMID launch.
+//! Windows shell work for the launcher (plan §1.4, §6): Start Menu,
+//! AppsFolder and installed-program enumeration, icon extraction, and launch.
 //!
 //! Every job runs on its own thread inside a single-threaded apartment
 //! (`COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE`), keeps COM objects
@@ -38,7 +38,9 @@ use crate::core::app_index::{
     is_packaged_aumid, shortcut_id,
 };
 use crate::core::icon_scale;
+use crate::core::installed_programs::installed_entries;
 use crate::win::icon::{IconRgba, OwnedBitmap, bitmap_to_rgba};
+use crate::win::installed::{existing_long_path, uninstall_entries};
 use crate::win::{from_wide_nul, wide, wide_path, win_error_parts};
 
 /// `System.AppUserModel.ID` ({9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3}, 5).
@@ -117,10 +119,16 @@ impl Drop for ComApartment {
 
 /// Run `ShellExecuteExW` with `SW_SHOWNORMAL`. `file` must be NUL-terminated.
 fn shell_execute(file: &[u16]) -> windows::core::Result<()> {
+    shell_execute_in(file, None)
+}
+
+/// [`shell_execute`] with a working directory (NUL-terminated).
+fn shell_execute_in(file: &[u16], dir: Option<&[u16]>) -> windows::core::Result<()> {
     let mut info = SHELLEXECUTEINFOW {
         cbSize: size_of::<SHELLEXECUTEINFOW>() as u32,
         fMask: SEE_MASK_NOASYNC | SEE_MASK_FLAG_NO_UI,
         lpFile: PCWSTR(file.as_ptr()),
+        lpDirectory: dir.map_or(PCWSTR::null(), |d| PCWSTR(d.as_ptr())),
         nShow: SW_SHOWNORMAL.0,
         ..Default::default()
     };
@@ -206,6 +214,15 @@ fn scan(cancel: &AtomicBool) -> Result<ScanOutcome, LaunchError> {
             }
         }
     }
+
+    // Last: a program the Start Menu already covers is left out (decision 027).
+    let installed = installed_entries(&uninstall_entries(), &entries, |exe| {
+        if cancel.load(Ordering::Acquire) {
+            return None;
+        }
+        existing_long_path(exe)
+    });
+    entries.extend(installed);
 
     Ok(ScanOutcome {
         apps: dedup(entries),
@@ -451,6 +468,13 @@ fn launch(spec: &LaunchSpec) -> Result<(), LaunchError> {
             // directory apply exactly as Explorer would apply them.
             let file = wide_path(lnk_path);
             shell_execute(&file).map_err(|e| LaunchError::from_win("launch shortcut", &e))
+        }
+        LaunchSpec::Executable { path } => {
+            // Its own folder, as a shortcut's default working directory
+            // would be; games load data relative to it.
+            let dir = path.parent().map(wide_path);
+            shell_execute_in(&wide_path(path), dir.as_deref())
+                .map_err(|e| LaunchError::from_win("launch program", &e))
         }
         LaunchSpec::Script(script) => crate::win::process::spawn_script(script),
         LaunchSpec::System(action) => crate::win::system::run(*action),
