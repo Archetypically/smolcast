@@ -31,16 +31,17 @@ use crate::win::paste::{
     Destination, PasteOutcome, capture_destination, destination_intact, palette_is_foreground,
     restore_foreground,
 };
-use crate::win::persistence::{ClipboardStoreCommand, LoadedEntry, Stored};
+use crate::win::persistence::{LoadedEntry, Stored};
 use crate::win::placement::PaletteWindow;
 use crate::win::shell::{IconTarget, LaunchError, ScanOutcome};
 use crate::win::update::CheckOutcome;
 
 use super::about_view::AboutView;
-use super::clipboard_view::{ClipboardView, PasteRequest, ThumbnailRequest};
-use super::emoji_view::{EmojiView, GlyphRequest};
+use super::clipboard_view::{ClipboardView, PasteRequest};
+use super::effect::Effect;
+use super::emoji_view::EmojiView;
 use super::file_view::{FileAction, FileView};
-use super::launcher::{IconRequest, LaunchRequest, Launcher};
+use super::launcher::Launcher;
 use super::motion;
 use super::notice::{Notice, NoticeStore, Severity, op};
 use super::settings_view::SettingsView;
@@ -265,16 +266,13 @@ pub struct AppModel {
     next_request_id: u64,
     /// Cancel flag of the most recent finisher; a new summon sets it.
     paste_cancel: Option<Arc<AtomicBool>>,
-    clipboard_commands: Vec<ClipboardCommand>,
-    paste_finisher: Option<PasteFinisherRequest>,
-    refresh_requested: bool,
-    pending_config: Option<ConfigFile>,
+    /// Work for the host, in the order it was queued (`take_effects`).
+    effects: Vec<Effect>,
     /// The conflict UI is capturing the next key chord as a session-only
     /// summon key; Escape cancels capture instead of hiding.
     recording: bool,
     record_target: RecordTarget,
     capture_hint: Option<String>,
-    trial_request: Option<String>,
     quit_requested: bool,
     force_show: bool,
     /// Moved onto the cursor's monitor on every show (§12.7); `None` when the
@@ -282,10 +280,6 @@ pub struct AppModel {
     palette_window: Option<PaletteWindow>,
     settings: SettingsView,
     about: AboutView,
-    /// A form edit to write to config.toml; the host saves, then reloads
-    /// (§12.7, §10.6).
-    config_save: Option<ConfigEdit>,
-    open_config_file: bool,
     /// The palette has held focus since it was shown; losing it afterwards
     /// dismisses the palette (click-away, §12.7).
     had_focus: bool,
@@ -308,7 +302,6 @@ pub struct AppModel {
     /// A newer release the user can install (§13).
     update: Option<Update>,
     update_status: UpdateStatus,
-    update_requests: Vec<UpdateRequest>,
     /// The installed update to start once this process has quit.
     relaunch: Option<PathBuf>,
 }
@@ -354,21 +347,15 @@ impl AppModel {
             paste: PasteState::Idle,
             next_request_id: 0,
             paste_cancel: None,
-            clipboard_commands: Vec::new(),
-            paste_finisher: None,
-            refresh_requested: false,
-            pending_config: None,
+            effects: Vec::new(),
             recording: false,
             record_target: RecordTarget::Trial,
             capture_hint: None,
-            trial_request: None,
             quit_requested: false,
             force_show: force_visible,
             palette_window: None,
             settings: SettingsView::new(&config.settings),
             about: AboutView::default(),
-            config_save: None,
-            open_config_file: false,
             had_focus: false,
             hidden_at: None,
             presence: Tween::at(0.0, Instant::now()),
@@ -378,7 +365,6 @@ impl AppModel {
             search_cursor_to_end: false,
             update: None,
             update_status: UpdateStatus::Idle,
-            update_requests: Vec::new(),
             relaunch: None,
             config,
         };
@@ -452,7 +438,8 @@ impl AppModel {
         }
 
         let view_commands = self.clipboard.take_commands();
-        self.clipboard_commands.extend(view_commands);
+        self.effects
+            .extend(view_commands.into_iter().map(Effect::Clipboard));
     }
 
     /// Render the palette. Painting runs through `&mut egui::Ui` because egui
@@ -507,13 +494,57 @@ impl AppModel {
         self.snippets.save_failed(message);
     }
 
-    /// A form edit to write; the host saves and then reloads.
-    pub fn take_config_save(&mut self) -> Option<ConfigEdit> {
-        self.config_save.take()
-    }
-
-    pub fn take_open_config_file(&mut self) -> bool {
-        std::mem::take(&mut self.open_config_file)
+    /// Everything the host must execute, in order: the model's own effects
+    /// as queued, then each view's pending requests in a fixed order. The
+    /// views coalesce their slots (one scan, one launch, the latest
+    /// snapshot), so a frame never sends stale duplicates.
+    pub fn take_effects(&mut self) -> Vec<Effect> {
+        let mut effects = std::mem::take(&mut self.effects);
+        let launcher = &mut self.launcher;
+        effects.extend(launcher.take_scan_request().map(Effect::Scan));
+        effects.extend(launcher.take_recycle_request().map(Effect::Recycle));
+        effects.extend(launcher.take_launch_request().map(Effect::Launch));
+        effects.extend(launcher.take_icon_requests().into_iter().map(Effect::Icon));
+        effects.extend(
+            launcher
+                .take_usage_snapshot()
+                .map(|(generation, bytes)| Effect::SaveUsage(generation, bytes)),
+        );
+        effects.extend(
+            launcher
+                .take_favorites_snapshot()
+                .map(Effect::SaveFavorites),
+        );
+        effects.extend(
+            self.emoji
+                .take_glyph_requests()
+                .into_iter()
+                .map(Effect::Glyph),
+        );
+        effects.extend(
+            self.files
+                .take_request()
+                .map(|(generation, query)| Effect::FileSearch(generation, query)),
+        );
+        effects.extend(
+            self.files
+                .take_icon_requests()
+                .into_iter()
+                .map(|(path, size)| Effect::FileIcon(path, size)),
+        );
+        effects.extend(
+            self.clipboard
+                .take_store_commands()
+                .into_iter()
+                .map(Effect::Store),
+        );
+        effects.extend(
+            self.clipboard
+                .take_thumbnail_requests()
+                .into_iter()
+                .map(Effect::Thumbnail),
+        );
+        effects
     }
 
     pub fn set_palette_window(&mut self, window: Option<PaletteWindow>) {
@@ -532,34 +563,11 @@ impl AppModel {
         self.notices.push(notice);
     }
 
-    pub fn take_refresh_requested(&mut self) -> bool {
-        std::mem::take(&mut self.refresh_requested)
-    }
-
-    /// A config re-read that must be applied by the host (hotkey re-registration).
-    pub fn take_pending_config(&mut self) -> Option<ConfigFile> {
-        self.pending_config.take()
-    }
-
-    /// A session-only replacement summon key submitted from the conflict UI.
-    /// Only set when the user explicitly applies; the edit buffer differs.
-    pub fn take_trial_request(&mut self) -> Option<String> {
-        self.trial_request.take()
-    }
-
     // ---- launcher requests executed by the host ---------------------------------
-
-    pub fn take_scan_request(&mut self) -> Option<u64> {
-        self.launcher.take_scan_request()
-    }
 
     pub fn scan_start_failed(&mut self, generation: u64, error: &str) {
         self.launcher
             .scan_start_failed(generation, &mut self.notices, error);
-    }
-
-    pub fn take_recycle_request(&mut self) -> Option<Vec<std::path::PathBuf>> {
-        self.launcher.take_recycle_request()
     }
 
     pub fn recycle_start_failed(&mut self, error: &str) {
@@ -572,34 +580,8 @@ impl AppModel {
             .on_shortcuts_recycled(Err(error), &mut self.notices);
     }
 
-    pub fn take_launch_request(&mut self) -> Option<LaunchRequest> {
-        self.launcher.take_launch_request()
-    }
-
     pub fn launch_start_failed(&mut self, error: &str) {
         self.launcher.launch_start_failed(&mut self.notices, error);
-    }
-
-    pub fn take_icon_requests(&mut self) -> Vec<IconRequest> {
-        self.launcher.take_icon_requests()
-    }
-
-    pub fn take_usage_snapshot(&mut self) -> Option<(u64, Vec<u8>)> {
-        self.launcher.take_usage_snapshot()
-    }
-
-    pub fn take_favorites_snapshot(&mut self) -> Option<Vec<u8>> {
-        self.launcher.take_favorites_snapshot()
-    }
-
-    /// A file search for the host's worker (§6.6).
-    pub fn take_file_search_request(&mut self) -> Option<(u64, String)> {
-        self.files.take_request()
-    }
-
-    /// Explorer icons for visible Search Files rows: (path, pixel edge).
-    pub fn take_file_icon_requests(&mut self) -> Vec<(String, u32)> {
-        self.files.take_icon_requests()
     }
 
     pub fn file_search_unavailable(&mut self, error: &str) {
@@ -608,10 +590,6 @@ impl AppModel {
     }
 
     // ---- updates (§13) -----------------------------------------------------------
-
-    pub fn take_update_requests(&mut self) -> Vec<UpdateRequest> {
-        std::mem::take(&mut self.update_requests)
-    }
 
     /// The installed update to start after this process exits.
     pub fn take_relaunch(&mut self) -> Option<PathBuf> {
@@ -631,7 +609,7 @@ impl AppModel {
     fn check_for_updates(&mut self) {
         if self.update_status == UpdateStatus::Idle {
             self.update_status = UpdateStatus::Checking;
-            self.update_requests.push(UpdateRequest::Check);
+            self.effects.push(Effect::Update(UpdateRequest::Check));
         }
     }
 
@@ -713,39 +691,19 @@ impl AppModel {
         });
         if install {
             self.update_status = UpdateStatus::Installing;
-            self.update_requests
-                .push(UpdateRequest::Install(update.clone()));
+            self.effects
+                .push(Effect::Update(UpdateRequest::Install(update.clone())));
         } else if skip {
-            self.update_requests
-                .push(UpdateRequest::Skip(version.clone()));
+            self.effects
+                .push(Effect::Update(UpdateRequest::Skip(version.clone())));
             self.update = None;
         }
     }
 
     // ---- clipboard and paste requests executed by the host ----------------------
 
-    pub fn take_clipboard_commands(&mut self) -> Vec<ClipboardCommand> {
-        std::mem::take(&mut self.clipboard_commands)
-    }
-
-    pub fn take_glyph_requests(&mut self) -> Vec<GlyphRequest> {
-        self.emoji.take_glyph_requests()
-    }
-
-    pub fn take_store_commands(&mut self) -> Vec<ClipboardStoreCommand> {
-        self.clipboard.take_store_commands()
-    }
-
-    pub fn take_thumbnail_requests(&mut self) -> Vec<ThumbnailRequest> {
-        self.clipboard.take_thumbnail_requests()
-    }
-
     pub fn clipboard_store_unavailable(&mut self) {
         self.clipboard.store_unavailable();
-    }
-
-    pub fn take_paste_finisher(&mut self) -> Option<PasteFinisherRequest> {
-        self.paste_finisher.take()
     }
 
     pub fn paste_finisher_failed(&mut self, error: &str) {
@@ -795,15 +753,16 @@ impl AppModel {
             self.set_palette_size(cfg.settings.palette_size);
         }
         self.clipboard.set_persist(cfg.settings.clipboard_persist);
-        self.clipboard_commands.push(ClipboardCommand::SetItemCap(
-            cfg.settings.clipboard_max_item_bytes,
-        ));
+        self.effects
+            .push(Effect::Clipboard(ClipboardCommand::SetItemCap(
+                cfg.settings.clipboard_max_item_bytes,
+            )));
         // Both forms see every accepted config; at most one had a save in flight.
         let settings_saved = self.settings.config_accepted(&cfg.settings);
         let snippet_saved = self.snippets.config_accepted(&cfg.snippets);
         let from_form = settings_saved || snippet_saved;
         self.config = cfg;
-        self.clipboard_commands.push(self.capture_policy());
+        self.effects.push(Effect::Clipboard(self.capture_policy()));
         // The forms report their own "Saved."
         if !from_form {
             self.notices.push(Notice::new(
@@ -869,12 +828,12 @@ impl AppModel {
             AppEvent::RunScript(id) => self.launcher.run_script(&id, &mut self.notices),
             AppEvent::Tray(TrayCommand::OpenPalette) => self.summon(ctx),
             AppEvent::Tray(TrayCommand::Refresh) => {
-                self.refresh_requested = true;
+                self.effects.push(Effect::RefreshConfig);
                 self.launcher.request_scan();
             }
             AppEvent::Tray(TrayCommand::Quit) => self.quit_requested = true,
             AppEvent::ConfigReload { result } => match result {
-                Ok(cfg) => self.pending_config = Some(cfg),
+                Ok(cfg) => self.effects.push(Effect::ApplyConfig(cfg)),
                 Err(e) => {
                     self.reduce_config_save_failed(format!("Reload failed: {e}"));
                     self.notices.push(Notice::new(
@@ -974,7 +933,7 @@ impl AppModel {
                 None,
             ),
         };
-        self.clipboard_commands.push(command);
+        self.effects.push(Effect::Clipboard(command));
         self.paste = PasteState::Writing {
             request_id,
             payload,
@@ -1047,10 +1006,11 @@ impl AppModel {
         }
         let cancel = Arc::new(AtomicBool::new(false));
         self.paste_cancel = Some(cancel.clone());
-        self.paste_finisher = Some(PasteFinisherRequest {
-            destination: dest,
-            cancel,
-        });
+        self.effects
+            .push(Effect::PasteFinisher(PasteFinisherRequest {
+                destination: dest,
+                cancel,
+            }));
         self.finish(ctx);
     }
 
@@ -1442,7 +1402,8 @@ impl AppModel {
                     self.start_paste(PasteRequest::Text(text));
                 }
                 if let Some(edit) = self.snippets.take_save_request() {
-                    self.config_save = Some(ConfigEdit::Snippet(edit));
+                    self.effects
+                        .push(Effect::SaveConfig(ConfigEdit::Snippet(edit)));
                 }
                 if let Some(clear_search) = self.snippets.take_left_editor() {
                     if clear_search {
@@ -1451,7 +1412,7 @@ impl AppModel {
                     self.focus_search = true;
                 }
                 if self.snippets.take_open_file() {
-                    self.open_config_file = true;
+                    self.effects.push(Effect::OpenConfigFile);
                 }
             }
             View::About => theme::inset(ui, |ui| self.about.ui(ui)),
@@ -1482,10 +1443,11 @@ impl AppModel {
                     self.capture_hint = None;
                 }
                 if let Some(settings) = self.settings.take_save_request() {
-                    self.config_save = Some(ConfigEdit::Settings(settings));
+                    self.effects
+                        .push(Effect::SaveConfig(ConfigEdit::Settings(settings)));
                 }
                 if self.settings.take_open_file() {
-                    self.open_config_file = true;
+                    self.effects.push(Effect::OpenConfigFile);
                 }
             }
         }
@@ -1643,7 +1605,7 @@ impl AppModel {
             match self.record_target {
                 RecordTarget::Trial => {
                     self.capture_hint = Some(format!("Trying {chord}…"));
-                    self.trial_request = Some(chord);
+                    self.effects.push(Effect::TrialHotkey(chord));
                 }
                 RecordTarget::Settings => {
                     self.capture_hint = None;

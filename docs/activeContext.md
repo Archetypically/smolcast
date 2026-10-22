@@ -64,7 +64,20 @@ new imports winhttp, powrprof, propsys (all system DLLs).
   Icons / MDL2, loaded from `%WINDIR%\Fonts`), emoji only as fallback;
   Search Files rows show Explorer's icon per item.
 
+## Effect outbox (2026-10-22), unverified on Windows
+
+Decision 025, plan §1.2: the host drains one ordered `Vec<Effect>` from
+`AppModel::take_effects` instead of twenty `take_*` accessors. Views keep
+their coalescing slots; a config save waits in the host's `queued_save`.
+Meant to change nothing at runtime; built and linted for the GNU target only.
+
 ## Pending Windows checks
+
+- Effect outbox: paste-back from clipboard, emoji and snippets (pastes, and
+  the failure notices still appear); launch, recycle, rescan from the tray;
+  icons, glyphs, thumbnails and file icons load; usage and favorites persist
+  across restart; settings and snippet saves report "Saved." and reload; a
+  hotkey conflict's trial key; Check for Updates.
 
 - 2026-10-22 branch: each system action (confirm flow; Restart/Shut Down
   with an unsaved Notepad still prompts; dark mode flips apps and taskbar;
@@ -129,9 +142,6 @@ new imports winhttp, powrprof, propsys (all system DLLs).
    view onto `RequestCache` and `ListCursor` (decision 024). Windows check:
    icons, file icons, emoji and thumbnails load and stay sharp across a
    150%→100% monitor move; scrolling and selection in every list.
-   **Effect outbox** (replace ~20 `take_*` drains with one queue): deferred
-   until after the Windows pass; keep the coalescing slots (snapshots, bools)
-   and the paste finisher's order explicit.
 6. Flag-capable emoji font for the Flags group (backlog below).
 
 ## Open questions and parked ideas
@@ -176,7 +186,7 @@ new imports winhttp, powrprof, propsys (all system DLLs).
   mode that replays a fixed key script (summon, type, arrows, Enter) rather
   than `SendInput`/UI Automation, which are flaky on focus and timing; check
   dumped model state (deterministic), and add screenshot diffs only with
-  pinned fonts, DPI and theme. The effect outbox (Next 5) would make the
+  pinned fonts, DPI and theme. The effect outbox (decision 025) makes the
   model's output easy to record and compare.
 - **Screen readers**: eframe's `accesskit` feature would expose the palette
   to Narrator, but adds dependencies and size, and the painted rows need
