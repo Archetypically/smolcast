@@ -1,7 +1,9 @@
 // The demo film's music: an original piece synthesized here, so it carries
 // no license but the project's own. Calm and small: 80 BPM in C, a
 // descending Fmaj7 – Em7 – Dm7 – Cmaj7, a soft pad, an electric-piano
-// arpeggio, a round bass and a little room. Deterministic.
+// arpeggio, a round bass and a little room. Deterministic. With `loop`, the
+// length must be whole phrases (PHRASE): nothing fades, and what rings past
+// the end is folded onto the start, so the piece plays into itself.
 // Usage: node scripts/music.mjs <seconds> <out.wav>
 import { writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
@@ -10,6 +12,9 @@ const RATE = 48000;
 const BPM = 80;
 const BEAT = 60 / BPM;
 const BAR = 4 * BEAT;
+export const PHRASE = 4 * BAR;
+// How long the last notes and the room ring on.
+const TAIL = 4;
 
 // MIDI notes: root (bass) and the chord tones (pad and arpeggio).
 const CHORDS = [
@@ -24,19 +29,20 @@ const ARP = [0, 2, 1, 3, 2, -1, 1, 3];
 
 const hz = (midi) => 440 * 2 ** ((midi - 69) / 12);
 
-export function compose(seconds) {
+export function compose(seconds, { loop = false } = {}) {
   // A tiny deterministic random source for velocities, seeded per call.
   let seed = 7;
   const rand = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
 
-  const n = Math.ceil(seconds * RATE);
+  const length = Math.round(seconds * RATE);
+  const n = loop ? length + TAIL * RATE : length;
   const left = new Float32Array(n);
   const right = new Float32Array(n);
   const add = (buf, i, v) => {
     if (i >= 0 && i < n) buf[i] += v;
   };
 
-  const bars = Math.ceil(seconds / BAR) + 1;
+  const bars = loop ? Math.round(seconds / BAR) : Math.ceil(seconds / BAR) + 1;
   for (let b = 0; b < bars; b++) {
     const chord = CHORDS[b % CHORDS.length];
     const start = b * BAR;
@@ -98,22 +104,30 @@ export function compose(seconds) {
   room(left, [1557, 1617, 1491, 1422], [225, 556]);
   room(right, [1601, 1557 + 23, 1491 + 31, 1356], [241, 579]);
 
-  // Fade in and out, then leave headroom.
-  const fadeIn = 1.2 * RATE;
-  const fadeOut = 2.5 * RATE;
-  let peak = 0;
-  for (let i = 0; i < n; i++) {
-    const g = Math.min(1, i / fadeIn, (n - i) / fadeOut);
-    left[i] *= g;
-    right[i] *= g;
-    peak = Math.max(peak, Math.abs(left[i]), Math.abs(right[i]));
+  // A loop folds its tail onto its start; otherwise fade in and out.
+  if (loop) {
+    for (let i = length; i < n; i++) {
+      left[i - length] += left[i];
+      right[i - length] += right[i];
+    }
+  } else {
+    const fadeIn = 1.2 * RATE;
+    const fadeOut = 2.5 * RATE;
+    for (let i = 0; i < n; i++) {
+      const g = Math.min(1, i / fadeIn, (n - i) / fadeOut);
+      left[i] *= g;
+      right[i] *= g;
+    }
   }
+  // Leave headroom.
+  let peak = 0;
+  for (let i = 0; i < length; i++) peak = Math.max(peak, Math.abs(left[i]), Math.abs(right[i]));
   const gain = 0.7 / peak;
-  for (let i = 0; i < n; i++) {
+  for (let i = 0; i < length; i++) {
     left[i] *= gain;
     right[i] *= gain;
   }
-  return { left, right };
+  return { left: left.subarray(0, length), right: right.subarray(0, length) };
 }
 
 // A small Schroeder room: parallel combs into series all-passes, mixed low.
