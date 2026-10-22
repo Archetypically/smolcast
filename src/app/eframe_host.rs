@@ -14,19 +14,21 @@ use egui::{Context, ViewportCommand};
 
 use crate::app::clipboard_view;
 use crate::app::model::loads_stored_history;
-use crate::app::model::{AppEvent, AppModel, HotkeyStatus, Wake};
+use crate::app::model::{AppEvent, AppModel, HotkeyStatus, UpdateRequest, Wake};
 use crate::app::notice::{Notice, Severity, op};
 use crate::app::{motion, theme};
 use crate::core::config::{self, ConfigFile, PaletteSize};
 use crate::core::config_edit::{self, ConfigEdit};
 use crate::win::clipboard::ClipboardThread;
 use crate::win::emoji_render::EmojiRenderer;
+use crate::win::file_search::FileSearchWorker;
 use crate::win::hotkey::{self, HotkeyManager};
 use crate::win::paste;
 use crate::win::persistence::{self, ClipboardStoreCommand, StatePaths, StateWriter};
 use crate::win::placement::PaletteWindow;
-use crate::win::shell::{self, IconWorker};
+use crate::win::shell::{self, IconTarget, IconWorker};
 use crate::win::tray::{self, TrayHandle};
+use crate::win::update::{self, UpdateWorker};
 use crate::win::{appearance, autostart};
 
 /// Startup facts decided before the window exists.
@@ -51,6 +53,10 @@ pub struct EframeApp {
     state_writer: Option<StateWriter>,
     icon_worker: Option<IconWorker>,
     emoji_renderer: Option<EmojiRenderer>,
+    file_search: Option<FileSearchWorker>,
+    updates: Option<UpdateWorker>,
+    /// The `check_for_updates` setting the update worker was last given.
+    update_automatic: bool,
     scan_job: Option<JoinHandle<()>>,
     /// Set during shutdown so a running scan stops between items (§1.5 step 5).
     scan_cancel: Arc<AtomicBool>,
@@ -206,6 +212,15 @@ impl EframeApp {
             }
         };
 
+        let file_search = FileSearchWorker::start(wake.clone())
+            .inspect_err(|e| model.file_search_unavailable(&e.to_string()))
+            .ok();
+        let update_automatic = model.config().settings.check_for_updates;
+        let updates =
+            UpdateWorker::start(paths.update_state.clone(), update_automatic, wake.clone())
+                .inspect_err(|e| model.updates_unavailable(&e.to_string()))
+                .ok();
+
         // Tray icon + menu (§5.2). Failure keeps the app running but reports a
         // visible notice; the hotkey path still works.
         let tray = match TrayHandle::build() {
@@ -232,6 +247,9 @@ impl EframeApp {
             state_writer,
             icon_worker,
             emoji_renderer,
+            file_search,
+            updates,
+            update_automatic,
             scan_job: None,
             scan_cancel: Arc::new(AtomicBool::new(false)),
             launch_jobs: Vec::new(),
@@ -301,6 +319,7 @@ impl EframeApp {
 
         self.run_launcher_requests();
         self.run_clipboard_requests();
+        self.run_search_and_update_requests();
 
         // A save and a refresh share the worker slot; a save waits for it.
         if self.refresh_worker.is_none()
@@ -374,9 +393,17 @@ impl EframeApp {
             }
         }
         let icon_requests = self.model.take_icon_requests();
+        let file_icon_requests = self.model.take_file_icon_requests();
         if let Some(worker) = &self.icon_worker {
             for request in icon_requests {
-                worker.request(request.app_id, request.icon_key, request.size);
+                worker.request(
+                    IconTarget::App(request.app_id),
+                    request.icon_key,
+                    request.size,
+                );
+            }
+            for (path, size) in file_icon_requests {
+                worker.request(IconTarget::File(path.clone()), path, size);
             }
         }
         if let (Some(writer), Some((generation, bytes))) =
@@ -388,6 +415,39 @@ impl EframeApp {
             (&self.state_writer, self.model.take_favorites_snapshot())
         {
             writer.save_favorites(bytes);
+        }
+    }
+
+    /// Forward file queries and update work to their workers (§6.6, §13),
+    /// and follow the `check_for_updates` setting.
+    fn run_search_and_update_requests(&mut self) {
+        if let Some((generation, query)) = self.model.take_file_search_request() {
+            match &self.file_search {
+                Some(worker) => worker.request(generation, query),
+                None => self
+                    .model
+                    .file_search_unavailable("the search thread did not start"),
+            }
+        }
+        let requests = self.model.take_update_requests();
+        let Some(worker) = &self.updates else {
+            if !requests.is_empty() {
+                self.model
+                    .updates_unavailable("the update thread did not start");
+            }
+            return;
+        };
+        for request in requests {
+            match request {
+                UpdateRequest::Check => worker.check(),
+                UpdateRequest::Install(release) => worker.install(release),
+                UpdateRequest::Skip(version) => worker.skip(version),
+            }
+        }
+        let automatic = self.model.config().settings.check_for_updates;
+        if automatic != self.update_automatic {
+            self.update_automatic = automatic;
+            worker.set_automatic(automatic);
         }
     }
 
@@ -600,6 +660,12 @@ impl EframeApp {
         if let Some(renderer) = self.emoji_renderer.take() {
             renderer.shutdown();
         }
+        if let Some(worker) = self.file_search.take() {
+            worker.shutdown();
+        }
+        if let Some(worker) = self.updates.take() {
+            worker.shutdown();
+        }
         for job in self.launch_jobs.drain(..) {
             let _ = job.join();
         }
@@ -690,6 +756,15 @@ impl eframe::App for EframeApp {
     /// cleanup happens here so handlers are gone before the event loop stops.
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
         self.shutdown_resources();
+        // An installed update starts now; it waits for this process to
+        // exit before taking the single-instance mutex (§13).
+        if let Some(exe) = self.model.take_relaunch()
+            && let Err(e) = update::relaunch(&exe)
+        {
+            // The window and tray are gone: a message box is the only way
+            // left to say why smolcast did not come back.
+            update::report_relaunch_failure(&e);
+        }
     }
 }
 
@@ -737,18 +812,30 @@ fn open_config_file(path: &Path) {
 }
 
 /// Put Segoe UI ahead of egui's bundled fonts, which remain as fallbacks for
-/// symbols it lacks. Missing file: keep the defaults.
+/// symbols it lacks, and add Windows' icon font as its own family
+/// (`theme::ICON_FAMILY`). A missing file keeps that part at its default.
 fn install_system_font(ctx: &Context) {
-    let Some(bytes) = appearance::system_font() else {
-        return;
-    };
     let mut fonts = egui::FontDefinitions::default();
-    fonts.font_data.insert(
-        "segoe-ui".into(),
-        Arc::new(egui::FontData::from_owned(bytes)),
-    );
-    if let Some(family) = fonts.families.get_mut(&egui::FontFamily::Proportional) {
-        family.insert(0, "segoe-ui".into());
+    if let Some(bytes) = appearance::system_font() {
+        fonts.font_data.insert(
+            "segoe-ui".into(),
+            Arc::new(egui::FontData::from_owned(bytes)),
+        );
+        if let Some(family) = fonts.families.get_mut(&egui::FontFamily::Proportional) {
+            family.insert(0, "segoe-ui".into());
+        }
+    }
+    // Windows' icon font in a family of its own, never a text fallback.
+    if let Some(bytes) = appearance::icon_font() {
+        fonts.font_data.insert(
+            theme::ICON_FAMILY.into(),
+            Arc::new(egui::FontData::from_owned(bytes)),
+        );
+        fonts.families.insert(
+            egui::FontFamily::Name(theme::ICON_FAMILY.into()),
+            vec![theme::ICON_FAMILY.into()],
+        );
+        theme::set_icon_font_installed();
     }
     ctx.set_fonts(fonts);
 }

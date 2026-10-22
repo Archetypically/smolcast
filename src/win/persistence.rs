@@ -52,6 +52,9 @@ pub struct StatePaths {
     /// `%LOCALAPPDATA%\smolcast\clipboard\`: one DPAPI-encrypted file per
     /// persisted history entry (§7.2).
     pub clipboard_dir: PathBuf,
+    /// `%LOCALAPPDATA%\smolcast\update.json`: when updates were last
+    /// checked and any skipped version (§13).
+    pub update_state: PathBuf,
 }
 
 impl StatePaths {
@@ -63,6 +66,7 @@ impl StatePaths {
             favorites: roaming.join("favorites.json"),
             usage: local.join("usage.json"),
             clipboard_dir: local.join("clipboard"),
+            update_state: local.join("update.json"),
         })
     }
 }

@@ -28,6 +28,7 @@ use smolcast::win::appearance;
 use smolcast::win::clipboard::ClipboardThread;
 use smolcast::win::persistence::{self, StatePaths};
 use smolcast::win::single_instance::{AcquireError, SingleInstance};
+use smolcast::win::update;
 use smolcast::win::wide;
 
 /// Show a fatal startup error and exit. `stderr` alone cannot reach a user in a
@@ -49,6 +50,8 @@ fn fatal(message: &str) -> ! {
 fn main() -> eframe::Result {
     // 1. Single instance, acquired before any UI or resource (§5.1). A second
     //    launch exits code 0 silently; the guard is held until run_native returns.
+    //    A build started by the updater first waits for the old one to exit (§13).
+    update::wait_for_previous_instance();
     let _instance = match SingleInstance::acquire() {
         Ok(instance) => instance,
         Err(AcquireError::AlreadyRunning) => std::process::exit(0),

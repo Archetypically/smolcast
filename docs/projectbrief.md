@@ -24,8 +24,16 @@ Shipped or in verification:
   place.
 - **Calculator and unit conversions**: arithmetic and offline unit conversion
   inline in the root search.
-- **Web search fallback**: when nothing matches, search the web with a chosen
-  engine in the default browser.
+- **Web search fallback**: after any search's results, search the web with a
+  chosen engine in the default browser.
+- **System commands**: lock, sleep, restart, shut down, sign out, empty the
+  Recycle Bin, toggle dark mode, mute, turn off the display.
+- **Quicklinks**: named URLs, files or folders from config, with an optional
+  typed query (`gh rust egui`).
+- **File search**: file and folder names through the Windows Search index
+  (no index of smolcast's own), from a "Search Files" view and a fallback row.
+- **Self-update**: a daily check of the project's GitHub releases (a setting),
+  installed in place on request.
 - **Polish**: tray icon, start at login, Raycast-style look, Mica, palette and
   text size settings.
 
@@ -39,7 +47,9 @@ keyboard hook).
   needs none of it.
 - AI features and window management.
 - Network-dependent features in the core: currency conversion, online
-  dictionaries, favicon fetching.
+  dictionaries, favicon fetching. The one exception is the update check
+  (decision 019): one request a day to GitHub's release API, off with a
+  setting, carrying no user data.
 
 Out of scope until there is a measured or explicit need: OCR, automatic
 password/secret detection, directory watchers, an app index cache,
