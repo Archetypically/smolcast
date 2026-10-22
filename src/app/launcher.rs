@@ -337,8 +337,14 @@ impl Launcher {
         ctx: &egui::Context,
         app_id: AppId,
         icon_key: &str,
+        size: u32,
         result: Result<IconRgba, LaunchError>,
     ) {
+        // Extracted before a DPI change: the cache was reset and the row
+        // asks again at the new edge, so this one would be drawn blurry.
+        if size != list::icon_request_edge(self.icons.edge) {
+            return;
+        }
         // A script's interpreter can change while its icon is extracted; the
         // reissued request for the new key is the one to keep.
         if !self
@@ -405,7 +411,6 @@ impl Launcher {
         }
     }
 
-    /// Replace the configured scripts after a config reload (§10.3).
     pub fn set_search_engine(&mut self, engine: SearchEngine, custom_url: &str) {
         self.search_engine = engine;
         self.custom_search_url = custom_url.to_owned();
@@ -431,6 +436,7 @@ impl Launcher {
         self.rows = theme::visible_rows(MEDIUM_ROWS, size);
     }
 
+    /// Replace the configured scripts after a config reload (§10.3).
     pub fn set_scripts(&mut self, scripts: &BTreeMap<String, ScriptConfig>) {
         let scripts = script_entries(scripts);
         // An edited interpreter changes the icon: forget only the scripts whose
@@ -1013,7 +1019,7 @@ impl Launcher {
                 self.icon_requests.push(IconRequest {
                     app_id: app.id.clone(),
                     icon_key: app.icon_key.clone(),
-                    size: icon_px.clamp(16, 256),
+                    size: list::icon_request_edge(icon_px),
                 });
             }
 

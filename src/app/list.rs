@@ -69,6 +69,11 @@ pub fn scroll_window(
     selected.clamp(*first_row, last)
 }
 
+/// The pixel edge to extract an icon at for a row drawn `edge` pixels wide.
+pub fn icon_request_edge(edge: u32) -> u32 {
+    edge.clamp(16, 256)
+}
+
 /// A prescaled icon texture in an `edge`-point square, drawn texel-for-pixel
 /// on whole device pixels: any resample here would blur it.
 pub fn icon(ui: &mut egui::Ui, texture: &TextureHandle, edge: f32) {

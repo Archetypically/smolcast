@@ -122,15 +122,12 @@ new imports winhttp, powrprof, propsys (all system DLLs).
 4. **Sign builds** (decision 019): Authenticode (e.g. Azure Trusted Signing)
    for SmartScreen, and/or an Ed25519 key embedded in the exe, verified
    before the update swap. Until then the checksum only catches corruption.
-5. Decide the deferred review items above, plus three the 2026-10-22 review
-   found in code already on main: an icon result that arrives after a DPI
-   change is cached at the wrong size (`launcher::on_icon_ready` does not
-   check `pending` or the edge, unlike `FileView`); `calc::format_number`
-   caps decimals at 10, so results between 1e-6 and 1e-2 lose significant
-   digits; misplaced doc comments on `snippet_view::set_palette_size`,
-   `is_confirming_delete` and `launcher::set_search_engine`. And the
-   structural refactors the earlier review proposed (one texture LRU, a list cursor, a worker abstraction,
-   an effect outbox instead of ~40 `take_*` accessors).
+5. Decide the deferred review items above, and the structural refactors the
+   earlier review proposed (one texture LRU, a list cursor, a worker
+   abstraction, an effect outbox instead of ~50 `take_*` accessors). The
+   three older findings are fixed on branch `old-review-fixes`: `IconReady`
+   carries the requested edge and both icon views drop a mismatch; calculator
+   results below 0.01 keep 10 significant digits; three doc comments moved.
 6. Flag-capable emoji font for the Flags group (backlog below).
 
 ## Open questions and parked ideas

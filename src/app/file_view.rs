@@ -136,8 +136,13 @@ impl FileView {
         &mut self,
         ctx: &egui::Context,
         path: String,
+        size: u32,
         result: Result<IconRgba, LaunchError>,
     ) {
+        // Fetched before a DPI change; the row asks again at the new edge.
+        if size != list::icon_request_edge(self.icon_edge) {
+            return;
+        }
         if !self.icons_pending.remove(&path) || !self.hits.iter().any(|h| h.path == path) {
             return;
         }
@@ -316,7 +321,7 @@ impl FileView {
             {
                 self.icons_pending.insert(hit.path.clone());
                 self.icon_requests
-                    .push((hit.path.clone(), icon_px.clamp(16, 256)));
+                    .push((hit.path.clone(), list::icon_request_edge(icon_px)));
             }
             let leading = |ui: &mut egui::Ui| match &icon {
                 Some(texture) => list::icon(ui, texture, ICON_POINTS),

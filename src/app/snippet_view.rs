@@ -143,8 +143,6 @@ impl SnippetView {
         }
     }
 
-    /// Opening the view resumes an unsaved draft; otherwise it starts at the
-    /// top of the list.
     pub fn set_palette_size(&mut self, size: PaletteSize) {
         self.rows = theme::visible_rows(MEDIUM_ROWS, size);
     }
@@ -153,6 +151,8 @@ impl SnippetView {
         self.rows as f32 * theme::ROW_STRIDE
     }
 
+    /// Opening the view resumes an unsaved draft; otherwise it starts at the
+    /// top of the list.
     pub fn open(&mut self) {
         if self.busy() {
             return;
@@ -182,12 +182,12 @@ impl SnippetView {
         }
     }
 
-    /// True while the editor or a delete confirmation owns the view: the model
-    /// hides the search field and leaves Backspace to the form.
     pub fn is_confirming_delete(&self) -> bool {
         matches!(self.mode, Mode::ConfirmDelete { .. })
     }
 
+    /// True while the editor or a delete confirmation owns the view: the model
+    /// hides the search field and leaves Backspace to the form.
     pub fn is_editing(&self) -> bool {
         !matches!(self.mode, Mode::List)
     }
