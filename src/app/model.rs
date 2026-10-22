@@ -72,6 +72,9 @@ pub enum AppEvent {
         /// The key the icon was extracted from; a result for a key the entry
         /// no longer has is stale and dropped.
         icon_key: String,
+        /// The pixel edge requested; an icon for an edge the view no longer
+        /// draws at (a DPI change in flight) is dropped.
+        size: u32,
         result: Result<IconRgba, LaunchError>,
     },
     LaunchFinished {
@@ -887,12 +890,14 @@ impl AppModel {
             AppEvent::IconReady {
                 target,
                 icon_key,
+                size,
                 result,
             } => match target {
                 IconTarget::App(app_id) => {
-                    self.launcher.on_icon_ready(ctx, app_id, &icon_key, result);
+                    self.launcher
+                        .on_icon_ready(ctx, app_id, &icon_key, size, result);
                 }
-                IconTarget::File(path) => self.files.on_icon_ready(ctx, path, result),
+                IconTarget::File(path) => self.files.on_icon_ready(ctx, path, size, result),
             },
             AppEvent::ShortcutsRecycled { result } => {
                 self.launcher
