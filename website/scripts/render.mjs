@@ -2,6 +2,7 @@
 //   public/apple-touch-icon.png, icon-192.png, icon-512.png  (from favicon.svg)
 //   public/og.png                                           (from media/og.html)
 // Usage: node scripts/render.mjs [icons|og ...]   (both when none given)
+// The demo film is recorded separately: see scripts/film.mjs.
 import { chromium } from "playwright";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";

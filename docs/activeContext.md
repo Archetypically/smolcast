@@ -88,12 +88,14 @@ Decision 029; see techContext CI. If slow, make it a release `example`.
 
 ## Website (2026-10-22), branch, not deployed
 
-Decision 030: `website/`, a static one-pager for Cloudflare Pages (`task
-web:*`), whose hero is a working recreation of the palette. Domain
-`smolcast.evanlee.engineer` is hard-coded in `public/` (canonical, OG, JSON-
-LD, sitemap, robots, llms.txt): grep and replace it on a move. To do: check
-touch scrolling on a real phone; create the Pages project and DNS, deploy,
-then point `Cargo.toml` `homepage` and the README at it.
+Decision 030: `website/`, a static one-pager for Cloudflare Pages
+(`task web:*`), whose hero is a working recreation of the palette. Domain
+`smolcast.evanlee.engineer` is hard-coded in `public/` (canonical, OG,
+JSON-LD, sitemap, robots, llms.txt): grep and replace it on a move. The
+demo film is a faithful simulation (decision 031, `task web:film`); keep it
+in step with the app. To do: check touch scrolling on a real
+phone; create the Pages project and DNS, deploy, then point `Cargo.toml`
+`homepage` and the README at it.
 
 ## Pending Windows checks
 
