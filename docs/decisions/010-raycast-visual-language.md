@@ -2,9 +2,10 @@
 id: 010
 slug: raycast-visual-language
 author: archetypically
-status: resolved
+status: superseded
 created: 2026-10-20
-updated: 2026-10-21
+updated: 2026-10-22
+superseded_by: 028
 tags: [design]
 ---
 

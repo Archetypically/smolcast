@@ -7,8 +7,8 @@ contracts are in `systemPatterns.md` (cited as "plan §N"), decisions in
 ## Where the project is
 
 All seven milestones are implemented (§12). `main` holds everything but the
-installed-programs branch. Windows 11 is the acceptance environment; Linux
-runs library tests and cross-links only.
+visual-language branch. Windows 11 is the acceptance environment; Linux runs
+library tests and cross-links only.
 
 | Milestone | State |
 | --- | --- |
@@ -22,15 +22,11 @@ runs library tests and cross-links only.
 
 ## 2026-10-21 batches, on main, unverified on Windows
 
-The launcher-features batch (icons, 16 pt spacing, settings sections, keep
-state, calculator card, web search, broken shortcuts, favorites, wheel
-scrolling; decisions 011–017), its review and simplify passes, and the motion
-and polish batch (decision 018: summon fade/scale, view slides, glides,
-`reduce_motion`, focus ring, high contrast, About page). Details are in
-`git log` and the decisions. Deferred from the review: unsaved Settings edits
-are dropped by Esc (the snippet editor warns); a failed thumbnail thread
-leaves "Loading preview…"; a failed clipboard write can leave the clipboard
-empty.
+The launcher features (decisions 011–017), the review and simplify passes, and
+the motion and polish batch (decision 018). Details are in `git log` and the
+decisions. Deferred from review: unsaved Settings edits are dropped by Esc; a
+failed thumbnail thread leaves "Loading preview…"; a failed clipboard write can
+leave the clipboard empty.
 
 ## Launcher commands, files and updates (2026-10-22), on main, unverified
 
@@ -45,9 +41,8 @@ powrprof, propsys (all system DLLs).
   `url`; `{query}` takes text after the id (`gh rust egui`). Config-only.
 - **File search** (§6.6, decision 020): the Windows Search index over OLE DB,
   no index of ours. "Search Files" view (debounced, Enter opens, Ctrl+Enter
-  reveals) and a "Search Files for …" row after the results of any query. The
-  user asked omnisearch vs. a typed-query option: chose the fallback row, so
-  the root stays instant and apps are not drowned by documents.
+  reveals) and a "Search Files for …" row after any query. The user chose
+  that fallback row over omnisearch, so apps are not drowned by documents.
 - **Fallback section** (decision 022, supersedes 014's "only when nothing
   matches"): every non-calculation, non-quicklink query ends with the web and
   file search rows under a `Search for "query"` header (no header when they
@@ -57,7 +52,6 @@ powrprof, propsys (all system DLLs).
   root list, download over WinHTTP, size + SHA-256 check, rename swap,
   relaunch with `--wait-pid`. Unsigned for now (user: plumbing first).
   `.github/workflows/release.yml` publishes on a `v*` tag.
-- `projectbrief.md` now allows the update check as the one network request.
 - **Native icons** (decision 023): built-in commands, system actions,
   quicklinks and the files fallback draw Windows' icon font (Segoe Fluent
   Icons / MDL2, loaded from `%WINDIR%\Fonts`), emoji only as fallback;
@@ -81,12 +75,20 @@ the tray loads the embedded icon. Author, `homepage`
 are in `Cargo.toml`. `release.yml` checks the embedded version. Resources
 verified in the GNU exe with `llvm-readobj`; MSVC `rc.exe` path untested.
 
-## Installed programs (2026-10-22), branch, unverified
+## Installed programs (2026-10-22), on main, unverified
 
 Decision 027, plan §6.1: the scan adds filtered Uninstall registry rows no
 Start Menu shortcut covers (Raycast found Overwatch and Battle.net; neither
 has a shortcut). A dry run here adds Overwatch, Battle.net, 1Password and the
 Windows 11 Installation Assistant. Linted for the GNU target only.
+
+## Own visual language (2026-10-22), branch, unverified
+
+Decision 028 (supersedes 010): search glyph on the icon column, red
+selection pip, dissolving dividers, dimmed edge rows (`list::RowState`),
+key caps with a lower lip. Not seen on Windows yet: check every view in both
+themes, at 100/150/200%, reduced motion and high contrast; divider crispness
+at 150%.
 
 ## Pending Windows checks
 
@@ -151,7 +153,6 @@ Windows 11 Installation Assistant. Linted for the GNU target only.
    every view onto `RequestCache` and `ListCursor` (decision 024). Windows
    check: icons, file icons, emoji and thumbnails stay sharp across a
    150%→100% monitor move; scrolling and selection in every list.
-5. Flag-capable emoji font for the Flags group (backlog below).
 
 ## Open questions and parked ideas
 
@@ -162,8 +163,7 @@ Windows 11 Installation Assistant. Linted for the GNU target only.
   (licensing) or a network fetch.
 - **Broken-shortcut "Ignore"** is in memory only; persist it if the offer
   nags across restarts.
-- **Calculator Enter** pastes (consistent with snippets/emoji); Raycast copies.
-  Revisit if the user prefers copy-only.
+- **Calculator Enter** pastes; Raycast copies. Revisit if the user wants copy.
 - **Flag font**: Segoe UI Emoji has no flags; a COLR flag-only font (e.g.
   Twemoji, CC-BY/MIT with notice) costs ~1–2 MB. Also rank the Flags group
   above "flag in hole" for the bare query `flag`.

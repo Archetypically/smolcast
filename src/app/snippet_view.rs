@@ -405,9 +405,11 @@ impl SnippetView {
                 if self.results.is_empty() {
                     theme::inset(ui, |ui| ui.label(RichText::new("No matches.").weak()));
                 }
-                for row in visible {
+                for row in visible.clone() {
                     let snippet = &self.snippets[self.results[row]];
-                    if row_ui(ui, snippet, row == self.cursor.selected).clicked() {
+                    let state =
+                        list::RowState::of(row, self.cursor.selected, &visible, self.results.len());
+                    if row_ui(ui, snippet, state).clicked() {
                         clicked = Some(row);
                     }
                 }
@@ -628,10 +630,10 @@ fn preview_ui(ui: &mut egui::Ui, snippet: &Snippet) {
     );
 }
 
-fn row_ui(ui: &mut egui::Ui, snippet: &Snippet, selected: bool) -> egui::Response {
+fn row_ui(ui: &mut egui::Ui, snippet: &Snippet, state: list::RowState) -> egui::Response {
     list::row(
         ui,
-        selected,
+        state,
         &snippet.name,
         |ui| {
             ui.label("📝");
