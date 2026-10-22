@@ -6,6 +6,7 @@
 //! reduced motion, or high contrast changes; egui keeps following the system
 //! theme.
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
 use egui::{
@@ -423,6 +424,48 @@ pub fn action_busy(ui: &mut egui::Ui, label: &str) {
 /// Characters the palette's chrome and typical queries use.
 const WARM_TEXT: &str = " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`\
 abcdefghijklmnopqrstuvwxyz{|}~…·×";
+
+/// The font family holding Windows' icon font (`appearance::icon_font`).
+pub const ICON_FAMILY: &str = "windows-icons";
+/// Whether `ICON_FAMILY` was installed; egui panics on an unknown family.
+static ICON_FONT: AtomicBool = AtomicBool::new(false);
+
+/// Record that the host installed Windows' icon font as `ICON_FAMILY`.
+pub fn set_icon_font_installed() {
+    ICON_FONT.store(true, Ordering::Release);
+}
+
+/// An icon from Windows' icon font, as the Start menu and Settings draw it,
+/// with an emoji to show where the font or the glyph is missing.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Glyph {
+    /// A Segoe Fluent Icons / Segoe MDL2 Assets codepoint.
+    pub windows: char,
+    pub emoji: &'static str,
+}
+
+impl Glyph {
+    pub const fn new(windows: char, emoji: &'static str) -> Self {
+        Self { windows, emoji }
+    }
+}
+
+/// Draw `glyph` centered in an `edge`-point square, in the text color.
+pub fn glyph(ui: &mut egui::Ui, glyph: Glyph, edge: f32) -> egui::Response {
+    let size = Vec2::splat(edge);
+    if ICON_FONT.load(Ordering::Acquire) {
+        // The icon font's glyphs fill their em box; 3/4 of the slot matches
+        // the visual weight of the program icons beside them.
+        let font = FontId::new((edge * 0.75).round(), FontFamily::Name(ICON_FAMILY.into()));
+        if ui.ctx().fonts_mut(|f| f.has_glyph(&font, glyph.windows)) {
+            let text = RichText::new(glyph.windows.to_string())
+                .font(font)
+                .color(ui.visuals().text_color());
+            return ui.add_sized(size, egui::Label::new(text).selectable(false));
+        }
+    }
+    ui.add_sized(size, egui::Label::new(glyph.emoji).selectable(false))
+}
 
 /// Lay out common characters in every text style while the palette is hidden,
 /// so the first summon does not parse fonts or rasterize glyphs.

@@ -6,10 +6,8 @@ contracts are in `systemPatterns.md` (cited as "plan §N"), decisions in
 
 ## Where the project is
 
-All seven milestones are implemented (§12). Committed on `main` through
-`bed3aab` (responsiveness pass), plus the 2026-10-21 batch and a full-codebase
-review pass, merged as logical commits on the user's request before the
-Windows check (next sections). Windows 11 is the acceptance environment;
+All seven milestones are implemented (§12). `main` holds everything through
+the 2026-10-21 batches; the 2026-10-22 work is on a branch (next sections). Windows 11 is the acceptance environment;
 Linux runs library tests and cross-links only.
 
 | Milestone | State |
@@ -20,69 +18,66 @@ Linux runs library tests and cross-links only.
 | 4 Emoji | Verified; color glyphs via DirectWrite (decision 006). |
 | 5 Scripts | Implemented. |
 | 6 Snippets, tier 1 | Implemented; Windows checklist pending (§12.6). |
-| 7 Polish | Placement, click-away, login item, appearance, settings, Raycast look verified in parts; the 2026-10-21 batch is unverified. |
+| 7 Polish | Placement, click-away, login item, appearance, settings, Raycast look verified in parts; the 2026-10-21 batches are unverified. |
 
-## 2026-10-21 batch, committed but unverified on Windows
+## 2026-10-21 batches, on main, unverified on Windows
 
-Contents:
+The launcher-features batch (icons, 16 pt spacing, settings sections, keep
+state, calculator card, web search, broken shortcuts, favorites, wheel
+scrolling; decisions 011–017), its review and simplify passes, and the motion
+and polish batch (decision 018: summon fade/scale, view slides, glides,
+`reduce_motion`, focus ring, high contrast, About page). Details are in
+`git log` and the decisions. Deferred from the review: unsaved Settings edits
+are dropped by Esc (the snippet editor warns); a failed thumbnail thread
+leaves "Loading preview…"; a failed clipboard write can leave the clipboard
+empty.
 
-- **Icons**: fetched at a stock size ≥ 2× the drawn edge, padding trimmed for
-  small-only icons (7-Zip), area-averaged to exact pixels, drawn
-  pixel-aligned (`core::icon_scale`). The white frame on 7-Zip's icon is its
-  own art.
-- **Spacing**: one 16 pt content edge (`GUTTER`, `BODY_MARGIN`, `ROW_INSET`,
-  `SECTION_GAP`, `theme::inset`); the search text is centered; the footer's
-  right inset is fixed; focused text fields lose egui's white outline.
-- **Settings**: General / Palette / Clipboard sections; window size, text
-  size, keep-state seconds, web search engine (decisions 012, 014, 015).
-- **Keep state after dismiss** (decision 015).
-- **Calculator card** (decision 013); the user approved its style.
-- **Web search fallback** with engine setting (decision 014); the Settings
-  picker shows names only, the row keeps a monogram badge.
-- **Broken shortcuts** offer to recycle (decision 016).
-- **Favorites** (decision 011).
-- **Mouse-wheel scrolling** in every list and the emoji grid: whole rows
-  (`list::wheel_rows`, `list::scroll_window`); the selection follows into
-  view; the calculator card stays put.
-- **Docs reorg** to this bank (decision 017); `.env` for machine paths
-  (`.env.example`); public README.
-- **Review pass** (correctness): usage/favorites files that fail to read are
-  never overwritten (`persistence::Stored`); clipboard entries are deleted
-  only when they fail to decrypt or decode, not on I/O errors; shortcuts are
-  called broken only on a definite "not found"; a failed AppsFolder
-  enumeration keeps the old index; the taskbar/desktop is never a paste
-  destination; re-applying the live summon key is a no-op; stale launcher
-  and snippet indices after a reload no longer panic; the web row waits for
-  the first scan; a trial hotkey survives an unrelated save; lists clamp
-  their scroll when they shrink; calculator rejects non-finite steps.
-  Deferred: unsaved Settings edits are dropped by Esc (snippet editor warns);
-  a failed thumbnail thread leaves "Loading preview…"; a failed clipboard
-  write can leave the clipboard empty.
-- **Simplify pass**: shared `win::{wide, wide_path, from_wide_nul,
-  win_error_parts}` and `shell_execute`; unit captions live in `UNITS`;
-  `theme::{WARNING, ERROR}` tokens; `list::scroll_window` returns the
-  selection; dead `Wake`/`Notice` methods gone; the clipboard row preview
-  and search look only at the start of large items.
+## Launcher commands, files and updates (2026-10-22), branch, unverified
 
-## Motion and polish batch (2026-10-21), on main, unverified on Windows
+Branch `launcher-commands-updates`. Built and linted for the Windows GNU
+target, host tests pass; never run on Windows. GNU release exe 7.82 → 7.96 MB;
+new imports winhttp, powrprof, propsys (all system DLLs).
 
-Built and linted for the Windows target; host tests pass. Never run on
-Windows yet. Contents (decision 018, DESIGN.md Motion and Accessibility):
-
-- Summon fades/scales content in (160 ms, clock starts after uncloak);
-  Esc/click-away/close fade out (90 ms) then hide; summon during the fade
-  returns in place; launch/paste/web search still hide at once.
-- View and form changes slide the body in (150 ms); row and emoji selection
-  glides; hover fills fade; the selected emoji lifts; key caps light up while
-  held; the back arrow leans on hover.
-- `reduce_motion` setting (`system` follows `SPI_GETCLIENTAREAANIMATION`,
-  re-read on each show): fades only. Settings > Palette > Reduce motion.
-- Accessibility: visible 1 pt focus ring on buttons/checkboxes/menus (egui's
-  active style); stronger fills and gray text under high contrast.
-- "About smolcast" command (alias "Credits"): version, "Made with ♥ by Evan
-  Lee" (heart beats once), built-with credits, license.
+- **System commands** (§6.5): Lock Screen, Sleep, Restart, Shut Down, Sign
+  Out, Empty Recycle Bin, Toggle Dark Mode, Toggle Mute, Turn Off Display, as
+  root rows typed "System". Restart, Shut Down, Sign Out and Empty Recycle Bin
+  need a second Enter.
+- **Quicklinks** (§10.7, decision 021): `[quicklinks.<id>]` with `name` and
+  `url`; `{query}` takes text after the id (`gh rust egui`). Config-only.
+- **File search** (§6.6, decision 020): the Windows Search index over OLE DB,
+  no index of ours. "Search Files" view (debounced, Enter opens, Ctrl+Enter
+  reveals) and a "Search Files for …" row after the results of any query. The
+  user asked omnisearch vs. a typed-query option: chose the fallback row, so
+  the root stays instant and apps are not drowned by documents.
+- **Fallback section** (decision 022, supersedes 014's "only when nothing
+  matches"): every non-calculation, non-quicklink query ends with the web and
+  file search rows under a `Search for "query"` header (no header when they
+  are the only rows).
+- **Self-update** (§13, decision 019): daily check of `releases/latest`
+  (`check_for_updates`, on), "Check for Updates" command, offer row under the
+  root list, download over WinHTTP, size + SHA-256 check, rename swap,
+  relaunch with `--wait-pid`. Unsigned for now (user: plumbing first).
+  `.github/workflows/release.yml` publishes on a `v*` tag.
+- `projectbrief.md` now allows the update check as the one network request.
+- **Native icons** (decision 023): built-in commands, system actions,
+  quicklinks and the files fallback draw Windows' icon font (Segoe Fluent
+  Icons / MDL2, loaded from `%WINDIR%\Fonts`), emoji only as fallback;
+  Search Files rows show Explorer's icon per item.
 
 ## Pending Windows checks
+
+- 2026-10-22 branch: each system action (confirm flow; Restart/Shut Down
+  with an unsaved Notepad still prompts; dark mode flips apps and taskbar;
+  mute shows the flyout; display off stays off), the new glyphs render;
+  quicklinks with and without `{query}`, Tab fill-in, a folder path target;
+  the fallback header and rows scroll correctly in every window size; the
+  icon-font glyphs render at 100/150/200% in light, dark and high contrast
+  (Sign Out's SwitchUser glyph reads right); file icons load in Search Files;
+  Search Files with the service on and off, typing fast sends one query,
+  stale entries hidden, Ctrl+Enter selects in Explorer; update check against
+  a real release (needs the public repo), Skip, a failed download, an
+  unwritable folder, the swap and relaunch (old exe gone after restart, Run
+  key still valid), `check_for_updates = false` stops automatic checks.
 
 - Motion batch: summon feel with and without the fast path (no stale frame,
   animation visible from its start), Esc and click-away fades, re-summon
@@ -106,17 +101,37 @@ Windows yet. Contents (decision 018, DESIGN.md Motion and Accessibility):
 
 ## Next, in order
 
-1. User's Windows pass over both batches above, including the review fixes;
-   fix findings.
-2. Decide the deferred review items above, and the structural refactors the
-   review proposed (one texture LRU, a list cursor, a worker abstraction,
-   an effect outbox instead of ~40 `take_*` accessors).
-3. Flag-capable emoji font for the Flags group (backlog below).
-4. **Before making the GitHub repo public**: history was rewritten on
+1. User's Windows pass over the batches above (2026-10-21 on main, the
+   2026-10-22 branch); fix findings.
+2. **Games missing from the launcher** (user report: Raycast finds
+   Overwatch, smolcast does not). Cause found in code: the scan reads only
+   `.lnk` files in the two Start Menu folders plus packaged apps
+   (`win/shell.rs`), so Steam's `.url` shortcuts (`steam://rungameid/…`)
+   and launchers that put no Start Menu shortcut at all (Battle.net often
+   makes only a desktop one) are invisible. Waiting on the user to check where
+   Overwatch's shortcut lives (Start > right-click > Open file location).
+   Likely fix: index `.url` files with a launcher scheme, and the
+   non-packaged AppsFolder rows no `.lnk` covers; desktop shortcuts would be
+   a scope change needing approval.
+3. **Before making the GitHub repo public**: history was rewritten on
    2026-09-25, but GitHub still serves the pre-rewrite commits. Delete and
    recreate the repository (or have GitHub Support purge it), then push
    `main`. Also add release notes: license notices, checksum, first-run
-   behavior, and the clean-account check (§12.7 gate).
+   behavior, and the clean-account check (§12.7 gate). Updates only work
+   once the repo is public and a `v*` tag has published a release.
+4. **Sign builds** (decision 019): Authenticode (e.g. Azure Trusted Signing)
+   for SmartScreen, and/or an Ed25519 key embedded in the exe, verified
+   before the update swap. Until then the checksum only catches corruption.
+5. Decide the deferred review items above, plus three the 2026-10-22 review
+   found in code already on main: an icon result that arrives after a DPI
+   change is cached at the wrong size (`launcher::on_icon_ready` does not
+   check `pending` or the edge, unlike `FileView`); `calc::format_number`
+   caps decimals at 10, so results between 1e-6 and 1e-2 lose significant
+   digits; misplaced doc comments on `snippet_view::set_palette_size`,
+   `is_confirming_delete` and `launcher::set_search_engine`. And the
+   structural refactors the earlier review proposed (one texture LRU, a list cursor, a worker abstraction,
+   an effect outbox instead of ~40 `take_*` accessors).
+6. Flag-capable emoji font for the Flags group (backlog below).
 
 ## Open questions and parked ideas
 
@@ -133,6 +148,26 @@ Windows yet. Contents (decision 018, DESIGN.md Motion and Accessibility):
   Twemoji, CC-BY/MIT with notice) costs ~1–2 MB. Also rank the Flags group
   above "flag in hole" for the bare query `flag`.
 - **Snippet expansion** tier 2 stays unapproved (decision 009).
+- **Theming**: shelved by the user (2026-10-22), "thinking about it for
+  sure". Tinycast refuses a theme editor (its not-planned list). Sketch if
+  revived: color-only themes as `%APPDATA%\smolcast\themes\<name>.toml`
+  based on `dark` or `light`, overriding the palette tokens (background, text,
+  secondary, selection, hover, control, divider, plus accent, warning, error,
+  which are constants in `app/theme.rs` today); settings `appearance =
+  system|dark|light` and `theme = "<name>"`; layout, spacing, fonts and radii
+  stay fixed (DESIGN.md); high contrast always wins; background alpha decides
+  how much Mica shows; hot reload through the config reload.
+- **Tinycast gaps** (reviewed 2026-10-22, AI features ignored; Tinycast is
+  AGPL, so ideas only, never code). Done on the branch: system commands,
+  quicklinks, file search, self-update. Good fits not started: per-app
+  hotkeys (focus/hide an app), app aliases and hiding apps, running apps
+  with quit, Uninstall (Windows' uninstaller), clipboard pinning, paste as
+  plain text, an app block list and type filter, snippet placeholders and
+  arguments, script arguments and shown output, quicklink `{clipboard}` /
+  `{date}` and an editor. Bigger: window switcher, notes, translations.
+  Out: window management, layouts and rooms (non-goal), currency/crypto
+  (network), Raycast extensions (non-goal), dictionary (tabled), calendar,
+  Apple Shortcuts, menu-bar search, camera.
 - **Screen readers**: eframe's `accesskit` feature would expose the palette
   to Narrator, but adds dependencies and size, and the painted rows need
   `widget_info` labels. Not started; needs the user's call.
@@ -175,3 +210,11 @@ Windows yet. Contents (decision 018, DESIGN.md Motion and Accessibility):
 - **rust-analyzer** needs `cargo.target = "x86_64-pc-windows-gnu"` in the
   user-level rust-analyzer config; a project-root `rust-analyzer.toml` cannot
   set it, and `.cargo/config.toml` `build.target` would break host tests.
+- **windows-rs OLE DB**: `IRowset::GetNextRows` passes its slice as the
+  provider's `HROW**`, with `cRows` = the slice length, so only a
+  one-element slice pointing at one `HROW` is correct (`win/file_search.rs`).
+  `PropVariantToStringAlloc` and `IPropertyStore::GetValue` need the
+  `Win32_System_Variant` feature.
+- **Updates**: the running exe is renamed, never overwritten; a relaunched
+  build waits on `--wait-pid` before the single-instance mutex, or it would
+  exit as a silent second launch (decision 003).

@@ -1,4 +1,5 @@
-//! Config schema v1: settings plus named scripts and snippets, with pure validation.
+//! Config schema v1: settings plus named scripts, snippets and quicklinks,
+//! with pure validation.
 //!
 //! Windows-free and host-testable. Hotkey *strings* are validated at Windows
 //! runtime (the `global-hotkey` crate is a Windows-only dependency), so this
@@ -8,7 +9,8 @@
 //! - An absent file materializes `ConfigFile::default()` without creating a file.
 //! - A present file must declare every settings field; unknown fields are
 //!   rejected, and a malformed file is never overwritten by the app.
-//! - `scripts` and `snippets` default to empty maps when their tables are absent.
+//! - `scripts`, `snippets` and `quicklinks` default to empty maps when their
+//!   tables are absent.
 
 use std::collections::BTreeMap;
 use std::io;
@@ -42,6 +44,10 @@ pub const MAX_SCRIPT_ARG_BYTES: usize = 32 * 1024;
 pub const MAX_SNIPPET_NAME_CHARS: usize = 128;
 pub const MAX_SNIPPET_TEXT_BYTES: usize = 64 * 1024;
 pub const MAX_SNIPPET_KEYWORD_CHARS: usize = 32;
+
+/// §10.7 quicklink validation limits.
+pub const MAX_QUICKLINK_NAME_CHARS: usize = 128;
+pub const MAX_QUICKLINK_URL_CHARS: usize = 2048;
 
 /// A parsed and validated config document, or a typed reason it could not be
 /// used. The caller chooses the recovery story (safe defaults + visible notice).
@@ -92,6 +98,8 @@ pub struct ConfigFile {
     pub scripts: BTreeMap<String, ScriptConfig>,
     #[serde(default)]
     pub snippets: BTreeMap<String, SnippetConfig>,
+    #[serde(default)]
+    pub quicklinks: BTreeMap<String, QuicklinkConfig>,
 }
 
 impl Default for ConfigFile {
@@ -101,6 +109,7 @@ impl Default for ConfigFile {
             settings: Settings::default(),
             scripts: BTreeMap::new(),
             snippets: BTreeMap::new(),
+            quicklinks: BTreeMap::new(),
         }
     }
 }
@@ -145,6 +154,10 @@ pub struct Settings {
     /// Optional.
     #[serde(default = "default_web_search_url")]
     pub web_search_url: String,
+    /// Ask GitHub once a day whether a newer release exists (§13). The one
+    /// network request smolcast makes on its own. Optional; on.
+    #[serde(default = "default_true")]
+    pub check_for_updates: bool,
 }
 
 fn default_web_search_url() -> String {
@@ -245,6 +258,7 @@ impl Default for Settings {
             keep_state_secs: DEFAULT_KEEP_STATE_SECS,
             search_engine: SearchEngine::Google,
             web_search_url: default_web_search_url(),
+            check_for_updates: true,
         }
     }
 }
@@ -269,6 +283,15 @@ pub struct SnippetConfig {
     /// Short searchable alias such as `;sig`. Reserved as the trigger for
     /// future as-you-type expansion, so it is validated strictly now.
     pub keyword: Option<String>,
+}
+
+/// A URL, file or folder opened from the palette (§10.7). `{query}` in
+/// `url` is replaced by what the user types after the quicklink's id.
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct QuicklinkConfig {
+    pub name: String,
+    pub url: String,
 }
 
 /// Read and validate a config file (§10.2).
@@ -332,6 +355,12 @@ impl ConfigFile {
                     path,
                     format!("snippets {other:?} and {id:?} share the keyword {keyword:?}"),
                 ));
+            }
+        }
+        for (id, link) in &self.quicklinks {
+            validate_id(path, "quicklink", id)?;
+            if let Some(what) = link.problem() {
+                return Err(validation(path, format!("quicklink {id:?}: {what}")));
             }
         }
         Ok(())
@@ -471,7 +500,39 @@ impl SnippetConfig {
     }
 }
 
-/// Script and snippet table keys match ASCII `[A-Za-z0-9_-]{1,64}`.
+impl QuicklinkConfig {
+    /// The first rule this quicklink breaks. Any scheme is allowed (a web
+    /// URL, `ms-settings:`, a folder path): the file is the user's own.
+    pub fn problem(&self) -> Option<String> {
+        if self.name.is_empty() {
+            return Some("name must be nonempty".into());
+        }
+        if self.name.chars().count() > MAX_QUICKLINK_NAME_CHARS {
+            return Some(format!(
+                "name exceeds {MAX_QUICKLINK_NAME_CHARS} Unicode scalar values"
+            ));
+        }
+        if self.url.trim().is_empty() {
+            return Some("url must be nonempty".into());
+        }
+        if self.url.chars().count() > MAX_QUICKLINK_URL_CHARS {
+            return Some(format!(
+                "url exceeds {MAX_QUICKLINK_URL_CHARS} Unicode scalar values"
+            ));
+        }
+        if self
+            .name
+            .chars()
+            .chain(self.url.chars())
+            .any(char::is_control)
+        {
+            return Some("field contains a control character".into());
+        }
+        None
+    }
+}
+
+/// Script, snippet and quicklink table keys match ASCII `[A-Za-z0-9_-]{1,64}`.
 pub fn is_valid_id(id: &str) -> bool {
     (1..=64).contains(&id.len())
         && id
@@ -934,6 +995,55 @@ mod tests {
         assert!(err_contains(&e, "share the keyword"), "{e}");
         let distinct = text.replace("keyword = \";sig\"", "keyword = \";sig2\"");
         assert_eq!(parse(&distinct).unwrap().snippets.len(), 2);
+    }
+
+    #[test]
+    fn quicklinks_parse_and_are_validated() {
+        let cfg = parse(&format!(
+            "{BASE_SETTINGS}[quicklinks.gh]\nname = \"Search GitHub\"\nurl = \"https://github.com/search?q={{query}}\"\n[quicklinks.downloads]\nname = \"Downloads\"\nurl = 'C:\\Users\\me\\Downloads'\n"
+        ))
+        .unwrap();
+        assert_eq!(cfg.quicklinks.len(), 2);
+        assert_eq!(cfg.quicklinks["downloads"].url, "C:\\Users\\me\\Downloads");
+        assert!(parse(BASE_SETTINGS).unwrap().quicklinks.is_empty());
+
+        let long_url = "u".repeat(MAX_QUICKLINK_URL_CHARS + 1);
+        let cases: Vec<(String, &str)> = vec![
+            (
+                "[quicklinks.\"a b\"]\nname = \"x\"\nurl = \"y\"\n".into(),
+                "quicklink id",
+            ),
+            (
+                "[quicklinks.a]\nname = \"\"\nurl = \"y\"\n".into(),
+                "name must be nonempty",
+            ),
+            (
+                "[quicklinks.a]\nname = \"x\"\nurl = \" \"\n".into(),
+                "url must be nonempty",
+            ),
+            (
+                format!("[quicklinks.a]\nname = \"x\"\nurl = \"{long_url}\"\n"),
+                "url exceeds",
+            ),
+            (
+                "[quicklinks.a]\nname = \"x\"\nurl = \"a\\nb\"\n".into(),
+                "control character",
+            ),
+        ];
+        for (table, needle) in &cases {
+            let e = parse(&format!("{BASE_SETTINGS}{table}")).unwrap_err();
+            assert!(err_contains(&e, needle), "{table:?}: {e}");
+        }
+        let unknown =
+            format!("{BASE_SETTINGS}[quicklinks.a]\nname = \"x\"\nurl = \"y\"\nicon = 1\n");
+        assert!(matches!(parse(&unknown), Err(ConfigError::Parse { .. })));
+    }
+
+    #[test]
+    fn check_for_updates_is_optional_and_on() {
+        assert!(parse(BASE_SETTINGS).unwrap().settings.check_for_updates);
+        let off = format!("{BASE_SETTINGS}check_for_updates = false\n");
+        assert!(!parse(&off).unwrap().settings.check_for_updates);
     }
 
     #[test]

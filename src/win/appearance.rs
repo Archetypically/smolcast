@@ -62,8 +62,19 @@ pub fn set_dark(window: &PaletteWindow, dark: bool) {
 
 /// The system UI font file (Segoe UI), if present.
 pub fn system_font() -> Option<Vec<u8>> {
+    read_font("segoeui.ttf")
+}
+
+/// Windows' own icon font, which the Start menu and Settings draw their
+/// icons with: Segoe Fluent Icons on Windows 11, Segoe MDL2 Assets on
+/// Windows 10. They share codepoints.
+pub fn icon_font() -> Option<Vec<u8>> {
+    read_font("SegoeIcons.ttf").or_else(|| read_font("segmdl2.ttf"))
+}
+
+fn read_font(file: &str) -> Option<Vec<u8>> {
     let dir = std::env::var_os("WINDIR")?;
-    std::fs::read(PathBuf::from(dir).join("Fonts").join("segoeui.ttf")).ok()
+    std::fs::read(PathBuf::from(dir).join("Fonts").join(file)).ok()
 }
 
 fn set_attribute<T>(hwnd: HWND, attribute: DWMWINDOWATTRIBUTE, value: &T) {
