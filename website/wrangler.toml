@@ -1,0 +1,5 @@
+# Cloudflare Pages project. `task web:deploy` uploads public/ as-is: there
+# is no build step.
+name = "smolcast"
+pages_build_output_dir = "public"
+compatibility_date = "2026-10-01"

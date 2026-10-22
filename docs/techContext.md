@@ -101,6 +101,46 @@ The app icon is generated from `assets/smolcast.svg`:
 `assets/smolcast.ico` and `assets/smolcast.png`. A tag with a `-`
 (`v0.2.0-rc.1`) is a prerelease and is never offered.
 
+## Website
+
+`website/` is the public one-pager (decision 030), self-contained so it can
+move hosts. `website/public/` is deployed to Cloudflare Pages as-is: no build
+step, no framework, no third-party requests. `_headers` sets the CSP and
+caching; `404.html` is Pages' not-found page. `media/` holds render-only
+pages (the social card), served at `/_media/` by
+`scripts/serve.mjs` and never deployed.
+
+| Command | Does |
+| --- | --- |
+| `task web:dev` | Serve the site at http://127.0.0.1:8788 |
+| `task web:fmt` / `task web:fmt-check` | Prettier over HTML, CSS, JS and config |
+| `task web:lint` | ESLint and html-validate |
+| `task web:render` | Regenerate `og.png` and the PNG icons with Playwright (`-- og` or `icons` to pick) |
+| `task web:deploy` | `wrangler pages deploy public` (run `npx wrangler login` once) |
+
+Tools are pinned in `website/package.json` and its lockfile; Playwright's
+version must match an installed Chromium (`npx playwright install chromium`).
+CI runs the format check, ESLint and html-validate on Ubuntu. The palette's
+tokens copy `src/app/theme.rs`; change both together.
+
+The demo film (`public/media/smolcast-demo.{mp4,webm,jpg}`, also the page's
+`og:video`) is a faithful simulation (decision 031): `media/film.html`,
+`film.css` and `film.js` draw a Windows 11 desktop at 150% with the app's
+measurements, labels and results, using open Microsoft stand-ins for
+Windows' fonts, icons and emoji (`media/film/`, licenses inside). The emoji
+results in `media/film/emoji-search.json` come from `core::emoji::search`.
+`scripts/film.mjs` records it with Chrome's screencast, which manages about
+30 fps and ignores the device scale factor: the page is CSS-zoomed to 1080p
+and runs 4× slower (timers via `media/slowmo.js`, animations via CDP
+`Animation.setPlaybackRate`), and the frames are re-timed and encoded at 60
+fps with the original music from `scripts/music.mjs` (synthesized,
+deterministic, no third-party audio). It writes the page's files and a
+square cut in the ignored `media/out/`. Re-record after visible changes to
+the app.
+
+Touch gestures cannot be synthesized in headless Chromium here, so the
+palette's native touch scrolling is checked on a real phone.
+
 ## Agent workflow notes
 
 - Develop in WSL; nothing is installed on the Windows system drive. Try

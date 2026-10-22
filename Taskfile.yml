@@ -4,6 +4,11 @@ version: '3'
 # (see .env.example); none are tracked.
 dotenv: ['.env']
 
+includes:
+  web:
+    taskfile: website/Taskfile.yml
+    dir: website
+
 vars:
   TARGET: '{{if eq OS "windows"}}x86_64-pc-windows-msvc{{else}}x86_64-pc-windows-gnu{{end}}'
   CARGO: '{{if .CARGO_HOME}}{{.CARGO_HOME}}/bin/cargo{{if eq OS "windows"}}.exe{{end}}{{else if eq OS "windows"}}{{.USERPROFILE}}/.cargo/bin/cargo.exe{{else}}{{.HOME}}/.cargo/bin/cargo{{end}}'

@@ -1,0 +1,49 @@
+version: "3"
+
+# The website: a static one-pager in public/, deployed to Cloudflare Pages
+# as-is. Included from the root Taskfile as `web:` (run `task web:dev`).
+
+tasks:
+  install:
+    desc: Install the website's pinned lint, format and render tools
+    sources: [package.json, package-lock.json]
+    generates: [node_modules/.package-lock.json]
+    cmds:
+      - npm ci
+
+  dev:
+    desc: Serve the site at http://127.0.0.1:8788 (PORT to change)
+    deps: [install]
+    cmds:
+      - node scripts/serve.mjs
+
+  fmt:
+    desc: Format the website's HTML, CSS, JS and config
+    deps: [install]
+    cmds:
+      - npx prettier --write .
+
+  fmt-check:
+    desc: Check the website's formatting without changes
+    deps: [install]
+    cmds:
+      - npx prettier --check .
+
+  lint:
+    desc: Lint the website's JavaScript and HTML
+    deps: [install]
+    cmds:
+      - npx eslint .
+      - npx html-validate public/*.html media/*.html
+
+  render:
+    desc: Regenerate the icons and og.png from their HTML and SVG sources (needs Playwright's Chromium)
+    deps: [install]
+    cmds:
+      - node scripts/render.mjs {{.CLI_ARGS}}
+
+  deploy:
+    desc: Upload public/ to the Cloudflare Pages project (needs `npx wrangler login` once)
+    deps: [install]
+    cmds:
+      - npx --yes wrangler@4.152.0 pages deploy public --project-name smolcast --branch main
