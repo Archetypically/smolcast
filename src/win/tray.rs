@@ -5,12 +5,17 @@
 use tray_icon::menu::{Menu, MenuEvent, MenuItem};
 use tray_icon::{Icon, MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 
+use windows::Win32::UI::WindowsAndMessaging::{GetSystemMetrics, SM_CXSMICON};
+
 use crate::app::model::{AppEvent, TrayCommand, Wake};
 use crate::win::placement::PaletteWindow;
 
 pub const MENU_OPEN: &str = "smolcast.open";
 pub const MENU_REFRESH: &str = "smolcast.refresh";
 pub const MENU_QUIT: &str = "smolcast.quit";
+
+/// The icon resource id build.rs gives assets/smolcast.ico.
+const APP_ICON_RESOURCE: u16 = 1;
 
 #[derive(Debug)]
 pub struct TrayError {
@@ -112,45 +117,11 @@ impl TrayError {
     }
 }
 
-/// A minimal placeholder tray icon: dark rounded square with a lighter inner
-/// grid, 32x32 RGBA. Replaced by a proper asset in the polish milestone.
+/// The app icon embedded by build.rs (resource 1), at the small-icon size for
+/// the system DPI at startup, so Windows picks a matching frame instead of
+/// scaling one. A later scale change keeps this frame until restart.
 fn build_icon() -> Result<Icon, tray_icon::BadIcon> {
-    const SIZE: u32 = 32;
-    const RADIUS: u32 = 7;
-    let mut rgba = vec![0u8; (SIZE * SIZE * 4) as usize];
-    for y in 0..SIZE {
-        for x in 0..SIZE {
-            let px = (y * SIZE + x) as usize * 4;
-            let corner_dist = corner_distance(x, y, SIZE, RADIUS);
-            if corner_dist > RADIUS * RADIUS {
-                rgba[px..px + 4].copy_from_slice(&[0, 0, 0, 0]);
-                continue;
-            }
-            // Background: dark translucent blue-gray.
-            let (r, g, b, a) = (24, 28, 36, 255);
-            // Inner 4x4 launcher dots in a lighter tone.
-            let grid = (8..14).contains(&x) as u8 + (18..24).contains(&x) as u8;
-            let grow = (8..14).contains(&y) as u8 + (18..24).contains(&y) as u8;
-            if grid > 0 && grow > 0 {
-                rgba[px..px + 4].copy_from_slice(&[120, 200, 255, 255]);
-            } else {
-                rgba[px..px + 4].copy_from_slice(&[r, g, b, a]);
-            }
-        }
-    }
-    Icon::from_rgba(rgba, SIZE, SIZE)
-}
-
-/// Squared distance to the nearest rounded-rectangle corner; inside corners
-/// score 0.
-fn corner_distance(x: u32, y: u32, size: u32, radius: u32) -> u32 {
-    let cx = x.min(size - 1 - x);
-    let cy = y.min(size - 1 - y);
-    if cx >= radius && cy >= radius {
-        0
-    } else {
-        let dx = radius.saturating_sub(cx) as i64;
-        let dy = radius.saturating_sub(cy) as i64;
-        (dx * dx + dy * dy) as u32
-    }
+    // SAFETY: GetSystemMetrics has no preconditions.
+    let edge = unsafe { GetSystemMetrics(SM_CXSMICON) }.max(16) as u32;
+    Icon::from_resource(APP_ICON_RESOURCE, Some((edge, edge)))
 }

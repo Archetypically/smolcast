@@ -81,7 +81,12 @@ runtime acceptance: each milestone's Windows smoke gate (§12) is.
 To release, bump `version` in `Cargo.toml`, merge, then push a matching tag
 (`git tag v0.2.0 && git push origin v0.2.0`). `.github/workflows/release.yml`
 builds the MSVC exe and publishes `smolcast-<version>-x86_64.exe` with its
-`.sha256`, which running copies offer as an update (§13). A tag with a `-`
+`.sha256`, which running copies offer as an update (§13). The version, author
+and site in the exe's Properties come from `Cargo.toml` through `build.rs`
+(decision 026); the workflow fails if the embedded version is not the tag's.
+The app icon is generated from `assets/smolcast.svg`:
+`python3 scripts/generate_icon.py` (needs cairosvg and Pillow) rewrites
+`assets/smolcast.ico` and `assets/smolcast.png`. A tag with a `-`
 (`v0.2.0-rc.1`) is a prerelease and is never offered.
 
 ## Agent workflow notes
