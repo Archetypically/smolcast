@@ -18,7 +18,7 @@ jobs:
     name: Windows MSVC build + lint
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install pinned toolchain
         shell: pwsh
         run: |
@@ -28,7 +28,7 @@ jobs:
       # test builds them a second time (tests ignore `panic = "abort"`), so
       # the key names that set: an exact hit never re-saves. Saving after a
       # failure keeps a red run from rebuilding everything next time.
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           key: with-smoke-deps
           cache-on-failure: true
@@ -62,7 +62,7 @@ jobs:
           }
           "bytes=$((Get-Item $exe).Length)" | Out-File -Encoding utf8 artifacts-size.txt
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: windows-release
           path: |
@@ -91,7 +91,7 @@ jobs:
         run: cargo test --locked --release --target x86_64-pc-windows-msvc --test smoke -- --ignored --nocapture
       - name: Upload the failure screenshot
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: smoke-failure
           path: smoke-failure.png
@@ -101,14 +101,14 @@ jobs:
     name: Linux host tests + GNU cross-link
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install MinGW x86-64
         run: sudo apt-get update && sudo apt-get install -y gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64
       - name: Install pinned toolchain and GNU target
         run: |
           rustup toolchain install 1.98.1 --profile minimal --component rustfmt,clippy
           rustup target add x86_64-pc-windows-gnu --toolchain 1.98.1
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
       - name: Host library tests
         run: cargo test --locked --lib
       - name: Build release (GNU)
@@ -118,7 +118,7 @@ jobs:
           bytes=$(stat -c %s target/x86_64-pc-windows-gnu/release/smolcast.exe)
           echo "bytes=$bytes" > artifacts-size.txt
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: linux-gnu-release
           path: |
