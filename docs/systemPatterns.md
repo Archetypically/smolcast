@@ -582,7 +582,8 @@ an older snapshot cannot overwrite a newer one.
 ### 6.4 Icons and refresh
 
 Do not move `HICON` across threads. Extract on a shell job, convert immediately to
-owned RGBA, call `DestroyIcon` when ownership requires it, and send `IconReady`.
+owned RGBA, call `DestroyIcon` when ownership requires it, and send `IconReady`,
+addressed by `IconTarget` (a launcher `AppId` or a Search Files path).
 Request icons only for visible rows. Cache at most 128 application icons with a
 simple recency queue; dropping an entry drops its egui texture.
 
@@ -635,7 +636,10 @@ starting with the whole query move to the front. The worker drains its queue
 and runs only the newest query; the view sends a query only after the text has
 been unchanged for 120 ms and drops answers for older generations
 (`AppEvent::FilesFound`). Enter opens the item with the shell; Ctrl+Enter runs
-`explorer.exe /select,"<path>"`. Both are completed actions.
+`explorer.exe /select,"<path>"`. Both are completed actions. Visible rows ask
+the icon worker for Explorer's icon by path (`IconTarget::File`, the same
+`IShellItemImageFactory` path as app icons, §6.4); textures are kept only for
+listed items.
 
 ---
 

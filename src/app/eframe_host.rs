@@ -26,7 +26,7 @@ use crate::win::hotkey::{self, HotkeyManager};
 use crate::win::paste;
 use crate::win::persistence::{self, ClipboardStoreCommand, StatePaths, StateWriter};
 use crate::win::placement::PaletteWindow;
-use crate::win::shell::{self, IconWorker};
+use crate::win::shell::{self, IconTarget, IconWorker};
 use crate::win::tray::{self, TrayHandle};
 use crate::win::update::{self, UpdateWorker};
 use crate::win::{appearance, autostart};
@@ -393,9 +393,17 @@ impl EframeApp {
             }
         }
         let icon_requests = self.model.take_icon_requests();
+        let file_icon_requests = self.model.take_file_icon_requests();
         if let Some(worker) = &self.icon_worker {
             for request in icon_requests {
-                worker.request(request.app_id, request.icon_key, request.size);
+                worker.request(
+                    IconTarget::App(request.app_id),
+                    request.icon_key,
+                    request.size,
+                );
+            }
+            for (path, size) in file_icon_requests {
+                worker.request(IconTarget::File(path.clone()), path, size);
             }
         }
         if let (Some(writer), Some((generation, bytes))) =
@@ -804,18 +812,30 @@ fn open_config_file(path: &Path) {
 }
 
 /// Put Segoe UI ahead of egui's bundled fonts, which remain as fallbacks for
-/// symbols it lacks. Missing file: keep the defaults.
+/// symbols it lacks, and add Windows' icon font as its own family
+/// (`theme::ICON_FAMILY`). A missing file keeps that part at its default.
 fn install_system_font(ctx: &Context) {
-    let Some(bytes) = appearance::system_font() else {
-        return;
-    };
     let mut fonts = egui::FontDefinitions::default();
-    fonts.font_data.insert(
-        "segoe-ui".into(),
-        Arc::new(egui::FontData::from_owned(bytes)),
-    );
-    if let Some(family) = fonts.families.get_mut(&egui::FontFamily::Proportional) {
-        family.insert(0, "segoe-ui".into());
+    if let Some(bytes) = appearance::system_font() {
+        fonts.font_data.insert(
+            "segoe-ui".into(),
+            Arc::new(egui::FontData::from_owned(bytes)),
+        );
+        if let Some(family) = fonts.families.get_mut(&egui::FontFamily::Proportional) {
+            family.insert(0, "segoe-ui".into());
+        }
+    }
+    // Windows' icon font in a family of its own, never a text fallback.
+    if let Some(bytes) = appearance::icon_font() {
+        fonts.font_data.insert(
+            theme::ICON_FAMILY.into(),
+            Arc::new(egui::FontData::from_owned(bytes)),
+        );
+        fonts.families.insert(
+            egui::FontFamily::Name(theme::ICON_FAMILY.into()),
+            vec![theme::ICON_FAMILY.into()],
+        );
+        theme::set_icon_font_installed();
     }
     ctx.set_fonts(fonts);
 }

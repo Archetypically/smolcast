@@ -103,7 +103,7 @@ The font is Segoe UI, with egui's bundled fonts as fallbacks.
   matched). First "Search Google for "query"", led by the engine's monogram
   badge (`theme::engine_badge`: its letter on a circle in its color; logos are
   not bundled) with a gray "Web Search" label; Enter opens the default
-  browser. Then "Search Files for "query"" (🔍, gray "Files"), which opens the
+  browser. Then "Search Files for "query"" (search glyph, gray "Files"), which opens the
   Search Files view with the query.
 - **Confirming row.** A system action that needs a second Enter (Restart,
   Shut Down, Sign Out, Empty Recycle Bin) replaces its gray type label with
@@ -117,7 +117,8 @@ The font is Segoe UI, with egui's bundled fonts as fallbacks.
   available (you have Y)." then Install and Restart, What's New and Skip This
   Version. While checking or downloading, a small spinner with its label
   takes the place of the line and buttons.
-- **File rows** (Search Files view). A 📁 or 📄 glyph, the file name, and the
+- **File rows** (Search Files view). Explorer's icon (a folder or document
+  glyph until it loads), the file name, and the
   containing folder in gray on the right, cut from the left with "…" past 48
   characters (full path on hover). The section header reads "Files", with
   "Searching…" while a query runs. The empty query explains where results
@@ -138,9 +139,14 @@ The font is Segoe UI, with egui's bundled fonts as fallbacks.
 - **Row icons.** Use the program's real icon wherever one exists. For
   applications, it comes from the Start Menu shortcut or the packaged app. For
   scripts, it comes from the interpreter executable, with bare names such as
-  `pwsh.exe` resolved through the search path. A glyph is used only when no
-  icon exists: built-in commands, clipboard entries, snippets, or a failed
-  lookup (▶ for scripts).
+  `pwsh.exe` resolved through the search path. Search Files rows show
+  Explorer's icon for each file or folder. A glyph is used only when no icon
+  exists: built-in commands, system actions, quicklinks, the files fallback,
+  or a failed lookup. Glyphs come from Windows' icon font (Segoe Fluent Icons
+  on Windows 11, Segoe MDL2 Assets on 10; decision 023) via `theme::glyph`,
+  at 3/4 of the 22-point slot in the text color, so they read like the Start
+  menu's power menu; the emoji is only a fallback when the font or glyph is
+  missing. Clipboard entries and snippets keep their own previews.
 - **About page** (`about_view`). "About smolcast" (also found by "Credits")
   is a centered column: the name at 1.6× the search size, the version,
   a one-line tagline, "Made with ♥ by Evan Lee" (the heart is painted in the
@@ -208,8 +214,8 @@ palette is idle.
 - **Draw icons, don't type them.** If a symbol is not certain to be in Segoe
   UI or Segoe UI Emoji, paint it with the painter instead of using a text
   glyph. The existing command glyphs (📋 😀 📝 ✏ ⚙ ▶) are covered by those fonts.
-  The system, quicklink and file glyphs (🔒 💤 🔃 🔌 🚪 🗑 🌗 🔇 🖥 🔗 🔍 🔄 📁 📄)
-  are standard emoji, pending a Windows look.
+  Built-in row icons are Windows icon-font glyphs (decision 023), with these
+  emoji only as fallbacks.
 - **One content edge.** Text, icons, buttons and fields start and end on the
   16-point gutter in every section and view. Only row and cell fills reach
   out to the 8-point body margin. Body content that is not a row goes inside

@@ -33,7 +33,7 @@ use crate::win::paste::{
 };
 use crate::win::persistence::{ClipboardStoreCommand, LoadedEntry, Stored};
 use crate::win::placement::PaletteWindow;
-use crate::win::shell::{LaunchError, ScanOutcome};
+use crate::win::shell::{IconTarget, LaunchError, ScanOutcome};
 use crate::win::update::CheckOutcome;
 
 use super::about_view::AboutView;
@@ -68,7 +68,7 @@ pub enum AppEvent {
         result: Result<ScanOutcome, LaunchError>,
     },
     IconReady {
-        app_id: AppId,
+        target: IconTarget,
         /// The key the icon was extracted from; a result for a key the entry
         /// no longer has is stale and dropped.
         icon_key: String,
@@ -592,6 +592,11 @@ impl AppModel {
         self.files.take_request()
     }
 
+    /// Explorer icons for visible Search Files rows: (path, pixel edge).
+    pub fn take_file_icon_requests(&mut self) -> Vec<(String, u32)> {
+        self.files.take_icon_requests()
+    }
+
     pub fn file_search_unavailable(&mut self, error: &str) {
         self.files
             .set_unavailable(format!("File search is unavailable: {error}"));
@@ -702,12 +707,12 @@ impl AppModel {
             skip = ui.button("Skip This Version").clicked();
         });
         if install {
-            let update = update.clone();
             self.update_status = UpdateStatus::Installing;
-            self.update_requests.push(UpdateRequest::Install(update));
+            self.update_requests
+                .push(UpdateRequest::Install(update.clone()));
         } else if skip {
-            let version = version.clone();
-            self.update_requests.push(UpdateRequest::Skip(version));
+            self.update_requests
+                .push(UpdateRequest::Skip(version.clone()));
             self.update = None;
         }
     }
@@ -880,12 +885,15 @@ impl AppModel {
                     .on_index_ready(generation, result, &mut self.notices);
             }
             AppEvent::IconReady {
-                app_id,
+                target,
                 icon_key,
                 result,
-            } => {
-                self.launcher.on_icon_ready(ctx, app_id, &icon_key, result);
-            }
+            } => match target {
+                IconTarget::App(app_id) => {
+                    self.launcher.on_icon_ready(ctx, app_id, &icon_key, result);
+                }
+                IconTarget::File(path) => self.files.on_icon_ready(ctx, path, result),
+            },
             AppEvent::ShortcutsRecycled { result } => {
                 self.launcher
                     .on_shortcuts_recycled(result, &mut self.notices);

@@ -4,25 +4,34 @@
 //! Backend-neutral: it raises a search request per settled query and the
 //! host's worker answers with `AppEvent::FilesFound`. Typing waits
 //! `DEBOUNCE` before asking, so a fast typist sends one query, not one per
-//! key.
+//! key. Rows show Explorer's icon for each item, fetched by the host's icon
+//! worker for visible rows only; the Windows icon-font glyph stands in
+//! until it arrives.
 
+use std::collections::{HashMap, HashSet};
 use std::time::{Duration, Instant};
 
-use egui::{Key, Modifiers, RichText, Vec2};
+use egui::{Key, Modifiers, RichText, TextureHandle, TextureOptions};
 
 use crate::core::config::PaletteSize;
 use crate::core::file_search::FileHit;
+use crate::win::icon::IconRgba;
+use crate::win::shell::LaunchError;
 
+use super::theme::Glyph;
 use super::{list, theme};
 
 /// Result rows shown at once in a medium palette.
 const MEDIUM_ROWS: usize = 7;
 /// How long the query must stay unchanged before it is sent.
 const DEBOUNCE: Duration = Duration::from_millis(120);
-/// Row glyph edge in points, like the launcher's icons.
-const GLYPH_POINTS: f32 = 22.0;
+/// Row icon edge in points, like the launcher's icons.
+const ICON_POINTS: f32 = 22.0;
 /// Longest folder path shown in a row's right column, in characters.
 const FOLDER_CHARS: usize = 48;
+/// The glyphs standing in for a row's Explorer icon until it arrives.
+const GLYPH_FOLDER: Glyph = Glyph::new('\u{E8B7}', "📁");
+const GLYPH_DOCUMENT: Glyph = Glyph::new('\u{E8A5}', "📄");
 
 /// What the user chose to do with a file.
 pub enum FileAction {
@@ -48,6 +57,13 @@ pub struct FileView {
     action: Option<FileAction>,
     /// Why file search cannot run at all (its thread did not start).
     unavailable: Option<String>,
+    /// Explorer icons by path, for the current results only.
+    icons: HashMap<String, TextureHandle>,
+    icons_pending: HashSet<String>,
+    icons_failed: HashSet<String>,
+    /// The pixel edge the icons were fetched at; a DPI change starts over.
+    icon_edge: u32,
+    icon_requests: Vec<(String, u32)>,
 }
 
 impl Default for FileView {
@@ -72,6 +88,11 @@ impl FileView {
             request: None,
             action: None,
             unavailable: None,
+            icons: HashMap::new(),
+            icons_pending: HashSet::new(),
+            icons_failed: HashSet::new(),
+            icon_edge: 0,
+            icon_requests: Vec::new(),
         }
     }
 
@@ -105,6 +126,36 @@ impl FileView {
         self.action.take()
     }
 
+    /// Icons to fetch for visible rows: (path, pixel edge).
+    pub fn take_icon_requests(&mut self) -> Vec<(String, u32)> {
+        std::mem::take(&mut self.icon_requests)
+    }
+
+    /// An Explorer icon arrived. Kept only while its item is still listed.
+    pub fn on_icon_ready(
+        &mut self,
+        ctx: &egui::Context,
+        path: String,
+        result: Result<IconRgba, LaunchError>,
+    ) {
+        if !self.icons_pending.remove(&path) || !self.hits.iter().any(|h| h.path == path) {
+            return;
+        }
+        match result {
+            Ok(icon) => {
+                let image = egui::ColorImage::from_rgba_premultiplied(
+                    [icon.width as usize, icon.height as usize],
+                    &icon.rgba_premultiplied,
+                );
+                let texture = ctx.load_texture("file-icon", image, TextureOptions::LINEAR);
+                self.icons.insert(path, texture);
+            }
+            Err(_) => {
+                self.icons_failed.insert(path);
+            }
+        }
+    }
+
     /// File search cannot run this session; the view says so instead.
     pub fn set_unavailable(&mut self, message: String) {
         self.unavailable = Some(message);
@@ -120,6 +171,13 @@ impl FileView {
             Ok(hits) => {
                 self.hits = hits;
                 self.error = None;
+                // Textures for items no longer listed are dropped; the
+                // results never hold more than `MAX_RESULTS`.
+                let hits = &self.hits;
+                let listed = |path: &String| hits.iter().any(|h| &h.path == path);
+                self.icons.retain(|path, _| listed(path));
+                self.icons_pending.retain(listed);
+                self.icons_failed.retain(listed);
             }
             Err(e) => {
                 self.hits.clear();
@@ -169,8 +227,11 @@ impl FileView {
             return;
         }
         if typed.is_empty() {
-            // Nothing to ask for: clear at once.
-            self.forget_sent();
+            // Nothing to ask for: clear at once. Only a query in flight
+            // needs its answer dropped; idle frames leave the generation be.
+            if self.sent.is_some() {
+                self.forget_sent();
+            }
             self.shown_for = None;
             self.hits.clear();
             self.error = None;
@@ -238,12 +299,35 @@ impl FileView {
             list::scroll_window(&mut self.first_row, self.selected, count, self.rows, step);
         list::keep_visible(self.selected, &mut self.first_row, self.rows);
         let end = (self.first_row + self.rows).min(count);
+        let icon_px = (ICON_POINTS * ui.ctx().pixels_per_point()).round() as u32;
+        if icon_px != self.icon_edge {
+            self.icon_edge = icon_px;
+            self.icons.clear();
+            self.icons_pending.clear();
+            self.icons_failed.clear();
+        }
         let mut clicked = None;
         for row in self.first_row..end {
             let hit = &self.hits[row];
-            let leading = |ui: &mut egui::Ui| {
-                let glyph = if hit.folder { "📁" } else { "📄" };
-                ui.add_sized(Vec2::splat(GLYPH_POINTS), egui::Label::new(glyph));
+            let icon = self.icons.get(&hit.path).cloned();
+            if icon.is_none()
+                && !self.icons_pending.contains(&hit.path)
+                && !self.icons_failed.contains(&hit.path)
+            {
+                self.icons_pending.insert(hit.path.clone());
+                self.icon_requests
+                    .push((hit.path.clone(), icon_px.clamp(16, 256)));
+            }
+            let leading = |ui: &mut egui::Ui| match &icon {
+                Some(texture) => list::icon(ui, texture, ICON_POINTS),
+                None => {
+                    let glyph = if hit.folder {
+                        GLYPH_FOLDER
+                    } else {
+                        GLYPH_DOCUMENT
+                    };
+                    theme::glyph(ui, glyph, ICON_POINTS);
+                }
             };
             let folder = shorten(hit.parent(), FOLDER_CHARS);
             let trailing = |ui: &mut egui::Ui| {

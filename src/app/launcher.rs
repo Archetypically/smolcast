@@ -8,7 +8,6 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
-use egui::emath::GuiRounding as _;
 use egui::{
     Color32, Key, Modifiers, Pos2, Rect, RichText, Sense, TextureHandle, TextureOptions, Vec2,
 };
@@ -31,6 +30,7 @@ use crate::win::persistence::{Stored, unix_ms_now};
 use crate::win::shell::{BrokenShortcut, LaunchError, ScanOutcome};
 
 use super::notice::{Notice, NoticeStore, Severity, op};
+use super::theme::Glyph;
 use super::{list, theme};
 
 /// A summon rescans only when the last completed scan is older than this (§1.4).
@@ -41,6 +41,8 @@ const ICON_CACHE_CAP: usize = 128;
 const MEDIUM_ROWS: usize = 7;
 /// Row icon edge in points.
 const ICON_POINTS: f32 = 22.0;
+/// The search glyph: the Search Files command and the file fallback row.
+const GLYPH_SEARCH: Glyph = Glyph::new('\u{E721}', "🔍");
 
 /// A row below the ranked entries that hands the query to something else.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -653,11 +655,16 @@ impl Launcher {
 
     // ---- favorites --------------------------------------------------------------
 
+    /// The ranked entry on list row `row`, if that row is one (not the
+    /// calculator card or a fallback).
+    fn ranked_at(&self, row: usize) -> Option<&Ranked> {
+        self.ranked.get(row.checked_sub(self.answer_rows())?)
+    }
+
     /// The app on list row `row`, if that row is an app (not the calculator
     /// card or a fallback).
     fn app_at(&self, row: usize) -> Option<&IndexedApp> {
-        let ranked = self.ranked.get(row.checked_sub(self.answer_rows())?)?;
-        self.apps.get(ranked.index)
+        self.apps.get(self.ranked_at(row)?.index)
     }
 
     /// The fallback on list row `row`, if that row is one.
@@ -676,7 +683,7 @@ impl Launcher {
 
     /// Whether the row is a quicklink that still needs its query typed.
     fn needs_query(&self, row: usize) -> bool {
-        let Some(ranked) = self.ranked.get(row.wrapping_sub(self.answer_rows())) else {
+        let Some(ranked) = self.ranked_at(row) else {
             return false;
         };
         matches!(
@@ -1018,36 +1025,18 @@ impl Launcher {
             let leading = |ui: &mut egui::Ui| {
                 let size = Vec2::splat(ICON_POINTS);
                 match (&icon, &app.launch) {
-                    (Some(texture), _) => {
-                        // Draw texel-for-pixel on whole device pixels; any
-                        // resample here would blur the prescaled icon.
-                        let (slot, _) = ui.allocate_exact_size(size, Sense::hover());
-                        let ppp = ui.ctx().pixels_per_point();
-                        let [w, h] = texture.size();
-                        let mut drawn = Vec2::new(w as f32, h as f32) / ppp;
-                        // One extracted before a DPI change: fit the slot.
-                        if drawn.max_elem() > ICON_POINTS {
-                            drawn *= ICON_POINTS / drawn.max_elem();
-                        }
-                        let min = (slot.center() - drawn / 2.0).round_to_pixels(ppp);
-                        ui.painter().image(
-                            texture.id(),
-                            Rect::from_min_size(min, drawn),
-                            Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)),
-                            Color32::WHITE,
-                        );
-                    }
+                    (Some(texture), _) => list::icon(ui, texture, ICON_POINTS),
                     (None, LaunchSpec::Command(command)) => {
-                        ui.add_sized(size, egui::Label::new(command_glyph(*command)));
+                        theme::glyph(ui, command_glyph(*command), ICON_POINTS);
                     }
                     (None, LaunchSpec::System(action)) => {
-                        ui.add_sized(size, egui::Label::new(system_glyph(*action)));
+                        theme::glyph(ui, system_glyph(*action), ICON_POINTS);
                     }
                     (None, LaunchSpec::Quicklink { .. }) => {
-                        ui.add_sized(size, egui::Label::new("🔗"));
+                        theme::glyph(ui, Glyph::new('\u{E71B}', "🔗"), ICON_POINTS);
                     }
                     (None, LaunchSpec::Script(_)) => {
-                        ui.add_sized(size, egui::Label::new("▶"));
+                        theme::glyph(ui, Glyph::new('\u{E768}', "▶"), ICON_POINTS);
                     }
                     (None, _) => {
                         ui.allocate_exact_size(size, Sense::hover());
@@ -1144,7 +1133,7 @@ impl Launcher {
                 theme::engine_badge(ui, engine, ICON_POINTS);
             }
             Fallback::Files(_) => {
-                ui.add_sized(Vec2::splat(ICON_POINTS), egui::Label::new("🔍"));
+                theme::glyph(ui, GLYPH_SEARCH, ICON_POINTS);
             }
         };
         let trailing = |ui: &mut egui::Ui| {
@@ -1175,10 +1164,9 @@ impl Launcher {
             }
             None => {}
         }
-        let Some(ranked) = self.ranked.get(row.wrapping_sub(self.answer_rows())) else {
+        let Some(index) = self.ranked_at(row).map(|ranked| ranked.index) else {
             return;
         };
-        let index = ranked.index;
         let app = &self.apps[index];
         let (app_id, mut spec) = (app.id.clone(), app.launch.clone());
         match &spec {
@@ -1325,29 +1313,31 @@ fn kind_label(launch: &LaunchSpec) -> &'static str {
     }
 }
 
-fn command_glyph(command: Command) -> &'static str {
+/// Windows icon-font glyphs (Segoe Fluent Icons / MDL2 codepoints), as the
+/// Start menu and Settings use them.
+fn command_glyph(command: Command) -> Glyph {
     match command {
-        Command::ClipboardHistory => "📋",
-        Command::Emoji => "😀",
-        Command::Snippets => "📝",
-        Command::CreateSnippet => "✏",
-        Command::Settings => "⚙",
-        Command::About => "ℹ",
-        Command::SearchFiles => "🔍",
-        Command::CheckForUpdates => "🔄",
+        Command::ClipboardHistory => Glyph::new('\u{E77F}', "📋"), // Paste
+        Command::Emoji => Glyph::new('\u{E76E}', "😀"),            // Emoji2
+        Command::Snippets => Glyph::new('\u{E70B}', "📝"),         // QuickNote
+        Command::CreateSnippet => Glyph::new('\u{E70F}', "✏"),     // Edit
+        Command::Settings => Glyph::new('\u{E713}', "⚙"),          // Settings
+        Command::About => Glyph::new('\u{E946}', "ℹ"),             // Info
+        Command::SearchFiles => GLYPH_SEARCH,
+        Command::CheckForUpdates => Glyph::new('\u{E895}', "🔄"), // Sync
     }
 }
 
-fn system_glyph(action: SystemAction) -> &'static str {
+fn system_glyph(action: SystemAction) -> Glyph {
     match action {
-        SystemAction::LockScreen => "🔒",
-        SystemAction::Sleep => "💤",
-        SystemAction::Restart => "🔃",
-        SystemAction::ShutDown => "🔌",
-        SystemAction::SignOut => "🚪",
-        SystemAction::EmptyRecycleBin => "🗑",
-        SystemAction::ToggleDarkMode => "🌗",
-        SystemAction::ToggleMute => "🔇",
-        SystemAction::TurnOffDisplay => "🖥",
+        SystemAction::LockScreen => Glyph::new('\u{E72E}', "🔒"), // Lock
+        SystemAction::Sleep => Glyph::new('\u{E708}', "💤"),      // QuietHours (moon)
+        SystemAction::Restart => Glyph::new('\u{E777}', "🔃"),    // UpdateRestore
+        SystemAction::ShutDown => Glyph::new('\u{E7E8}', "🔌"),   // PowerButton
+        SystemAction::SignOut => Glyph::new('\u{E748}', "🚪"),    // SwitchUser
+        SystemAction::EmptyRecycleBin => Glyph::new('\u{E74D}', "🗑"), // Delete
+        SystemAction::ToggleDarkMode => Glyph::new('\u{E706}', "🌗"), // Brightness
+        SystemAction::ToggleMute => Glyph::new('\u{E74F}', "🔇"), // Mute
+        SystemAction::TurnOffDisplay => Glyph::new('\u{E7F4}', "🖥"), // TVMonitor
     }
 }
