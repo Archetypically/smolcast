@@ -22,10 +22,9 @@ library tests and cross-links only.
 
 ## 2026-10-21 batches, on main, unverified on Windows
 
-The launcher features (decisions 011–017), the review and simplify passes, and
-the motion and polish batch (decision 018). Details are in `git log` and the
-decisions. Deferred from review: unsaved Settings edits are dropped by Esc; a
-failed thumbnail thread leaves "Loading preview…"; a failed clipboard write can
+Decisions 011–018 (launcher features, motion and polish); details in
+`git log`. Deferred review items: Esc drops unsaved Settings edits; a failed
+thumbnail thread leaves "Loading preview…"; a failed clipboard write can
 leave the clipboard empty.
 
 ## Launcher commands, files and updates (2026-10-22), on main, unverified
@@ -57,12 +56,9 @@ powrprof, propsys (all system DLLs).
   Icons / MDL2, loaded from `%WINDIR%\Fonts`), emoji only as fallback;
   Search Files rows show Explorer's icon per item.
 
-## Effect outbox (2026-10-22), unverified on Windows
+## Effect outbox (2026-10-22), on main, unverified on Windows
 
-Decision 025, plan §1.2: the host drains one ordered `Vec<Effect>` from
-`AppModel::take_effects` instead of twenty `take_*` accessors. Views keep
-their coalescing slots; a config save waits in the host's `queued_save`.
-Meant to change nothing at runtime; built and linted for the GNU target only.
+Decision 025, plan §1.2: one ordered `Vec<Effect>` from `take_effects`.
 
 ## App icon and file properties (2026-10-22), on main, unverified
 
@@ -89,6 +85,17 @@ selection pip, dissolving dividers, dimmed edge rows (`list::RowState`),
 key caps with a lower lip. Not seen on Windows yet: check every view in both
 themes, at 100/150/200%, reduced motion and high contrast; divider crispness
 at 150%.
+
+## Desktop smoke test in CI (2026-10-22), PR #10, green on CI
+
+Decision 029: `tests/smoke.rs` launches the release exe on the
+`windows-latest` desktop and drives it with real `SendInput` (the user
+chose real input over the earlier in-app replay sketch): single instance,
+summon/Esc, calculator, clipboard history and emoji paste into a Win32 edit
+window, launching a Start Menu shortcut. Opt-in only
+(`SMOLCAST_SMOKE_DESKTOP=disposable` + `--ignored`). Runner needs Mesa (no
+GPU). If the step gets slow, make it a release `example`: `cargo test`
+rebuilds every dependency with unwinding.
 
 ## Pending Windows checks
 
@@ -188,15 +195,6 @@ at 150%.
   Out: window management, layouts and rooms (non-goal), currency/crypto
   (network), Raycast extensions (non-goal), dictionary (tabled), calendar,
   Apple Shortcuts, menu-bar search, camera.
-- **Automated UI smoke tests** (user, 2026-10-22): drive the real binary on
-  a display and catch regressions deterministically. Not started. Sketch:
-  run on a GitHub `windows-latest` runner (it has an interactive desktop),
-  never the user's desktop; drive input from inside the app with a test-only
-  mode that replays a fixed key script (summon, type, arrows, Enter) rather
-  than `SendInput`/UI Automation, which are flaky on focus and timing; check
-  dumped model state (deterministic), and add screenshot diffs only with
-  pinned fonts, DPI and theme. The effect outbox (decision 025) makes the
-  model's output easy to record and compare.
 - **Screen readers**: eframe's `accesskit` feature would expose the palette
   to Narrator, but adds dependencies and size, and the painted rows need
   `widget_info` labels. Not started; needs the user's call.
@@ -210,7 +208,10 @@ at 150%.
 - Develop and build in WSL; try builds via `task stage` (or `task install`
   for the everyday copy). Nothing is installed on the Windows system drive.
 - No scripted input or screenshots on the user's desktop without asking;
-  prefer manual checklists.
+  prefer manual checklists. CI's throwaway runner desktop is the exception
+  (decision 029).
+- Tests: default to the desktop smoke test (integration level); do not add
+  unit tests unless asked.
 - Edit repo files with the Edit/Write tools, not ad-hoc replace scripts.
 - Cheap mechanical moves/renames/re-reference sweeps go to a Haiku subagent.
 

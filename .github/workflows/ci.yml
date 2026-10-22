@@ -24,8 +24,14 @@ jobs:
         run: |
           rustup toolchain install 1.98.1 --profile minimal --component rustfmt,clippy
           rustup target add x86_64-pc-windows-msvc --toolchain 1.98.1
-      # Dependencies rarely change; reuse their build between runs.
+      # Dependencies rarely change; reuse their build between runs. The smoke
+      # test builds them a second time (tests ignore `panic = "abort"`), so
+      # the key names that set: an exact hit never re-saves. Saving after a
+      # failure keeps a red run from rebuilding everything next time.
       - uses: Swatinem/rust-cache@v2
+        with:
+          key: with-smoke-deps
+          cache-on-failure: true
       - name: Check formatting
         run: cargo fmt --all -- --check
       - name: Clippy (all targets)
@@ -64,6 +70,32 @@ jobs:
             artifacts-size.txt
             artifacts-imports.txt
           if-no-files-found: error
+      # The release exe on the runner's desktop, driven with real input
+      # (decision 029). The runner is throwaway, so the test may type, click
+      # and reset smolcast's state there. It runs after the artifacts upload
+      # so a failure still reports size and imports.
+      # The runner has no GPU and only OpenGL 1.1; Glow needs 2.0+. Mesa's
+      # software OpenGL beside the exe stands in (opengl32.dll is not a known
+      # DLL, so the app folder wins). The uploaded release is unaffected.
+      - name: Software OpenGL for the smoke test
+        shell: pwsh
+        run: |
+          $archive = "$env:RUNNER_TEMP\mesa.7z"
+          Invoke-WebRequest https://github.com/pal1000/mesa-dist-win/releases/download/24.0.7/mesa3d-24.0.7-release-msvc.7z -OutFile $archive
+          7z x $archive "-o$env:RUNNER_TEMP\mesa" x64 -y | Out-Null
+          Copy-Item "$env:RUNNER_TEMP\mesa\x64\*.dll" target/x86_64-pc-windows-msvc/release/
+      - name: Desktop smoke test
+        timeout-minutes: 10
+        env:
+          SMOLCAST_SMOKE_DESKTOP: disposable
+        run: cargo test --locked --release --target x86_64-pc-windows-msvc --test smoke -- --ignored --nocapture
+      - name: Upload the failure screenshot
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-failure
+          path: smoke-failure.png
+          if-no-files-found: ignore
 
   linux-gnu:
     name: Linux host tests + GNU cross-link
