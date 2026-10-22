@@ -11,9 +11,11 @@ those natively, in one small executable that is idle when hidden.
 
 - **Instant.** One hotkey summons the palette on the monitor under the cursor;
   typing searches immediately; Enter does the obvious thing.
-- **Raycast-like.** A large frameless search field, a soft gray selection,
-  section headers, and a footer that names the main action and its keys.
-  `DESIGN.md` is the visual source of truth.
+- **Familiar, with its own flavor.** Raycast's shape (a large frameless
+  search field, a soft gray selection, section headers, a footer that names
+  the main action and its keys), with a red selection pip, a search glyph on
+  the icon column, and edges that dissolve. `DESIGN.md` is the visual source
+  of truth.
 - **Forgiving.** An accidental dismiss keeps the palette's state for a short
   while (`keep_state_secs`, default 30 s); a completed action starts fresh.
 - **Honest.** Anything still running says so ("Indexing apps…", "Pasting…")

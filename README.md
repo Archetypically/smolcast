@@ -17,7 +17,7 @@ smolcast is a Windows take on [Tinycast](https://github.com/abue-ammar/tinycast)
 - **Emoji picker**: searchable grid of every Unicode 17.0 emoji, in color, pasted exactly.
 - **Scripts**: name a command in the config, run it from the palette or its own hotkey.
 - **Snippets**: save text you paste often, find it by name or keyword, and edit it right in the palette.
-- **Feels native**: Raycast-style look, Mica backdrop, rounded corners, light and dark themes, opens on the monitor under your cursor.
+- **Feels native**: a calm look of its own in Raycast's shape, Mica backdrop, rounded corners, light and dark themes, opens on the monitor under your cursor.
 - **Lively, never slow**: the palette settles in, views slide, the selection glides, and nothing waits on an animation. Reduced motion follows Windows' Animation effects setting or your choice.
 - **Forgiving**: dismiss by accident and the palette comes back as you left it for 30 seconds.
 - **Tidy**: offers to move broken Start Menu shortcuts to the Recycle Bin.

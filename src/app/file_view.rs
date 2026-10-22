@@ -27,7 +27,7 @@ const MEDIUM_ROWS: usize = 7;
 /// How long the query must stay unchanged before it is sent.
 const DEBOUNCE: Duration = Duration::from_millis(120);
 /// Row icon edge in points, like the launcher's icons.
-const ICON_POINTS: f32 = 22.0;
+const ICON_POINTS: f32 = theme::ICON_SLOT;
 /// Longest folder path shown in a row's right column, in characters.
 const FOLDER_CHARS: usize = 48;
 /// The glyphs standing in for a row's Explorer icon until it arrives.
@@ -283,7 +283,7 @@ impl FileView {
         let icon_px = (ICON_POINTS * ui.ctx().pixels_per_point()).round() as u32;
         self.icons.set_edge(list::icon_request_edge(icon_px));
         let mut clicked = None;
-        for row in visible {
+        for row in visible.clone() {
             let hit = &self.hits[row];
             let icon = self.icons.get(&hit.path);
             if icon.is_none() && self.icons.begin(&hit.path) {
@@ -308,7 +308,7 @@ impl FileView {
             };
             if list::row(
                 ui,
-                row == self.cursor.selected,
+                list::RowState::of(row, self.cursor.selected, &visible, self.hits.len()),
                 &hit.name,
                 leading,
                 trailing,

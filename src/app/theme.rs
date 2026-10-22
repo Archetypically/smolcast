@@ -1,6 +1,7 @@
-//! Raycast-like look (plan §12.7): neutral dark/light surfaces, a soft gray
-//! selection instead of an accent fill, 8-point corner radii, a large frameless
-//! search field, hairline dividers, and a footer action bar with key caps.
+//! smolcast's look (plan §12.7, decision 028):Raycast's structure (a large
+//! frameless search field, a soft gray selection, a footer action bar with key
+//! caps) with Tinycast's dissolving edges, Spotlight's search glyph, and a
+//! Windows 11 selection pip in the brand red.
 //!
 //! Both egui themes are styled at startup and again when the text size,
 //! reduced motion, or high contrast changes; egui keeps following the system
@@ -9,6 +10,7 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
+use egui::emath::GuiRounding as _;
 use egui::{
     Color32, Context, CornerRadius, FontFamily, FontId, RichText, Stroke, TextStyle, Theme, Vec2,
 };
@@ -25,6 +27,10 @@ pub const BODY_MARGIN: i8 = 8;
 pub const ROW_INSET: f32 = (GUTTER - BODY_MARGIN) as f32;
 /// Vertical gap between body sections: a list and its buttons, form groups.
 pub const SECTION_GAP: f32 = 8.0;
+/// Row icon slot. The search glyph and back button sit on the same column.
+pub const ICON_SLOT: f32 = 22.0;
+/// Gap between the icon slot and a row's name, or the search text.
+pub const ICON_GAP: f32 = 10.0;
 /// Result row height.
 pub const ROW_HEIGHT: f32 = 38.0;
 /// Vertical item spacing.
@@ -72,7 +78,8 @@ fn font_sizes(size: TextSize) -> [f32; 5] {
 }
 
 const RADIUS: u8 = 8;
-/// Raycast's brand red, used only for the text cursor, text selection, and links.
+/// The brand red ("s." in the app icon): the text cursor, text selection,
+/// links, and the selection pip.
 const ACCENT: Color32 = Color32::from_rgb(255, 99, 99);
 /// Status colors, in small text only (DESIGN.md).
 pub const WARNING: Color32 = Color32::from_rgb(230, 180, 60);
@@ -234,16 +241,62 @@ pub fn divider_color(ui: &egui::Ui) -> Color32 {
     ui.visuals().widgets.noninteractive.bg_stroke.color
 }
 
-/// A divider across the full width of `ui`'s clip rect, ignoring margins.
+/// Share of a divider's length over which each end dissolves.
+const DIVIDER_FADE: f32 = 0.18;
+
+/// A divider across the full width of `ui`'s clip rect, ignoring margins. Its
+/// ends dissolve into the window rather than stopping at its edges.
 pub fn divider(ui: &mut egui::Ui) {
     let (rect, _) =
         ui.allocate_exact_size(Vec2::new(ui.available_width(), 1.0), egui::Sense::hover());
-    let clip = ui.clip_rect();
-    ui.painter().hline(
-        clip.x_range(),
-        rect.center().y,
-        Stroke::new(1.0, divider_color(ui)),
+    let x = ui.clip_rect().x_range();
+    let color = divider_color(ui);
+    let fade = x.span() * DIVIDER_FADE;
+    let ppp = ui.ctx().pixels_per_point();
+    // One whole device pixel row at least, so it stays crisp at any scale.
+    let top = (rect.center().y - 0.5).round_to_pixels(ppp);
+    let bottom = top + (1.0f32).round_to_pixels(ppp).max(1.0 / ppp);
+    let stops = [
+        (x.min, Color32::TRANSPARENT),
+        (x.min + fade, color),
+        (x.max - fade, color),
+        (x.max, Color32::TRANSPARENT),
+    ];
+    let mut mesh = egui::Mesh::default();
+    for (i, (at, color)) in stops.into_iter().enumerate() {
+        mesh.colored_vertex(egui::pos2(at, top), color);
+        mesh.colored_vertex(egui::pos2(at, bottom), color);
+        if i > 0 {
+            let n = 2 * i as u32;
+            mesh.add_triangle(n - 2, n - 1, n);
+            mesh.add_triangle(n - 1, n, n + 1);
+        }
+    }
+    ui.painter().add(mesh);
+}
+
+/// The selected row's pip: a short accent bar at the fill's left edge, as
+/// Windows 11 marks the current item, in the brand red. Painted with the
+/// fill so it glides with it.
+pub fn selection_pip(fill: egui::Rect) -> egui::Shape {
+    let pip = egui::Rect::from_center_size(
+        egui::pos2(fill.left() + 3.5, fill.center().y),
+        Vec2::new(3.0, 14.0),
     );
+    egui::Shape::rect_filled(pip, 2, ACCENT)
+}
+
+/// Spotlight's magnifier, painted in the icon slot at the head of the search
+/// field so the query starts on the row names' column.
+pub fn search_glyph(ui: &mut egui::Ui) {
+    let (rect, _) = ui.allocate_exact_size(Vec2::splat(ICON_SLOT), egui::Sense::hover());
+    let stroke = Stroke::new(1.5, ui.visuals().weak_text_color());
+    let c = rect.center() - Vec2::splat(1.5);
+    let radius = 5.5;
+    let painter = ui.painter();
+    painter.circle_stroke(c, radius, stroke);
+    let handle = Vec2::splat(std::f32::consts::FRAC_1_SQRT_2);
+    painter.line_segment([c + handle * radius, c + handle * (radius + 5.0)], stroke);
 }
 
 /// Body content that is not a row or cell (labels, buttons, forms, notices),
@@ -336,14 +389,24 @@ pub fn key_cap(ui: &mut egui::Ui, key: &str) {
         .weak_text_color()
         .lerp_to_gamma(visuals.text_color(), held);
     ui.painter().rect_filled(rect, 4, fill);
+    // A darker lower edge, like a physical key's; it flattens while held.
+    let lip = rect
+        .with_min_y(rect.max.y - 1.0)
+        .shrink2(Vec2::new(3.0, 0.0));
+    let shade = Color32::from_black_alpha(70).gamma_multiply(1.0 - held);
+    ui.painter().rect_filled(lip, 0, shade);
     let text = rect.center() - galley.size() / 2.0;
     ui.painter().galley(text, galley, color);
 }
 
 /// Raycast's back control: a left arrow in a rounded square. Painted so it
-/// does not depend on the font having an arrow glyph.
+/// does not depend on the font having an arrow glyph. It takes the icon
+/// slot, centered on the row icons' column, and its square reaches 3 points
+/// past the slot on each side.
 pub fn back_button(ui: &mut egui::Ui) -> egui::Response {
-    let (rect, response) = ui.allocate_exact_size(Vec2::splat(28.0), egui::Sense::click());
+    let (slot, _) = ui.allocate_exact_size(Vec2::new(ICON_SLOT, 28.0), egui::Sense::hover());
+    let rect = egui::Rect::from_center_size(slot.center(), Vec2::splat(28.0));
+    let response = ui.interact(rect, ui.id().with("back"), egui::Sense::click());
     let visuals = ui.style().interact(&response);
     ui.painter().rect_filled(rect, 6, visuals.bg_fill);
     // The focus ring other controls get from the active style.
