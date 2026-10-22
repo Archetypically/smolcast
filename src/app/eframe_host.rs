@@ -12,7 +12,8 @@ use std::thread::JoinHandle;
 
 use egui::{Context, ViewportCommand};
 
-use crate::app::clipboard_view;
+use crate::app::clipboard_view::{self, ThumbnailRequest};
+use crate::app::effect::Effect;
 use crate::app::model::loads_stored_history;
 use crate::app::model::{AppEvent, AppModel, HotkeyStatus, UpdateRequest, Wake};
 use crate::app::notice::{Notice, Severity, op};
@@ -50,6 +51,8 @@ pub struct EframeApp {
     tray: Option<TrayHandle>,
     clipboard: Option<ClipboardThread>,
     refresh_worker: Option<JoinHandle<()>>,
+    /// A config edit waiting for the refresh worker slot.
+    queued_save: Option<ConfigEdit>,
     state_writer: Option<StateWriter>,
     icon_worker: Option<IconWorker>,
     emoji_renderer: Option<EmojiRenderer>,
@@ -244,6 +247,7 @@ impl EframeApp {
             tray,
             clipboard: Some(clipboard),
             refresh_worker: None,
+            queued_save: None,
             state_writer,
             icon_worker,
             emoji_renderer,
@@ -300,46 +304,21 @@ impl EframeApp {
         self.applied_look = Some((size, look));
     }
 
-    /// Per-callback tick: drain events, service refresh/trial requests, and
+    /// Per-callback tick: drain events, execute the model's effects, and
     /// trigger quit. Called by both the hidden `logic` pass and the visible
     /// `ui` pass.
     fn step(&mut self, ctx: &Context) {
         self.model.step(ctx);
         self.sync_look(ctx);
+        self.reap_jobs();
+        self.run_effects();
 
-        // Reap a finished refresh worker; only one runs at a time (§1.4).
-        if self
-            .refresh_worker
-            .as_ref()
-            .is_some_and(|worker| worker.is_finished())
-            && let Some(worker) = self.refresh_worker.take()
-        {
-            let _ = worker.join();
-        }
-
-        self.run_launcher_requests();
-        self.run_clipboard_requests();
-        self.run_search_and_update_requests();
-
-        // A save and a refresh share the worker slot; a save waits for it.
-        if self.refresh_worker.is_none()
-            && let Some(edit) = self.model.take_config_save()
-        {
-            self.start_save(edit);
-        }
-        if self.model.take_refresh_requested() {
-            self.start_refresh();
-        }
-        if self.model.take_open_config_file() {
-            open_config_file(&self.paths.config);
-        }
-
-        if let Some(cfg) = self.model.take_pending_config() {
-            self.apply_config(cfg);
-        }
-
-        if let Some(key) = self.model.take_trial_request() {
-            self.apply_trial(key);
+        if let Some(worker) = &self.updates {
+            let automatic = self.model.config().settings.check_for_updates;
+            if automatic != self.update_automatic {
+                self.update_automatic = automatic;
+                worker.set_automatic(automatic);
+            }
         }
 
         if self.model.quit_requested() && !self.close_sent {
@@ -350,150 +329,175 @@ impl EframeApp {
         }
     }
 
-    /// Execute the launcher's queued work (§6): scans, launches, icon lookups,
-    /// and usage snapshots. The model guarantees at most one active scan.
-    fn run_launcher_requests(&mut self) {
+    /// Join finished workers. Only one refresh and one scan run at a time
+    /// (§1.4); shell, thumbnail and paste jobs each deliver one event.
+    fn reap_jobs(&mut self) {
+        if self
+            .refresh_worker
+            .as_ref()
+            .is_some_and(|worker| worker.is_finished())
+            && let Some(worker) = self.refresh_worker.take()
+        {
+            let _ = worker.join();
+        }
         if self.scan_job.as_ref().is_some_and(|job| job.is_finished())
             && let Some(job) = self.scan_job.take()
         {
             let _ = job.join();
         }
         self.launch_jobs.retain(|job| !job.is_finished());
+        self.thumbnail_jobs.retain(|job| !job.is_finished());
+        self.paste_jobs.retain(|(job, _)| !job.is_finished());
+    }
 
-        if let Some(generation) = self.model.take_scan_request() {
-            match shell::spawn_scan(generation, self.scan_cancel.clone(), self.wake()) {
-                Ok(job) => {
-                    // A previous job has already delivered its result; join it
-                    // before tracking the new one.
-                    if let Some(old) = self.scan_job.replace(job) {
-                        let _ = old.join();
+    /// Execute the model's effects in the order it queued them (§1.2). A
+    /// worker that did not start reports back through the model.
+    fn run_effects(&mut self) {
+        // Reloads and trial keys coalesce: only the latest of each applies.
+        let (mut refresh, mut config, mut trial) = (false, None, None);
+        for effect in self.model.take_effects() {
+            match effect {
+                Effect::Scan(generation) => self.start_scan(generation),
+                // Shell jobs share `launch_jobs`: each delivers one event and
+                // is joined on shutdown.
+                Effect::Recycle(paths) => match shell::spawn_recycle(paths, self.wake()) {
+                    Ok(job) => self.launch_jobs.push(job),
+                    Err(e) => self.model.recycle_start_failed(&e.to_string()),
+                },
+                Effect::Launch(request) => {
+                    match shell::spawn_launch(request.app_id, request.spec, self.wake()) {
+                        Ok(job) => self.launch_jobs.push(job),
+                        Err(e) => self.model.launch_start_failed(&e.to_string()),
                     }
                 }
-                Err(e) => self.model.scan_start_failed(generation, &e.to_string()),
+                Effect::Icon(request) => {
+                    if let Some(worker) = &self.icon_worker {
+                        worker.request(
+                            IconTarget::App(request.app_id),
+                            request.icon_key,
+                            request.size,
+                        );
+                    }
+                }
+                Effect::FileIcon(path, size) => {
+                    if let Some(worker) = &self.icon_worker {
+                        worker.request(IconTarget::File(path.clone()), path, size);
+                    }
+                }
+                Effect::Glyph(request) => {
+                    if let Some(renderer) = &self.emoji_renderer {
+                        renderer.request(request.index, request.text, request.edge);
+                    }
+                }
+                Effect::SaveUsage(generation, bytes) => {
+                    if let Some(writer) = &self.state_writer {
+                        writer.save_usage(generation, bytes);
+                    }
+                }
+                Effect::SaveFavorites(bytes) => {
+                    if let Some(writer) = &self.state_writer {
+                        writer.save_favorites(bytes);
+                    }
+                }
+                Effect::FileSearch(generation, query) => match &self.file_search {
+                    Some(worker) => worker.request(generation, query),
+                    None => self
+                        .model
+                        .file_search_unavailable("the search thread did not start"),
+                },
+                Effect::Update(request) => match &self.updates {
+                    Some(worker) => match request {
+                        UpdateRequest::Check => worker.check(),
+                        UpdateRequest::Install(release) => worker.install(release),
+                        UpdateRequest::Skip(version) => worker.skip(version),
+                    },
+                    None => self
+                        .model
+                        .updates_unavailable("the update thread did not start"),
+                },
+                Effect::Clipboard(command) => {
+                    if let Some(clipboard) = &self.clipboard {
+                        clipboard.send_command(command);
+                    }
+                }
+                Effect::Store(command) => {
+                    if let Some(writer) = &self.state_writer {
+                        writer.clipboard(command);
+                    }
+                }
+                Effect::Thumbnail(request) => self.start_thumbnail(request),
+                Effect::PasteFinisher(request) => {
+                    match paste::spawn_finisher(
+                        request.destination,
+                        request.cancel.clone(),
+                        self.wake(),
+                    ) {
+                        Ok(job) => self.paste_jobs.push((job, request.cancel)),
+                        Err(e) => self.model.paste_finisher_failed(&e.to_string()),
+                    }
+                }
+                // The latest edit wins; it waits for the worker slot below.
+                Effect::SaveConfig(edit) => self.queued_save = Some(edit),
+                Effect::RefreshConfig => refresh = true,
+                Effect::OpenConfigFile => open_config_file(&self.paths.config),
+                Effect::ApplyConfig(cfg) => config = Some(cfg),
+                Effect::TrialHotkey(key) => trial = Some(key),
             }
         }
-        // Shell jobs share `launch_jobs`: each delivers one event and is
-        // joined on shutdown.
-        if let Some(paths) = self.model.take_recycle_request() {
-            match shell::spawn_recycle(paths, self.wake()) {
-                Ok(job) => self.launch_jobs.push(job),
-                Err(e) => self.model.recycle_start_failed(&e.to_string()),
-            }
-        }
-        if let Some(request) = self.model.take_launch_request() {
-            match shell::spawn_launch(request.app_id, request.spec, self.wake()) {
-                Ok(job) => self.launch_jobs.push(job),
-                Err(e) => self.model.launch_start_failed(&e.to_string()),
-            }
-        }
-        let glyph_requests = self.model.take_glyph_requests();
-        if let Some(renderer) = &self.emoji_renderer {
-            for request in glyph_requests {
-                renderer.request(request.index, request.text, request.edge);
-            }
-        }
-        let icon_requests = self.model.take_icon_requests();
-        let file_icon_requests = self.model.take_file_icon_requests();
-        if let Some(worker) = &self.icon_worker {
-            for request in icon_requests {
-                worker.request(
-                    IconTarget::App(request.app_id),
-                    request.icon_key,
-                    request.size,
-                );
-            }
-            for (path, size) in file_icon_requests {
-                worker.request(IconTarget::File(path.clone()), path, size);
-            }
-        }
-        if let (Some(writer), Some((generation, bytes))) =
-            (&self.state_writer, self.model.take_usage_snapshot())
+
+        // A save and a refresh share the worker slot; a save waits for it,
+        // and a refresh while it is busy is dropped (the save reloads).
+        if self.refresh_worker.is_none()
+            && let Some(edit) = self.queued_save.take()
         {
-            writer.save_usage(generation, bytes);
+            self.start_save(edit);
         }
-        if let (Some(writer), Some(bytes)) =
-            (&self.state_writer, self.model.take_favorites_snapshot())
-        {
-            writer.save_favorites(bytes);
+        if refresh {
+            self.start_refresh();
+        }
+        if let Some(cfg) = config {
+            self.apply_config(cfg);
+        }
+        if let Some(key) = trial {
+            self.apply_trial(key);
         }
     }
 
-    /// Forward file queries and update work to their workers (§6.6, §13),
-    /// and follow the `check_for_updates` setting.
-    fn run_search_and_update_requests(&mut self) {
-        if let Some((generation, query)) = self.model.take_file_search_request() {
-            match &self.file_search {
-                Some(worker) => worker.request(generation, query),
-                None => self
-                    .model
-                    .file_search_unavailable("the search thread did not start"),
+    /// The model guarantees at most one active scan.
+    fn start_scan(&mut self, generation: u64) {
+        match shell::spawn_scan(generation, self.scan_cancel.clone(), self.wake()) {
+            Ok(job) => {
+                // A previous job has already delivered its result; join it
+                // before tracking the new one.
+                if let Some(old) = self.scan_job.replace(job) {
+                    let _ = old.join();
+                }
             }
-        }
-        let requests = self.model.take_update_requests();
-        let Some(worker) = &self.updates else {
-            if !requests.is_empty() {
-                self.model
-                    .updates_unavailable("the update thread did not start");
-            }
-            return;
-        };
-        for request in requests {
-            match request {
-                UpdateRequest::Check => worker.check(),
-                UpdateRequest::Install(release) => worker.install(release),
-                UpdateRequest::Skip(version) => worker.skip(version),
-            }
-        }
-        let automatic = self.model.config().settings.check_for_updates;
-        if automatic != self.update_automatic {
-            self.update_automatic = automatic;
-            worker.set_automatic(automatic);
+            Err(e) => self.model.scan_start_failed(generation, &e.to_string()),
         }
     }
 
-    /// Forward clipboard commands to the clipboard thread and start paste
-    /// finishers (§7.1, §8.2).
-    fn run_clipboard_requests(&mut self) {
-        if let Some(clipboard) = &self.clipboard {
-            for command in self.model.take_clipboard_commands() {
-                clipboard.send_command(command);
-            }
-        }
-        let store = self.model.take_store_commands();
-        if let Some(writer) = &self.state_writer {
-            for command in store {
-                writer.clipboard(command);
-            }
-        }
-        self.thumbnail_jobs.retain(|job| !job.is_finished());
-        for request in self.model.take_thumbnail_requests() {
-            let wake = self.wake();
-            let spawned = std::thread::Builder::new()
-                .name("smolcast-thumbnail".into())
-                .spawn(move || {
-                    let image = clipboard_view::thumbnail(&request.image);
-                    wake.send(AppEvent::ThumbnailReady {
-                        id: request.id,
-                        image,
-                    });
+    /// Downscale a stored clipboard image off the UI thread.
+    fn start_thumbnail(&mut self, request: ThumbnailRequest) {
+        let wake = self.wake();
+        let spawned = std::thread::Builder::new()
+            .name("smolcast-thumbnail".into())
+            .spawn(move || {
+                let image = clipboard_view::thumbnail(&request.image);
+                wake.send(AppEvent::ThumbnailReady {
+                    id: request.id,
+                    image,
                 });
-            match spawned {
-                Ok(job) => self.thumbnail_jobs.push(job),
-                // No thread: the preview stays "loading" until the next
-                // request; nothing is downscaled on the UI thread.
-                Err(e) => self.model.push_notice(Notice::new(
-                    Severity::Warning,
-                    op::CLIPBOARD,
-                    format!("Could not start the image preview: {e}"),
-                )),
-            }
-        }
-        self.paste_jobs.retain(|(job, _)| !job.is_finished());
-        if let Some(request) = self.model.take_paste_finisher() {
-            match paste::spawn_finisher(request.destination, request.cancel.clone(), self.wake()) {
-                Ok(job) => self.paste_jobs.push((job, request.cancel)),
-                Err(e) => self.model.paste_finisher_failed(&e.to_string()),
-            }
+            });
+        match spawned {
+            Ok(job) => self.thumbnail_jobs.push(job),
+            // No thread: the preview stays "loading" until the next
+            // request; nothing is downscaled on the UI thread.
+            Err(e) => self.model.push_notice(Notice::new(
+                Severity::Warning,
+                op::CLIPBOARD,
+                format!("Could not start the image preview: {e}"),
+            )),
         }
     }
 
