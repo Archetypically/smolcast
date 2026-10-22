@@ -1232,9 +1232,14 @@ impl AppModel {
                 ui.multiply_opacity(nav_opacity);
                 // A fixed 28-point line (the back button's height) so the
                 // query sits at the same height with or without the button.
+                // The search glyph or back button takes the row icons'
+                // column, so the query starts on the row names' column.
                 fixed_row(ui, 28.0, |ui| {
+                    ui.spacing_mut().item_spacing.x = theme::ICON_GAP;
                     if crumb.is_some() {
                         back = theme::back_button(ui).on_hover_text("Back (Esc)").clicked();
+                    } else {
+                        theme::search_glyph(ui);
                     }
                     if self.search_hidden() {
                         self.focus_search = false;

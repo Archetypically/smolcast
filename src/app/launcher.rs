@@ -42,7 +42,7 @@ const ICON_CACHE_CAP: usize = 128;
 /// Result rows shown at once in a medium palette.
 const MEDIUM_ROWS: usize = 7;
 /// Row icon edge in points.
-const ICON_POINTS: f32 = 22.0;
+const ICON_POINTS: f32 = theme::ICON_SLOT;
 /// The search glyph: the Search Files command and the file fallback row.
 const GLYPH_SEARCH: Glyph = Glyph::new('\u{E721}', "🔍");
 
@@ -938,6 +938,13 @@ impl Launcher {
             }
         }
         let mut menu = None;
+        let shown = self.cursor.first_row..end;
+        // While the card is selected no list row is.
+        let selected = self
+            .cursor
+            .selected
+            .checked_sub(offset)
+            .unwrap_or(usize::MAX);
         for row in self.cursor.first_row + offset..end + offset {
             if split && row - offset == self.favorite_rows {
                 theme::section_header(ui, "Suggestions", None);
@@ -945,9 +952,9 @@ impl Launcher {
             if fallback_header && row - offset == self.ranked.len() {
                 theme::section_header(ui, &fallback_title(query), None);
             }
-            let selected = row == self.cursor.selected;
+            let state = list::RowState::of(row - offset, selected, &shown, list_len);
             if let Some(fallback) = self.fallback_at(row) {
-                if self.fallback_row(ui, fallback, selected).clicked() {
+                if self.fallback_row(ui, fallback, state).clicked() {
                     clicked = Some(row);
                 }
                 continue;
@@ -1011,7 +1018,7 @@ impl Launcher {
                 Some(query) => format!("{} \u{201C}{query}\u{201D}", app.display_name),
                 None => app.display_name.clone(),
             };
-            let response = list::row(ui, selected, &name, leading, trailing);
+            let response = list::row(ui, state, &name, leading, trailing);
             if response.clicked() {
                 clicked = Some(row);
             }
@@ -1061,7 +1068,7 @@ impl Launcher {
         &self,
         ui: &mut egui::Ui,
         fallback: &Fallback,
-        selected: bool,
+        state: list::RowState,
     ) -> egui::Response {
         let (name, kind) = match fallback {
             Fallback::Web(query) => {
@@ -1087,7 +1094,7 @@ impl Launcher {
         let trailing = |ui: &mut egui::Ui| {
             ui.label(RichText::new(kind).weak().small());
         };
-        list::row(ui, selected, &name, leading, trailing)
+        list::row(ui, state, &name, leading, trailing)
     }
 
     fn commit(&mut self, row: usize) {
@@ -1201,6 +1208,9 @@ fn answer_card(ui: &mut egui::Ui, answer: &Answer, selected: bool) -> egui::Resp
 
     let painter = ui.painter();
     painter.rect_filled(rect, 8, fill);
+    if selected {
+        painter.add(theme::selection_pip(rect));
+    }
     let half = rect.width() / 2.0;
     let sides = [
         (&answer.input, answer.input_label),

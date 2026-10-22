@@ -39,6 +39,34 @@ pub fn scroll(
     cursor.scroll(count, visible, step)
 }
 
+/// How a row stands in its list window.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RowState {
+    Rest,
+    Selected,
+    /// The first or last row drawn while more rows wait beyond it: it dims,
+    /// so the list reads as continuing (DESIGN.md, Result row).
+    Edge,
+}
+
+impl RowState {
+    /// The state of `row` in a window `shown` of `count` rows.
+    pub fn of(row: usize, selected: usize, shown: &std::ops::Range<usize>, count: usize) -> Self {
+        if row == selected {
+            Self::Selected
+        } else if (row == shown.start && shown.start > 0)
+            || (row + 1 == shown.end && shown.end < count)
+        {
+            Self::Edge
+        } else {
+            Self::Rest
+        }
+    }
+}
+
+/// Opacity of a row dimmed at the edge of its window.
+const EDGE_OPACITY: f32 = 0.45;
+
 /// The pixel edge to extract an icon at for a row drawn `edge` pixels wide.
 pub fn icon_request_edge(edge: u32) -> u32 {
     edge.clamp(16, 256)
@@ -67,9 +95,25 @@ pub fn icon(ui: &mut egui::Ui, texture: &TextureHandle, edge: f32) {
 /// One clickable result row: `leading` (an icon or glyph), then a truncating
 /// `name`, then `trailing` right-aligned. The trailing column is laid out first
 /// so the name only takes the remaining width. Selection is a soft rounded
-/// fill, as in Raycast, rather than an accent color; it glides between the
-/// rows of one list, and hover fills fade in.
+/// fill marked by the accent pip; both glide between the rows of one list,
+/// and hover fills fade in. An edge row dims.
 pub fn row(
+    ui: &mut egui::Ui,
+    state: RowState,
+    name: &str,
+    leading: impl FnOnce(&mut egui::Ui),
+    trailing: impl FnOnce(&mut egui::Ui),
+) -> egui::Response {
+    ui.scope(|ui| {
+        if state == RowState::Edge {
+            ui.multiply_opacity(EDGE_OPACITY);
+        }
+        row_contents(ui, state == RowState::Selected, name, leading, trailing)
+    })
+    .inner
+}
+
+fn row_contents(
     ui: &mut egui::Ui,
     selected: bool,
     name: &str,
@@ -91,7 +135,7 @@ pub fn row(
             .max_rect(inner)
             .layout(Layout::left_to_right(Align::Center)),
         |ui| {
-            ui.spacing_mut().item_spacing.x = 10.0;
+            ui.spacing_mut().item_spacing.x = theme::ICON_GAP;
             leading(ui);
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 trailing(ui);
@@ -109,7 +153,10 @@ pub fn row(
     let hover = motion::hover(ui, response.id, response.hovered() && !selected);
     let shape = if selected {
         let at = motion::glide(ui, ui.id().with("selection"), rect);
-        Shape::rect_filled(at, 8, theme::selected_fill(ui))
+        Shape::Vec(vec![
+            Shape::rect_filled(at, 8, theme::selected_fill(ui)),
+            theme::selection_pip(at),
+        ])
     } else {
         Shape::rect_filled(rect, 8, theme::hover_fill(ui).gamma_multiply(hover))
     };

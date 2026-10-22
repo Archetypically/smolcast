@@ -1512,8 +1512,10 @@ fallbacks; a missing file keeps the defaults. Adds `dwmapi.dll` to imports.
 `DwmExtendFrameIntoClientArea` is not used: on this undecorated winit window it
 made DWM draw minimize/maximize/close buttons over the palette.
 
-Raycast look (2026-10-20, `app/theme.rs`): both egui themes are restyled once
-at startup to match Raycast. The palette has a frameless search field, the
+Look (2026-10-20, `app/theme.rs`; decision 028 on 2026-10-22): both egui
+themes are restyled once at startup, on Raycast's structure with smolcast's
+own details (search glyph, selection pip, dissolving edges).
+The palette has a frameless search field, the
 view, and a footer action bar pinned to the bottom. The base window is 640×460.
 [`docs/DESIGN.md`](DESIGN.md) holds the layout, tokens, and rules.
 
