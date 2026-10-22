@@ -169,6 +169,15 @@ new imports winhttp, powrprof, propsys (all system DLLs).
   Out: window management, layouts and rooms (non-goal), currency/crypto
   (network), Raycast extensions (non-goal), dictionary (tabled), calendar,
   Apple Shortcuts, menu-bar search, camera.
+- **Automated UI smoke tests** (user, 2026-10-22): drive the real binary on
+  a display and catch regressions deterministically. Not started. Sketch:
+  run on a GitHub `windows-latest` runner (it has an interactive desktop),
+  never the user's desktop; drive input from inside the app with a test-only
+  mode that replays a fixed key script (summon, type, arrows, Enter) rather
+  than `SendInput`/UI Automation, which are flaky on focus and timing; check
+  dumped model state (deterministic), and add screenshot diffs only with
+  pinned fonts, DPI and theme. The effect outbox (Next 5) would make the
+  model's output easy to record and compare.
 - **Screen readers**: eframe's `accesskit` feature would expose the palette
   to Narrator, but adds dependencies and size, and the painted rows need
   `widget_info` labels. Not started; needs the user's call.
