@@ -1,6 +1,8 @@
 /* The demo film: smolcast on a Windows 11 desktop at 150% scale, drawn to
    the app's own measurements (docs/DESIGN.md, src/app/theme.rs) in points.
-   The page is laid out at 1280 × 720 points and zoomed to the frame. */
+   The desktop (the stage) is laid out at 1280 × 720 points; the frame is
+   that size for the wide cut and 720 × 720 or 720 × 1280 for the social
+   cuts, and the whole page is zoomed to the video's pixels. */
 
 @font-face {
   font-family: "Selawik";
@@ -26,13 +28,37 @@
   --strong: #ffffff;
   --weak: #8e8e93;
   --sel: rgb(255 255 255 / 10%);
-  --hover: rgb(255 255 255 / 5%);
   --control: rgb(255 255 255 / 7%);
   --divider: rgb(255 255 255 / 10%);
   --accent: #ff6363;
   --win: "Selawik", "Segoe UI", sans-serif;
   --mono: "Cascadia Mono", "DejaVu Sans Mono", monospace;
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  /* The frame, and where the stage sits in it. */
+  --w: 1280px;
+  --h: 720px;
+  --s: 1;
+  --dy: 0px;
+  --keys: 36px;
   zoom: var(--zoom);
+}
+
+/* Square: the stage shrinks under a caption band. */
+:root[data-format="square"] {
+  --w: 720px;
+  --h: 720px;
+  --s: 0.78;
+  --dy: 34px;
+  --keys: 26px;
+}
+
+/* Vertical: the stage at nearly full width, the caption above it. */
+:root[data-format="vertical"] {
+  --w: 720px;
+  --h: 1280px;
+  --s: 0.95;
+  --dy: 40px;
+  --keys: 190px;
 }
 
 * {
@@ -46,8 +72,8 @@ body {
 
 body {
   position: relative;
-  width: 1280px;
-  height: 720px;
+  width: var(--w);
+  height: var(--h);
   overflow: hidden;
   font-family: var(--win);
   color: var(--text);
@@ -55,18 +81,32 @@ body {
   background: #0c0d12;
 }
 
-/* An original wallpaper: soft blooms of color on near black. */
-.wallpaper,
-.palette::before {
-  background:
-    radial-gradient(42% 60% at 22% 30%, #2b3f7a 0%, transparent 70%),
-    radial-gradient(38% 55% at 78% 70%, #5a2a55 0%, transparent 72%),
-    radial-gradient(30% 40% at 62% 18%, #1e5b63 0%, transparent 70%), #0c0d12;
-}
-
-.wallpaper {
+/* The backdrop, for the whole frame: a quiet stipple of small s. marks,
+   drifting up and to the right (film.js moves it one repeat per phrase of
+   the music, so it loops with the film). */
+.backdrop {
   position: absolute;
   inset: 0;
+  background: url("film/stipple.svg") 0 0 / 192px 192px #0f0f11;
+}
+
+/* The stage holds the desktop; the camera inside it leans in and out. The
+   stage shows only between the title cards. */
+.stage {
+  position: absolute;
+  left: calc((var(--w) - 1280px) / 2);
+  top: calc((var(--h) - 720px) / 2 + var(--dy));
+  width: 1280px;
+  height: 720px;
+  transform: scale(var(--s));
+  opacity: 0;
+}
+
+.camera {
+  position: absolute;
+  inset: 0;
+  transform-origin: 0 0;
+  transition: transform 1400ms var(--ease);
 }
 
 /* A plain notes window, where pastes land. */
@@ -136,7 +176,7 @@ body {
 }
 
 /* The palette window: 640 × 460 (medium), DWM's 8 pt corners and border,
-   Mica (the wallpaper, blurred and tinted) behind transparent panels. */
+   Mica (over this plain backdrop, nearly flat) behind transparent panels. */
 .palette {
   position: absolute;
   left: 320px;
@@ -154,21 +194,12 @@ body {
   visibility: hidden;
 }
 
-.palette::before {
-  content: "";
-  position: absolute;
-  inset: -60px;
-  z-index: -2;
-  background-attachment: fixed;
-  filter: blur(60px) saturate(1.3);
-}
-
 .palette::after {
   content: "";
   position: absolute;
   inset: 0;
   z-index: -1;
-  background: rgb(28 28 30 / 88%);
+  background: rgb(28 28 30 / 96%);
 }
 
 .palette.shown {
@@ -601,7 +632,7 @@ body {
 .keys {
   position: absolute;
   left: 50%;
-  bottom: 36px;
+  bottom: var(--keys);
   display: flex;
   gap: 4px;
   padding: 7px 9px;
@@ -629,7 +660,67 @@ body {
   background: rgb(255 255 255 / 12%);
 }
 
-/* The closing card. */
+/* The chapter captions, for the viewer: not part of the app. A small
+   accent numeral over one short line; the words rise into place. */
+.caption {
+  position: absolute;
+  left: 44px;
+  top: 50%;
+  width: 206px;
+  transform: translateY(-50%);
+  font: 600 27px/1.18 var(--win);
+  letter-spacing: -0.01em;
+  color: var(--strong);
+  text-wrap: balance;
+}
+
+:root[data-format="square"] .caption,
+:root[data-format="vertical"] .caption {
+  left: 40px;
+  right: 40px;
+  width: auto;
+  transform: none;
+  text-align: center;
+}
+
+:root[data-format="square"] .caption {
+  top: 40px;
+  font-size: 29px;
+}
+
+:root[data-format="vertical"] .caption {
+  top: 190px;
+  font-size: 44px;
+}
+
+.caption .step {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: var(--accent);
+}
+
+:root[data-format="vertical"] .caption .step {
+  margin-bottom: 16px;
+  font-size: 16px;
+}
+
+/* Each word clips its own rise. */
+.caption .word {
+  display: inline-block;
+  padding-bottom: 0.08em;
+  overflow: hidden;
+  vertical-align: top;
+}
+
+.caption .word > span {
+  display: inline-block;
+}
+
+/* The title card: where the film starts and where it ends, frame for
+   frame, so it loops into itself. */
 .end {
   position: absolute;
   inset: 0;
@@ -637,14 +728,8 @@ body {
   place-content: center;
   justify-items: center;
   gap: 18px;
-  background: #101012;
-  font-family: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
-  opacity: 0;
-  transition: opacity 600ms ease;
-}
-
-.end.show {
-  opacity: 1;
+  font-family: var(--win);
+  text-align: center;
 }
 
 .end img {
@@ -674,5 +759,10 @@ body {
 }
 
 .end .dot {
+  display: inline-block;
   color: var(--accent);
+}
+
+:root[data-format="vertical"] .end {
+  zoom: 1.3;
 }
