@@ -55,5 +55,4 @@ their special cases.
 - `AppEvent::IconReady` and `AppEvent::EmojiGlyph` carry the edge they were
   rendered at.
 - A new cached texture or windowed list uses these types.
-- The outbox stays in Next in `activeContext.md`; revisit after the Windows
-  pass.
+- The outbox was adopted later, in decision 025.
