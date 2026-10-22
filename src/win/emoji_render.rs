@@ -236,6 +236,7 @@ fn render_main(rx: Receiver<Request>, cancel: Arc<AtomicBool>, wake: Wake) {
         };
         wake.send(AppEvent::EmojiGlyph {
             index: request.index,
+            edge: request.edge,
             result,
         });
     }

@@ -1,35 +1,15 @@
-//! List mechanics shared by the launcher, clipboard, and snippet views:
-//! wrapping arrow-key selection, the visible-row window, and row chrome.
+//! List mechanics shared by the launcher, clipboard, and snippet views: wheel
+//! input and row chrome. Selection and scroll math is in
+//! `core::list_cursor`.
 
 use egui::emath::GuiRounding as _;
 use egui::{
     Align, Color32, Layout, Pos2, Rect, RichText, Sense, Shape, TextureHandle, UiBuilder, Vec2,
 };
 
+use crate::core::list_cursor::ListCursor;
+
 use super::{motion, theme};
-
-/// Move `selected` one row down or up, wrapping at both ends.
-pub fn step_selection(selected: &mut usize, count: usize, down: bool, up: bool) {
-    if count == 0 {
-        return;
-    }
-    if down {
-        *selected = (*selected + 1) % count;
-    }
-    if up {
-        *selected = (*selected + count - 1) % count;
-    }
-}
-
-/// Scroll the `visible_rows` window starting at `first_row` so it shows
-/// `selected`.
-pub fn keep_visible(selected: usize, first_row: &mut usize, visible_rows: usize) {
-    if selected < *first_row {
-        *first_row = selected;
-    } else if selected >= *first_row + visible_rows {
-        *first_row = selected + 1 - visible_rows;
-    }
-}
 
 /// Mouse-wheel scrolling for the windowed lists: whole rows to move the
 /// window by while the pointer is over `ui` (positive scrolls down). The
@@ -47,26 +27,21 @@ pub fn wheel_rows(ui: &egui::Ui, row_height: f32, carry: &mut f32) -> isize {
     rows as isize
 }
 
-/// Move a `visible`-row window over `count` rows by `step` rows, then keep
-/// `selected` inside it, so the selection follows the wheel instead of
-/// pulling the window back. Returns the selection to use.
-pub fn scroll_window(
-    first_row: &mut usize,
-    selected: usize,
+/// Wheel-scroll a plain list of `count` rows, `visible` at a time, and keep
+/// the selection inside the window. Returns the rows to draw.
+pub fn scroll(
+    ui: &egui::Ui,
+    cursor: &mut ListCursor,
     count: usize,
     visible: usize,
-    step: isize,
-) -> usize {
-    // Clamp even without a scroll: a list that shrank under the window
-    // would otherwise leave blank rows below its end.
-    let max_first = count.saturating_sub(visible);
-    *first_row = (*first_row).min(max_first);
-    if step == 0 || count == 0 {
-        return selected;
-    }
-    *first_row = first_row.saturating_add_signed(step).min(max_first);
-    let last = (*first_row + visible).min(count) - 1;
-    selected.clamp(*first_row, last)
+) -> std::ops::Range<usize> {
+    let step = wheel_rows(ui, theme::ROW_STRIDE, &mut cursor.wheel);
+    cursor.scroll(count, visible, step)
+}
+
+/// The pixel edge to extract an icon at for a row drawn `edge` pixels wide.
+pub fn icon_request_edge(edge: u32) -> u32 {
+    edge.clamp(16, 256)
 }
 
 /// A prescaled icon texture in an `edge`-point square, drawn texel-for-pixel

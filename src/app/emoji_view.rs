@@ -6,14 +6,14 @@
 //! Windows (DirectWrite) on request for visible cells only, and cached in a
 //! bounded texture set; the pasted codepoints are the contract.
 
-use std::collections::{HashMap, HashSet, VecDeque};
-
 use egui::{Key, Modifiers, RichText, TextureHandle, TextureOptions, Vec2};
 
 use crate::core::config::PaletteSize;
 use crate::core::emoji::{self, Emoji};
 use crate::core::emoji_data::GROUPS;
+use crate::core::list_cursor::{self, ListCursor};
 use crate::core::motion::POP_SECS;
+use crate::core::request_cache::RequestCache;
 use crate::win::icon::IconRgba;
 
 use super::{list, motion, theme};
@@ -34,31 +34,18 @@ pub struct GlyphRequest {
     pub edge: u32,
 }
 
-/// Rasterized glyphs by emoji table index, least recently used first.
-#[derive(Default)]
-struct Glyphs {
-    textures: HashMap<usize, TextureHandle>,
-    recency: VecDeque<usize>,
-    pending: HashSet<usize>,
-    failed: HashSet<usize>,
-    /// Pixel edge the cache was rendered at; a scale change starts over.
-    edge: u32,
-}
-
 pub struct EmojiView {
     /// Indices into `emoji::all()` for `results_for`.
     results: Vec<usize>,
     results_for: Option<String>,
-    selected: usize,
-    first_row: usize,
+    cursor: ListCursor,
     paste_request: Option<&'static str>,
-    glyphs: Glyphs,
+    /// Rasterized glyphs by emoji table index.
+    glyphs: RequestCache<usize, TextureHandle>,
     requests: Vec<GlyphRequest>,
     /// Grid shape, from the palette size.
     columns: usize,
     rows: usize,
-    /// Mouse-wheel distance not yet worth a whole grid row.
-    wheel: f32,
 }
 
 impl Default for EmojiView {
@@ -72,14 +59,12 @@ impl EmojiView {
         Self {
             results: Vec::new(),
             results_for: None,
-            selected: 0,
-            first_row: 0,
+            cursor: ListCursor::default(),
             paste_request: None,
-            glyphs: Glyphs::default(),
+            glyphs: RequestCache::new(GLYPH_CACHE_CAP),
             requests: Vec::new(),
             columns: 12,
             rows: MEDIUM_ROWS,
-            wheel: 0.0,
         }
     }
 
@@ -91,7 +76,7 @@ impl EmojiView {
             PaletteSize::Large => 15,
         };
         self.rows = theme::visible_rows(MEDIUM_ROWS, size);
-        self.first_row = 0;
+        self.cursor.first_row = 0;
     }
 
     pub fn take_glyph_requests(&mut self) -> Vec<GlyphRequest> {
@@ -102,9 +87,13 @@ impl EmojiView {
         &mut self,
         ctx: &egui::Context,
         index: usize,
+        edge: u32,
         result: Result<IconRgba, String>,
     ) {
-        self.glyphs.pending.remove(&index);
+        // Rendered before a scale change, or no longer wanted.
+        if !self.glyphs.accept(&index, edge) {
+            return;
+        }
         match result {
             Ok(glyph) => {
                 let image = egui::ColorImage::from_rgba_premultiplied(
@@ -112,44 +101,27 @@ impl EmojiView {
                     &glyph.rgba_premultiplied,
                 );
                 let texture = ctx.load_texture("emoji", image, TextureOptions::LINEAR);
-                if self.glyphs.textures.insert(index, texture).is_none() {
-                    self.glyphs.recency.push_back(index);
-                }
-                while self.glyphs.recency.len() > GLYPH_CACHE_CAP {
-                    if let Some(old) = self.glyphs.recency.pop_front() {
-                        self.glyphs.textures.remove(&old);
-                    }
-                }
+                self.glyphs.insert(index, texture);
             }
-            Err(_) => {
-                self.glyphs.failed.insert(index);
-            }
+            Err(_) => self.glyphs.fail(index),
         }
     }
 
     /// The texture for `index`, requesting it when missing.
     fn glyph(&mut self, index: usize) -> Option<TextureHandle> {
-        if let Some(texture) = self.glyphs.textures.get(&index).cloned() {
-            if let Some(pos) = self.glyphs.recency.iter().position(|x| *x == index) {
-                self.glyphs.recency.remove(pos);
-                self.glyphs.recency.push_back(index);
-            }
-            return Some(texture);
-        }
-        if !self.glyphs.pending.contains(&index) && !self.glyphs.failed.contains(&index) {
-            self.glyphs.pending.insert(index);
+        let texture = self.glyphs.get(&index);
+        if texture.is_none() && self.glyphs.begin(&index) {
             self.requests.push(GlyphRequest {
                 index,
                 text: emoji::all()[index].text,
-                edge: self.glyphs.edge,
+                edge: self.glyphs.edge(),
             });
         }
-        None
+        texture
     }
 
     pub fn open(&mut self) {
-        self.selected = 0;
-        self.first_row = 0;
+        self.cursor.reset();
         self.results_for = None;
     }
 
@@ -174,20 +146,20 @@ impl EmojiView {
         let count = self.results.len();
         if count > 0 {
             if right {
-                self.selected = (self.selected + 1).min(count - 1);
+                self.cursor.selected = (self.cursor.selected + 1).min(count - 1);
             }
             if left {
-                self.selected = self.selected.saturating_sub(1);
+                self.cursor.selected = self.cursor.selected.saturating_sub(1);
             }
             if down {
-                self.selected = (self.selected + self.columns).min(count - 1);
+                self.cursor.selected = (self.cursor.selected + self.columns).min(count - 1);
             }
             if up {
-                self.selected = self.selected.saturating_sub(self.columns);
+                self.cursor.selected = self.cursor.selected.saturating_sub(self.columns);
             }
         }
         if enter && paste_enabled {
-            self.commit(self.selected);
+            self.commit(self.cursor.selected);
         }
     }
 
@@ -202,8 +174,7 @@ impl EmojiView {
         if self.results_for.as_deref() != Some(query) {
             self.results = emoji::search(query);
             self.results_for = Some(query.to_owned());
-            self.selected = 0;
-            self.first_row = 0;
+            self.cursor.reset();
         }
         if self.results.is_empty() {
             theme::inset(ui, |ui| {
@@ -211,34 +182,29 @@ impl EmojiView {
             });
             return;
         }
-        self.selected = self.selected.min(self.results.len() - 1);
+        self.cursor.clamp_selected(self.results.len());
 
         // The wheel scrolls whole grid rows; the selection keeps its column.
-        let step = list::wheel_rows(ui, CELL + GRID_GAP, &mut self.wheel);
+        let step = list::wheel_rows(ui, CELL + GRID_GAP, &mut self.cursor.wheel);
         let grid_rows = self.results.len().div_ceil(self.columns);
-        let column = self.selected % self.columns;
-        let row = list::scroll_window(
-            &mut self.first_row,
-            self.selected / self.columns,
+        let column = self.cursor.selected % self.columns;
+        let row = list_cursor::scroll_window(
+            &mut self.cursor.first_row,
+            self.cursor.selected / self.columns,
             grid_rows,
             self.rows,
             step,
         );
-        self.selected = (row * self.columns + column).min(self.results.len() - 1);
+        self.cursor.selected = (row * self.columns + column).min(self.results.len() - 1);
 
-        let row = self.selected / self.columns;
-        list::keep_visible(row, &mut self.first_row, self.rows);
+        let row = self.cursor.selected / self.columns;
+        list_cursor::keep_visible(row, &mut self.cursor.first_row, self.rows);
 
         let edge = ((GLYPH_SIZE * ui.ctx().pixels_per_point()).round() as u32).clamp(16, 128);
-        if edge != self.glyphs.edge {
-            self.glyphs = Glyphs {
-                edge,
-                ..Glyphs::default()
-            };
-        }
+        self.glyphs.set_edge(edge);
 
         let table = emoji::all();
-        let start = self.first_row * self.columns;
+        let start = self.cursor.first_row * self.columns;
         let end = (start + self.rows * self.columns).min(self.results.len());
         let mut clicked = None;
         egui::Grid::new("emoji-grid")
@@ -248,7 +214,13 @@ impl EmojiView {
                     let index = start + offset;
                     let entry = self.results[index];
                     let glyph = self.glyph(entry);
-                    if cell_ui(ui, &table[entry], glyph.as_ref(), index == self.selected).clicked()
+                    if cell_ui(
+                        ui,
+                        &table[entry],
+                        glyph.as_ref(),
+                        index == self.cursor.selected,
+                    )
+                    .clicked()
                     {
                         clicked = Some(index);
                     }
@@ -258,14 +230,14 @@ impl EmojiView {
                 }
             });
         if let Some(index) = clicked {
-            self.selected = index;
+            self.cursor.selected = index;
             if paste_enabled {
                 self.commit(index);
             }
         }
 
         ui.add_space(theme::SECTION_GAP);
-        let selected_index = self.results[self.selected];
+        let selected_index = self.results[self.cursor.selected];
         let selected = &table[selected_index];
         let selected_glyph = self.glyph(selected_index);
         theme::inset(ui, |ui| {
@@ -285,7 +257,7 @@ impl EmojiView {
                         RichText::new(format!(
                             "{} · {} of {}",
                             GROUPS[selected.group as usize],
-                            self.selected + 1,
+                            self.cursor.selected + 1,
                             self.results.len()
                         ))
                         .weak()

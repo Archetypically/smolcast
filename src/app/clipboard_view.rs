@@ -5,7 +5,7 @@
 //! Backend-neutral: the clipboard thread and paste service are driven by the
 //! model and host. This view only raises requests (`take_*`).
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::HashMap;
 use std::time::Instant;
 
 use egui::{Key, Modifiers, RichText, TextureHandle, TextureOptions, Vec2};
@@ -15,6 +15,8 @@ use fuzzy_matcher::skim::SkimMatcherV2;
 use crate::core::config::{ClipboardSource, PaletteSize};
 use crate::core::dib::ImagePayload;
 use crate::core::history::{History, InsertOutcome, Limits, Payload, encode_record};
+use crate::core::list_cursor::ListCursor;
+use crate::core::request_cache::RequestCache;
 use crate::win::clipboard::{ClipboardCommand, ClipboardError, WindowsContent, WindowsSnapshot};
 use crate::win::persistence::{ClipboardStoreCommand, LoadedEntry, unix_ms_now};
 
@@ -127,14 +129,23 @@ fn collect_rows<'a>(
     }
 }
 
-#[derive(Default)]
 struct Thumbnails {
-    textures: HashMap<RowKey, TextureHandle>,
-    /// Least recently used at the front.
-    recency: VecDeque<RowKey>,
+    /// Only the LRU part is used: requests are tracked below with their age,
+    /// and thumbnails have no display-scale edge.
+    textures: RequestCache<RowKey, TextureHandle>,
     /// Stored images being downscaled by the host, and since when.
     pending: HashMap<u64, Instant>,
     requests: Vec<ThumbnailRequest>,
+}
+
+impl Default for Thumbnails {
+    fn default() -> Self {
+        Self {
+            textures: RequestCache::new(THUMBNAIL_CACHE_CAP),
+            pending: HashMap::new(),
+            requests: Vec::new(),
+        }
+    }
 }
 
 impl Thumbnails {
@@ -147,11 +158,7 @@ impl Thumbnails {
         key: &RowKey,
         image: &ImagePayload,
     ) -> Result<TextureHandle, Instant> {
-        if let Some(texture) = self.textures.get(key).cloned() {
-            if let Some(pos) = self.recency.iter().position(|x| x == key) {
-                self.recency.remove(pos);
-            }
-            self.recency.push_back(key.clone());
+        if let Some(texture) = self.textures.get(key) {
             return Ok(texture);
         }
         match key {
@@ -175,13 +182,7 @@ impl Thumbnails {
         image: egui::ColorImage,
     ) -> TextureHandle {
         let texture = ctx.load_texture("clip-thumb", image, TextureOptions::LINEAR);
-        self.textures.insert(key.clone(), texture.clone());
-        self.recency.push_back(key);
-        while self.recency.len() > THUMBNAIL_CACHE_CAP {
-            if let Some(old) = self.recency.pop_front() {
-                self.textures.remove(&old);
-            }
-        }
+        self.textures.insert(key, texture.clone());
         texture
     }
 
@@ -190,14 +191,11 @@ impl Thumbnails {
         if let RowKey::Local(id) = key {
             self.pending.remove(id);
         }
-        if self.textures.remove(key).is_some() {
-            self.recency.retain(|x| x != key);
-        }
+        self.textures.remove(key);
     }
 
     fn clear(&mut self) {
         self.textures.clear();
-        self.recency.clear();
         self.pending.clear();
     }
 }
@@ -245,13 +243,10 @@ pub struct ClipboardView {
     thumbnails: Thumbnails,
     /// Rows shown at once, from the palette size.
     rows: usize,
-    /// Mouse-wheel distance not yet worth a whole row.
-    wheel: f32,
     /// Row keys matching `filtered_for`, newest first.
     filtered: Vec<RowKey>,
     filtered_for: Option<String>,
-    selected: usize,
-    first_row: usize,
+    cursor: ListCursor,
     paste_request: Option<PasteRequest>,
     commands: Vec<ClipboardCommand>,
     open_settings: bool,
@@ -284,11 +279,9 @@ impl ClipboardView {
             windows_refreshing: None,
             thumbnails: Thumbnails::default(),
             rows: MEDIUM_ROWS,
-            wheel: 0.0,
             filtered: Vec::new(),
             filtered_for: None,
-            selected: 0,
-            first_row: 0,
+            cursor: ListCursor::default(),
             paste_request: None,
             commands: Vec::new(),
             open_settings: false,
@@ -305,8 +298,7 @@ impl ClipboardView {
 
     /// The view is being shown: pick or confirm the source (§7.0).
     pub fn open(&mut self) {
-        self.selected = 0;
-        self.first_row = 0;
+        self.cursor.reset();
         self.filtered_for = None;
         match self.setting {
             ClipboardSource::Smolcast => self.active = Some(Active::Smolcast),
@@ -475,19 +467,10 @@ impl ClipboardView {
                     _ => Active::Windows,
                 });
                 // Thumbnails of items that left Windows history are dropped.
-                let stale: Vec<RowKey> = self
-                    .thumbnails
-                    .textures
-                    .keys()
-                    .filter(|key| match key {
-                        RowKey::Windows(id) => !snapshot.items.iter().any(|i| &i.id == id),
-                        RowKey::Local(_) => false,
-                    })
-                    .cloned()
-                    .collect();
-                for key in stale {
-                    self.thumbnails.forget(&key);
-                }
+                self.thumbnails.textures.retain(|key| match key {
+                    RowKey::Windows(id) => snapshot.items.iter().any(|i| i.id == *id),
+                    RowKey::Local(_) => true,
+                });
                 self.windows = Some(snapshot);
             }
             Err(e) => {
@@ -544,7 +527,7 @@ impl ClipboardView {
                 i.consume_key(Modifiers::SHIFT, Key::Delete),
             )
         });
-        list::step_selection(&mut self.selected, self.filtered.len(), down, up);
+        self.cursor.step(self.filtered.len(), down, up);
         if enter && paste_enabled {
             self.commit();
         }
@@ -554,7 +537,7 @@ impl ClipboardView {
     }
 
     fn commit(&mut self) {
-        let Some(key) = self.filtered.get(self.selected).cloned() else {
+        let Some(key) = self.filtered.get(self.cursor.selected).cloned() else {
             return;
         };
         self.paste_request = match key {
@@ -567,7 +550,7 @@ impl ClipboardView {
     }
 
     fn delete_selected(&mut self) {
-        let Some(key) = self.filtered.get(self.selected).cloned() else {
+        let Some(key) = self.filtered.get(self.cursor.selected).cloned() else {
             return;
         };
         match &key {
@@ -620,18 +603,13 @@ impl ClipboardView {
                 .is_some_and(|previous| previous != query);
             self.refilter(query);
             if query_changed {
-                self.selected = 0;
-                self.first_row = 0;
+                self.cursor.reset();
             }
         }
-        self.selected = self.selected.min(self.filtered.len().saturating_sub(1));
+        self.cursor.clamp_selected(self.filtered.len());
         let visible = self.rows;
         let list_height = visible as f32 * theme::ROW_STRIDE;
-        let step = list::wheel_rows(ui, theme::ROW_STRIDE, &mut self.wheel);
-        let count = self.filtered.len();
-        self.selected =
-            list::scroll_window(&mut self.first_row, self.selected, count, visible, step);
-        list::keep_visible(self.selected, &mut self.first_row, visible);
+        let shown = list::scroll(ui, &mut self.cursor, self.filtered.len(), visible);
 
         theme::inset(ui, |ui| self.source_line(ui));
         if self.setting == ClipboardSource::Windows
@@ -650,7 +628,7 @@ impl ClipboardView {
         let rows = collect_rows(self.active, &self.history, &self.windows);
         let by_key: HashMap<&RowKey, &Row> = rows.iter().map(|row| (&row.key, row)).collect();
         let thumbnails = &mut self.thumbnails;
-        let (filtered, selected, first_row) = (&self.filtered, self.selected, self.first_row);
+        let (filtered, selected) = (&self.filtered, self.cursor.selected);
         let mut clicked = None;
         ui.horizontal_top(|ui| {
             // Rows stack top-down inside the horizontal list | preview split,
@@ -676,9 +654,8 @@ impl ClipboardView {
                         None => theme::busy(ui, "Loading clipboard history…"),
                     });
                 }
-                let end = (first_row + visible).min(filtered.len());
-                for (index, key) in filtered.iter().enumerate().take(end).skip(first_row) {
-                    if let Some(row) = by_key.get(key)
+                for index in shown {
+                    if let Some(row) = filtered.get(index).and_then(|key| by_key.get(key))
                         && row_ui(ui, row, index == selected, now).clicked()
                     {
                         clicked = Some(index);
@@ -694,7 +671,7 @@ impl ClipboardView {
             });
         });
         if let Some(index) = clicked {
-            self.selected = index;
+            self.cursor.selected = index;
             if paste_enabled {
                 self.commit();
             }
