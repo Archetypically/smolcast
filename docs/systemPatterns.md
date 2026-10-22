@@ -363,6 +363,8 @@ src/
     usage.rs              // schema v1, ranking bonuses, saturating updates
     config.rs             // schema v1 + pure validation
     history.rs            // payloads, dedup, recency, byte/count eviction
+    list_cursor.rs        // list selection, scroll window, wheel carry
+    request_cache.rs      // LRU of worker-produced values at one pixel edge
     dib.rs                // checked DIB metadata + BMP-without-header decode
     emoji_data.rs         // generated static table
     emoji.rs              // keyword matching and grapheme validation
@@ -583,9 +585,11 @@ an older snapshot cannot overwrite a newer one.
 
 Do not move `HICON` across threads. Extract on a shell job, convert immediately to
 owned RGBA, call `DestroyIcon` when ownership requires it, and send `IconReady`,
-addressed by `IconTarget` (a launcher `AppId` or a Search Files path).
-Request icons only for visible rows. Cache at most 128 application icons with a
-simple recency queue; dropping an entry drops its egui texture.
+addressed by `IconTarget` (a launcher `AppId` or a Search Files path) and
+carrying the pixel edge it was requested at. Request icons only for visible
+rows. Cache at most 128 application icons in a least-recently-used
+`core::request_cache::RequestCache`, which refuses a result for any edge but
+the current one; dropping an entry drops its egui texture.
 
 A broken/removed shortcut is skipped on the next scan and produces at most one
 content-free notice per scan. A launch race after indexing reports the launch
@@ -823,7 +827,7 @@ item, evict oldest-first until both count and total-byte limits hold. Because th
 item cap is no greater than the total cap, the new valid item cannot evict itself.
 
 Generate preview thumbnails lazily at no more than 256x256. Cache at most 32
-thumbnail textures (about 8 MiB RGBA worst case); use a simple recency queue and
+thumbnail textures (about 8 MiB RGBA worst case); evict the least recently used and
 drop a texture when its history item is deleted/evicted. Never upload every full
 history image as a GPU texture.
 

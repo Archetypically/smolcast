@@ -4,7 +4,7 @@
 //! Backend-neutral like `model`: it never starts threads. It raises requests
 //! (`take_*`) that the host executes and consumes the resulting `AppEvent`s.
 
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::HashSet;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
@@ -21,8 +21,10 @@ use crate::core::app_index::{
 use crate::core::calc::{self, Answer};
 use crate::core::config::{PaletteSize, QuicklinkConfig, ScriptConfig, SearchEngine};
 use crate::core::favorites::{Favorites, MAX_FAVORITES};
+use crate::core::list_cursor::{self, ListCursor};
 use crate::core::matcher::{Ranked, rank};
 use crate::core::quicklink;
+use crate::core::request_cache::RequestCache;
 use crate::core::usage::Usage;
 use crate::core::web;
 use crate::win::icon::IconRgba;
@@ -66,52 +68,6 @@ pub struct IconRequest {
     pub size: u32,
 }
 
-#[derive(Default)]
-struct IconCache {
-    textures: HashMap<AppId, TextureHandle>,
-    /// Least recently used at the front.
-    recency: VecDeque<AppId>,
-    pending: HashSet<AppId>,
-    failed: HashSet<AppId>,
-    /// The pixel edge the cached icons were extracted at.
-    edge: u32,
-}
-
-impl IconCache {
-    /// Icons are prescaled to exact pixels, so a monitor DPI change starts
-    /// the cache over.
-    fn set_edge(&mut self, edge: u32) {
-        if edge != self.edge {
-            *self = Self {
-                edge,
-                ..Self::default()
-            };
-        }
-    }
-
-    fn touch(&mut self, id: &AppId) {
-        if let Some(pos) = self.recency.iter().position(|x| x == id) {
-            let id = self.recency.remove(pos).expect("position is in range");
-            self.recency.push_back(id);
-        }
-    }
-
-    fn insert(&mut self, id: AppId, texture: TextureHandle) {
-        self.pending.remove(&id);
-        if self.textures.insert(id.clone(), texture).is_none() {
-            self.recency.push_back(id);
-        } else {
-            self.touch(&id);
-        }
-        while self.recency.len() > ICON_CACHE_CAP {
-            // Dropping the handle frees the egui texture.
-            if let Some(old) = self.recency.pop_front() {
-                self.textures.remove(&old);
-            }
-        }
-    }
-}
-
 pub struct Launcher {
     apps: Vec<IndexedApp>,
     usage: Usage,
@@ -128,8 +84,7 @@ pub struct Launcher {
     ranked: Vec<Ranked>,
     /// Query the current `ranked` was computed for; `None` forces a re-rank.
     ranked_for: Option<String>,
-    selected: usize,
-    first_row: usize,
+    cursor: ListCursor,
 
     generation: u64,
     scan_active: bool,
@@ -163,11 +118,9 @@ pub struct Launcher {
     favorite_rows: usize,
     /// A notice for the model to show (favorites full).
     notice: Option<Notice>,
-    icons: IconCache,
+    icons: RequestCache<AppId, TextureHandle>,
     /// Result rows shown at once, from the palette size.
     rows: usize,
-    /// Mouse-wheel distance not yet worth a whole row.
-    wheel: f32,
     /// The calculator's answer for the query; when present it is row 0,
     /// above the ranked apps.
     answer: Option<Answer>,
@@ -218,8 +171,7 @@ impl Launcher {
             usage_generation: 0,
             ranked: Vec::new(),
             ranked_for: None,
-            selected: 0,
-            first_row: 0,
+            cursor: ListCursor::default(),
             generation: 0,
             scan_active: false,
             rescan_queued: false,
@@ -234,9 +186,8 @@ impl Launcher {
             open_command: None,
             icon_requests: Vec::new(),
             usage_snapshot: None,
-            icons: IconCache::default(),
+            icons: RequestCache::new(ICON_CACHE_CAP),
             rows: MEDIUM_ROWS,
-            wheel: 0.0,
             answer: None,
             paste_answer: None,
             search_engine: SearchEngine::default(),
@@ -316,7 +267,7 @@ impl Launcher {
                 self.rebuild();
                 // Icons of apps that left the index are no longer requested;
                 // the LRU evicts them. Failed lookups are retried next index.
-                self.icons.failed.clear();
+                self.icons.retry_failed();
             }
             Err(e) => notices.push(
                 Notice::new(
@@ -340,11 +291,6 @@ impl Launcher {
         size: u32,
         result: Result<IconRgba, LaunchError>,
     ) {
-        // Extracted before a DPI change: the cache was reset and the row
-        // asks again at the new edge, so this one would be drawn blurry.
-        if size != list::icon_request_edge(self.icons.edge) {
-            return;
-        }
         // A script's interpreter can change while its icon is extracted; the
         // reissued request for the new key is the one to keep.
         if !self
@@ -353,7 +299,11 @@ impl Launcher {
             .any(|a| a.id == app_id && a.icon_key == icon_key)
         {
             // Allow a fresh request; at worst one icon is extracted twice.
-            self.icons.pending.remove(&app_id);
+            self.icons.cancel(&app_id, size);
+            return;
+        }
+        // Extracted before a DPI change, or no longer wanted.
+        if !self.icons.accept(&app_id, size) {
             return;
         }
         match result {
@@ -365,10 +315,7 @@ impl Launcher {
                 let texture = ctx.load_texture("app-icon", image, TextureOptions::LINEAR);
                 self.icons.insert(app_id, texture);
             }
-            Err(_) => {
-                self.icons.pending.remove(&app_id);
-                self.icons.failed.insert(app_id);
-            }
+            Err(_) => self.icons.fail(app_id),
         }
     }
 
@@ -452,10 +399,7 @@ impl Launcher {
             })
             .map(|old| old.id.clone())
             .collect();
-        self.icons.textures.retain(|id, _| !stale.contains(id));
-        self.icons.recency.retain(|id| !stale.contains(id));
-        self.icons.failed.retain(|id| !stale.contains(id));
-        self.icons.pending.retain(|id| !stale.contains(id));
+        self.icons.retain(|id| !stale.contains(id));
         self.scripts = scripts;
         self.rebuild();
     }
@@ -524,8 +468,7 @@ impl Launcher {
 
     /// Selection returns to the top on every show.
     pub fn reset_view(&mut self) {
-        self.selected = 0;
-        self.first_row = 0;
+        self.cursor.reset();
         self.ranked_for = None;
         self.confirming = None;
     }
@@ -732,7 +675,7 @@ impl Launcher {
         let apps = &self.apps;
         let shown = |x: &AppId| apps.iter().any(|a| &a.id == x);
         if self.favorites.shift(&id, up, shown) {
-            self.selected = if up { row.saturating_sub(1) } else { row + 1 };
+            self.cursor.selected = if up { row.saturating_sub(1) } else { row + 1 };
             self.favorites_changed();
         }
     }
@@ -762,18 +705,18 @@ impl Launcher {
 
     /// The footer's label for Enter on the selected row.
     pub fn primary_action(&self) -> &'static str {
-        if self.answer.is_some() && self.selected == 0 {
+        if self.answer.is_some() && self.cursor.selected == 0 {
             return "Paste Answer";
         }
-        match self.fallback_at(self.selected) {
+        match self.fallback_at(self.cursor.selected) {
             Some(Fallback::Web(_)) => return "Search Web",
             Some(Fallback::Files(_)) => return "Search Files",
             None => {}
         }
-        if self.needs_query(self.selected) {
+        if self.needs_query(self.cursor.selected) {
             return "Type Query";
         }
-        let Some(app) = self.app_at(self.selected) else {
+        let Some(app) = self.app_at(self.cursor.selected) else {
             return "Open";
         };
         match &app.launch {
@@ -798,18 +741,18 @@ impl Launcher {
             )
         });
         let count = self.row_count();
-        list::step_selection(&mut self.selected, count, down, up);
+        self.cursor.step(count, down, up);
         if down || up {
             self.confirming = None;
         }
         if enter {
-            self.commit(self.selected);
+            self.commit(self.cursor.selected);
         }
         // Tab completes a quicklink's keyword so its query can be typed.
-        if self.needs_query(self.selected)
+        if self.needs_query(self.cursor.selected)
             && ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Tab))
         {
-            self.commit(self.selected);
+            self.commit(self.cursor.selected);
         }
         // Raycast's favorite shortcuts, with Ctrl for Cmd.
         let shift_ctrl = Modifiers::CTRL | Modifiers::SHIFT;
@@ -821,12 +764,12 @@ impl Launcher {
             )
         });
         if toggle {
-            self.toggle_favorite(self.selected);
+            self.toggle_favorite(self.cursor.selected);
         }
-        let on_favorite = self.selected >= self.answer_rows()
-            && self.selected - self.answer_rows() < self.favorite_rows;
+        let on_favorite = self.cursor.selected >= self.answer_rows()
+            && self.cursor.selected - self.answer_rows() < self.favorite_rows;
         if on_favorite && (move_up || move_down) {
-            self.move_favorite(self.selected, move_up);
+            self.move_favorite(self.cursor.selected, move_up);
         }
     }
 
@@ -851,8 +794,7 @@ impl Launcher {
         if self.ranked_for.as_deref() != Some(query) {
             if self.ranked_for.is_some() {
                 // The query changed (not just the index): start from the top.
-                self.selected = 0;
-                self.first_row = 0;
+                self.cursor.reset();
                 self.confirming = None;
             }
             self.rank_now(query);
@@ -925,7 +867,7 @@ impl Launcher {
     pub fn results_ui(&mut self, ui: &mut egui::Ui, query: &str) {
         self.refresh(query);
         let total = self.row_count();
-        self.selected = self.selected.min(total.saturating_sub(1));
+        self.cursor.clamp_selected(total);
 
         if total == 0 {
             // The header already shows a running scan.
@@ -955,34 +897,38 @@ impl Launcher {
         } else {
             self.rows
         };
-        let step = list::wheel_rows(ui, theme::ROW_STRIDE, &mut self.wheel);
-        if self.selected >= offset {
-            let row = list::scroll_window(
-                &mut self.first_row,
-                self.selected - offset,
+        let step = list::wheel_rows(ui, theme::ROW_STRIDE, &mut self.cursor.wheel);
+        if self.cursor.selected >= offset {
+            let row = list_cursor::scroll_window(
+                &mut self.cursor.first_row,
+                self.cursor.selected - offset,
                 list_len,
                 list_rows,
                 step,
             );
-            self.selected = row + offset;
-            list::keep_visible(self.selected - offset, &mut self.first_row, list_rows);
+            self.cursor.selected = row + offset;
+            list_cursor::keep_visible(
+                self.cursor.selected - offset,
+                &mut self.cursor.first_row,
+                list_rows,
+            );
         } else {
             // The calculator card stays selected; only the list scrolls.
-            list::scroll_window(
-                &mut self.first_row,
-                self.selected,
+            list_cursor::scroll_window(
+                &mut self.cursor.first_row,
+                self.cursor.selected,
                 list_len,
                 list_rows,
                 step,
             );
         }
-        let end = (self.first_row + list_rows).min(list_len);
+        let end = (self.cursor.first_row + list_rows).min(list_len);
         let icon_px = (ICON_POINTS * ui.ctx().pixels_per_point()).round() as u32;
-        self.icons.set_edge(icon_px);
+        self.icons.set_edge(list::icon_request_edge(icon_px));
 
         let mut clicked = None;
         if let Some(answer) = &self.answer {
-            if answer_card(ui, answer, self.selected == 0).clicked() {
+            if answer_card(ui, answer, self.cursor.selected == 0).clicked() {
                 clicked = Some(0);
             }
             if list_len > 0 {
@@ -990,14 +936,14 @@ impl Launcher {
             }
         }
         let mut menu = None;
-        for row in self.first_row + offset..end + offset {
+        for row in self.cursor.first_row + offset..end + offset {
             if split && row - offset == self.favorite_rows {
                 theme::section_header(ui, "Suggestions", None);
             }
             if fallback_header && row - offset == self.ranked.len() {
                 theme::section_header(ui, &fallback_title(query), None);
             }
-            let selected = row == self.selected;
+            let selected = row == self.cursor.selected;
             if let Some(fallback) = self.fallback_at(row) {
                 if self.fallback_row(ui, fallback, selected).clicked() {
                     clicked = Some(row);
@@ -1008,18 +954,12 @@ impl Launcher {
             let app = &self.apps[index];
             let favorite = self.favorites.contains(&app.id);
             let in_favorites = row - offset < self.favorite_rows;
-            let icon = self.icons.textures.get(&app.id).cloned();
-            if icon.is_some() {
-                self.icons.touch(&app.id);
-            } else if !app.icon_key.is_empty()
-                && !self.icons.pending.contains(&app.id)
-                && !self.icons.failed.contains(&app.id)
-            {
-                self.icons.pending.insert(app.id.clone());
+            let icon = self.icons.get(&app.id);
+            if icon.is_none() && !app.icon_key.is_empty() && self.icons.begin(&app.id) {
                 self.icon_requests.push(IconRequest {
                     app_id: app.id.clone(),
                     icon_key: app.icon_key.clone(),
-                    size: list::icon_request_edge(icon_px),
+                    size: self.icons.edge(),
                 });
             }
 
@@ -1099,17 +1039,17 @@ impl Launcher {
             });
         }
         if let Some((row, action)) = menu {
-            self.selected = row;
+            self.cursor.selected = row;
             match action {
                 FavoriteAction::Toggle => self.toggle_favorite(row),
                 FavoriteAction::Up => self.move_favorite(row, true),
                 FavoriteAction::Down => self.move_favorite(row, false),
             }
         } else if let Some(row) = clicked {
-            if row != self.selected {
+            if row != self.cursor.selected {
                 self.confirming = None;
             }
-            self.selected = row;
+            self.cursor.selected = row;
             self.commit(row);
         }
     }

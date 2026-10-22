@@ -122,12 +122,16 @@ new imports winhttp, powrprof, propsys (all system DLLs).
 4. **Sign builds** (decision 019): Authenticode (e.g. Azure Trusted Signing)
    for SmartScreen, and/or an Ed25519 key embedded in the exe, verified
    before the update swap. Until then the checksum only catches corruption.
-5. Decide the deferred review items above, and the structural refactors the
-   earlier review proposed (one texture LRU, a list cursor, a worker
-   abstraction, an effect outbox instead of ~50 `take_*` accessors). The
-   three older findings are fixed on branch `old-review-fixes`: `IconReady`
-   carries the requested edge and both icon views drop a mismatch; calculator
-   results below 0.01 keep 10 significant digits; three doc comments moved.
+5. Decide the deferred review items above. Branch `old-review-fixes` fixed
+   the three older findings (icons and emoji glyphs fetched across a DPI
+   change are dropped, not cached at the old size; calculator results below
+   0.01 keep 10 significant digits; three doc comments moved) and moved every
+   view onto `RequestCache` and `ListCursor` (decision 024). Windows check:
+   icons, file icons, emoji and thumbnails load and stay sharp across a
+   150%→100% monitor move; scrolling and selection in every list.
+   **Effect outbox** (replace ~20 `take_*` drains with one queue): deferred
+   until after the Windows pass; keep the coalescing slots (snapshots, bools)
+   and the paste finisher's order explicit.
 6. Flag-capable emoji font for the Flags group (backlog below).
 
 ## Open questions and parked ideas
