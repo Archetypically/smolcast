@@ -114,7 +114,7 @@ fn format_number(value: f64) -> Option<String> {
         let (mantissa, exponent) = text.split_once('e')?;
         return Some(format!("{}e{exponent}", trim_zeros(mantissa)));
     }
-    let decimals = (9 - magnitude).clamp(0, 10) as usize;
+    let decimals = (9 - magnitude).max(0) as usize;
     let text = trim_zeros(&format!("{value:.decimals$}")).to_owned();
     Some(if text == "-0" { "0".into() } else { text })
 }
@@ -872,6 +872,9 @@ mod tests {
         assert_eq!(result("10^20").as_deref(), Some("1e20"));
         assert_eq!(result("1/3000000000").as_deref(), Some("3.333333e-10"));
         assert_eq!(result("1/3").as_deref(), Some("0.3333333333"));
+        // Below 0.01, ten significant digits still need more than ten decimals.
+        assert_eq!(result("1/3000").as_deref(), Some("0.0003333333333"));
+        assert_eq!(result("1/300000").as_deref(), Some("0.000003333333333"));
     }
 
     #[test]

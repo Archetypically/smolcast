@@ -122,15 +122,16 @@ new imports winhttp, powrprof, propsys (all system DLLs).
 4. **Sign builds** (decision 019): Authenticode (e.g. Azure Trusted Signing)
    for SmartScreen, and/or an Ed25519 key embedded in the exe, verified
    before the update swap. Until then the checksum only catches corruption.
-5. Decide the deferred review items above, plus three the 2026-10-22 review
-   found in code already on main: an icon result that arrives after a DPI
-   change is cached at the wrong size (`launcher::on_icon_ready` does not
-   check `pending` or the edge, unlike `FileView`); `calc::format_number`
-   caps decimals at 10, so results between 1e-6 and 1e-2 lose significant
-   digits; misplaced doc comments on `snippet_view::set_palette_size`,
-   `is_confirming_delete` and `launcher::set_search_engine`. And the
-   structural refactors the earlier review proposed (one texture LRU, a list cursor, a worker abstraction,
-   an effect outbox instead of ~40 `take_*` accessors).
+5. Decide the deferred review items above. Branch `old-review-fixes` fixed
+   the three older findings (icons and emoji glyphs fetched across a DPI
+   change are dropped, not cached at the old size; calculator results below
+   0.01 keep 10 significant digits; three doc comments moved) and moved every
+   view onto `RequestCache` and `ListCursor` (decision 024). Windows check:
+   icons, file icons, emoji and thumbnails load and stay sharp across a
+   150%→100% monitor move; scrolling and selection in every list.
+   **Effect outbox** (replace ~20 `take_*` drains with one queue): deferred
+   until after the Windows pass; keep the coalescing slots (snapshots, bools)
+   and the paste finisher's order explicit.
 6. Flag-capable emoji font for the Flags group (backlog below).
 
 ## Open questions and parked ideas
@@ -168,6 +169,15 @@ new imports winhttp, powrprof, propsys (all system DLLs).
   Out: window management, layouts and rooms (non-goal), currency/crypto
   (network), Raycast extensions (non-goal), dictionary (tabled), calendar,
   Apple Shortcuts, menu-bar search, camera.
+- **Automated UI smoke tests** (user, 2026-10-22): drive the real binary on
+  a display and catch regressions deterministically. Not started. Sketch:
+  run on a GitHub `windows-latest` runner (it has an interactive desktop),
+  never the user's desktop; drive input from inside the app with a test-only
+  mode that replays a fixed key script (summon, type, arrows, Enter) rather
+  than `SendInput`/UI Automation, which are flaky on focus and timing; check
+  dumped model state (deterministic), and add screenshot diffs only with
+  pinned fonts, DPI and theme. The effect outbox (Next 5) would make the
+  model's output easy to record and compare.
 - **Screen readers**: eframe's `accesskit` feature would expose the palette
   to Narrator, but adds dependencies and size, and the painted rows need
   `widget_info` labels. Not started; needs the user's call.

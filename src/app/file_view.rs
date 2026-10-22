@@ -8,13 +8,14 @@
 //! worker for visible rows only; the Windows icon-font glyph stands in
 //! until it arrives.
 
-use std::collections::{HashMap, HashSet};
 use std::time::{Duration, Instant};
 
 use egui::{Key, Modifiers, RichText, TextureHandle, TextureOptions};
 
 use crate::core::config::PaletteSize;
-use crate::core::file_search::FileHit;
+use crate::core::file_search::{FileHit, MAX_RESULTS};
+use crate::core::list_cursor::ListCursor;
+use crate::core::request_cache::RequestCache;
 use crate::win::icon::IconRgba;
 use crate::win::shell::LaunchError;
 
@@ -49,20 +50,14 @@ pub struct FileView {
     generation: u64,
     sent: Option<String>,
     error: Option<String>,
-    selected: usize,
-    first_row: usize,
+    cursor: ListCursor,
     rows: usize,
-    wheel: f32,
     request: Option<(u64, String)>,
     action: Option<FileAction>,
     /// Why file search cannot run at all (its thread did not start).
     unavailable: Option<String>,
     /// Explorer icons by path, for the current results only.
-    icons: HashMap<String, TextureHandle>,
-    icons_pending: HashSet<String>,
-    icons_failed: HashSet<String>,
-    /// The pixel edge the icons were fetched at; a DPI change starts over.
-    icon_edge: u32,
+    icons: RequestCache<String, TextureHandle>,
     icon_requests: Vec<(String, u32)>,
 }
 
@@ -81,17 +76,12 @@ impl FileView {
             generation: 0,
             sent: None,
             error: None,
-            selected: 0,
-            first_row: 0,
+            cursor: ListCursor::default(),
             rows: MEDIUM_ROWS,
-            wheel: 0.0,
             request: None,
             action: None,
             unavailable: None,
-            icons: HashMap::new(),
-            icons_pending: HashSet::new(),
-            icons_failed: HashSet::new(),
-            icon_edge: 0,
+            icons: RequestCache::new(MAX_RESULTS),
             icon_requests: Vec::new(),
         }
     }
@@ -107,8 +97,7 @@ impl FileView {
         self.shown_for = None;
         self.typed = None;
         self.error = None;
-        self.selected = 0;
-        self.first_row = 0;
+        self.cursor.reset();
     }
 
     /// Drop the query in flight: a new generation makes its late answer stale.
@@ -136,9 +125,11 @@ impl FileView {
         &mut self,
         ctx: &egui::Context,
         path: String,
+        size: u32,
         result: Result<IconRgba, LaunchError>,
     ) {
-        if !self.icons_pending.remove(&path) || !self.hits.iter().any(|h| h.path == path) {
+        // Fetched before a DPI change, or for an item no longer listed.
+        if !self.icons.accept(&path, size) || !self.hits.iter().any(|h| h.path == path) {
             return;
         }
         match result {
@@ -150,9 +141,7 @@ impl FileView {
                 let texture = ctx.load_texture("file-icon", image, TextureOptions::LINEAR);
                 self.icons.insert(path, texture);
             }
-            Err(_) => {
-                self.icons_failed.insert(path);
-            }
+            Err(_) => self.icons.fail(path),
         }
     }
 
@@ -175,17 +164,14 @@ impl FileView {
                 // results never hold more than `MAX_RESULTS`.
                 let hits = &self.hits;
                 let listed = |path: &String| hits.iter().any(|h| &h.path == path);
-                self.icons.retain(|path, _| listed(path));
-                self.icons_pending.retain(listed);
-                self.icons_failed.retain(listed);
+                self.icons.retain(listed);
             }
             Err(e) => {
                 self.hits.clear();
                 self.error = Some(e);
             }
         }
-        self.selected = 0;
-        self.first_row = 0;
+        self.cursor.reset();
     }
 
     fn searching(&self) -> bool {
@@ -202,8 +188,8 @@ impl FileView {
                 i.consume_key(Modifiers::COMMAND, Key::Enter),
             )
         });
-        list::step_selection(&mut self.selected, self.hits.len(), down, up);
-        if let Some(hit) = self.hits.get(self.selected) {
+        self.cursor.step(self.hits.len(), down, up);
+        if let Some(hit) = self.hits.get(self.cursor.selected) {
             if reveal {
                 self.action = Some(FileAction::Reveal(hit.path.clone()));
             } else if enter {
@@ -293,30 +279,16 @@ impl FileView {
             return;
         }
 
-        let step = list::wheel_rows(ui, theme::ROW_STRIDE, &mut self.wheel);
-        let count = self.hits.len();
-        self.selected =
-            list::scroll_window(&mut self.first_row, self.selected, count, self.rows, step);
-        list::keep_visible(self.selected, &mut self.first_row, self.rows);
-        let end = (self.first_row + self.rows).min(count);
+        let visible = list::scroll(ui, &mut self.cursor, self.hits.len(), self.rows);
         let icon_px = (ICON_POINTS * ui.ctx().pixels_per_point()).round() as u32;
-        if icon_px != self.icon_edge {
-            self.icon_edge = icon_px;
-            self.icons.clear();
-            self.icons_pending.clear();
-            self.icons_failed.clear();
-        }
+        self.icons.set_edge(list::icon_request_edge(icon_px));
         let mut clicked = None;
-        for row in self.first_row..end {
+        for row in visible {
             let hit = &self.hits[row];
-            let icon = self.icons.get(&hit.path).cloned();
-            if icon.is_none()
-                && !self.icons_pending.contains(&hit.path)
-                && !self.icons_failed.contains(&hit.path)
-            {
-                self.icons_pending.insert(hit.path.clone());
+            let icon = self.icons.get(&hit.path);
+            if icon.is_none() && self.icons.begin(&hit.path) {
                 self.icon_requests
-                    .push((hit.path.clone(), icon_px.clamp(16, 256)));
+                    .push((hit.path.clone(), self.icons.edge()));
             }
             let leading = |ui: &mut egui::Ui| match &icon {
                 Some(texture) => list::icon(ui, texture, ICON_POINTS),
@@ -334,12 +306,20 @@ impl FileView {
                 ui.label(RichText::new(folder).weak().small())
                     .on_hover_text(&hit.path);
             };
-            if list::row(ui, row == self.selected, &hit.name, leading, trailing).clicked() {
+            if list::row(
+                ui,
+                row == self.cursor.selected,
+                &hit.name,
+                leading,
+                trailing,
+            )
+            .clicked()
+            {
                 clicked = Some(row);
             }
         }
         if let Some(row) = clicked {
-            self.selected = row;
+            self.cursor.selected = row;
             self.action = Some(FileAction::Open(self.hits[row].path.clone()));
         }
     }

@@ -559,6 +559,7 @@ fn icon_main(rx: Receiver<IconRequest>, cancel: Arc<AtomicBool>, wake: Wake) {
         wake.send(AppEvent::IconReady {
             target: request.target,
             icon_key: request.icon_key,
+            size: request.size,
             result,
         });
     }

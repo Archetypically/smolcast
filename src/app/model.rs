@@ -72,6 +72,9 @@ pub enum AppEvent {
         /// The key the icon was extracted from; a result for a key the entry
         /// no longer has is stale and dropped.
         icon_key: String,
+        /// The pixel edge requested; an icon for an edge the view no longer
+        /// draws at (a DPI change in flight) is dropped.
+        size: u32,
         result: Result<IconRgba, LaunchError>,
     },
     LaunchFinished {
@@ -92,6 +95,8 @@ pub enum AppEvent {
     /// A rasterized emoji glyph (§9) for table index `index`.
     EmojiGlyph {
         index: usize,
+        /// The pixel edge rendered at; a glyph for an older edge is dropped.
+        edge: u32,
         result: Result<IconRgba, String>,
     },
     /// The clipboard changed while smolcast's own capture was off (§7.0).
@@ -887,12 +892,14 @@ impl AppModel {
             AppEvent::IconReady {
                 target,
                 icon_key,
+                size,
                 result,
             } => match target {
                 IconTarget::App(app_id) => {
-                    self.launcher.on_icon_ready(ctx, app_id, &icon_key, result);
+                    self.launcher
+                        .on_icon_ready(ctx, app_id, &icon_key, size, result);
                 }
-                IconTarget::File(path) => self.files.on_icon_ready(ctx, path, result),
+                IconTarget::File(path) => self.files.on_icon_ready(ctx, path, size, result),
             },
             AppEvent::ShortcutsRecycled { result } => {
                 self.launcher
@@ -909,7 +916,11 @@ impl AppModel {
             }
             AppEvent::ClipboardCaptured(payload) => self.clipboard.record(payload),
             AppEvent::ThumbnailReady { id, image } => self.clipboard.on_thumbnail(ctx, id, image),
-            AppEvent::EmojiGlyph { index, result } => self.emoji.on_glyph(ctx, index, result),
+            AppEvent::EmojiGlyph {
+                index,
+                edge,
+                result,
+            } => self.emoji.on_glyph(ctx, index, edge, result),
             AppEvent::ClipboardHistoryLoaded(entries) => self.clipboard.on_loaded(entries),
             AppEvent::ClipboardChanged => self
                 .clipboard
