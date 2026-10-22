@@ -1,6 +1,7 @@
 # smolcast visual design
 
-smolcast looks and behaves like Raycast, adapted to Windows 11. This is the
+smolcast keeps Raycast's structure and gives it a flavor of its own:
+Spotlight's search glyph, Tinycast's dissolving edges, and a Windows 11 selection pip in the brand red (decision 028). This is the
 reference for anyone changing the UI. The tokens live in
 [`src/app/theme.rs`](../src/app/theme.rs). Change them there, not per view.
 
@@ -11,9 +12,14 @@ reference for anyone changing the UI. The tokens live in
 - **Quiet chrome.** Neutral surfaces, no borders around fields or buttons, and
   hairline dividers instead of boxes. Color means status (warning, error), not
   decoration.
-- **One accent, used sparingly.** Raycast red (`#FF6363`) is used only for the
-  text cursor, text selection and links, plus one grace note: the heart on the
-  About page. Row selection is a soft gray fill, never the accent.
+- **One accent, used sparingly.** The brand red (`#FF6363`, the full stop of
+  the "s." icon) marks where you are: the text cursor, text selection, links
+  and the selected row's pip, plus one grace note: the heart on the About
+  page. Row selection is a soft gray fill, never an accent fill.
+- **Edges dissolve.** Dividers fade out toward the window's edges, and a
+  list's edge row dims while more rows wait beyond it.
+- **One column.** The search glyph, back button and row icons share a
+  column, and the query starts where row names do.
 - **Follow the system.** Dark and light themes follow Windows. Mica shows
   through when it is available (see plan §12.7, Appearance).
 - **Quick, and honest about work.** The palette never blocks on work. Anything
@@ -38,10 +44,13 @@ is the exe, taskbar and tray icon (decision 026). Change the SVG, never the
 From top to bottom, all sections span the full window width:
 
 1. **Search bar.** A frameless 18-point text field with a 16-point side gutter
-   and 12-point vertical padding. Sub-views put a painted back arrow (a
-   28-point rounded square) to its left. Forms with no search field show the
-   view title at the same size.
-2. **Divider.** A 1-point hairline across the full window, ignoring margins.
+   and 12-point vertical padding, headed by a painted magnifier in the
+   22-point icon slot, so the query starts on the row names' column (gutter
+   + 22 + 10). Sub-views put the painted back arrow (a 28-point rounded
+   square centered on the same slot) there instead. Forms with no search
+   field show the view title at the same size and column.
+2. **Divider.** A 1-point hairline across the full window, ignoring margins,
+   dissolving to nothing over the outer 18% at each end.
 3. **Body.** 8-point padding. The root list starts with a small, gray
    "Suggestions" (empty query) or "Results" header. While apps are indexed, the
    header's right side shows "Indexing apps…" (first scan) or "Refreshing
@@ -85,21 +94,27 @@ bottom padding so that shrinking works.
 | Corner radius: rows, windows | 8 pt |
 | Corner radius: buttons | 6 pt |
 | Corner radius: key caps | 4 pt |
+| Selection pip | 3 × 14 pt, accent, 2 pt radius, 2 pt inside the fill's left edge |
+| Edge row opacity | 45% |
 | Result row height | 38 pt, 4 pt apart (`ROW_STRIDE` = 42) |
 | Side gutter (`GUTTER`): where all content starts and ends | 16 pt |
 | Body margin (`BODY_MARGIN`): where row and cell fills start | 8 pt |
 | Row content inset (`ROW_INSET` = gutter − body margin) | 8 pt |
 | Gap between body sections (`SECTION_GAP`) | 8 pt |
-| App icon | 22 pt |
+| Icon slot (`ICON_SLOT`): app icons, search glyph, back button column | 22 pt |
+| Icon to name gap (`ICON_GAP`) | 10 pt |
 | Emoji cell / glyph | 44 / 28 pt |
 
 The font is Segoe UI, with egui's bundled fonts as fallbacks.
 
 ## Components
 
-- **Result row** (`list::row`). Leading icon, then the name, then gray
-  trailing text (the entry type, the age, or a snippet keyword). Selected:
-  rounded selection fill. Hovered: hover fill. The text color does not change.
+- **Result row** (`list::row`, with a `RowState`). Leading icon, then the
+  name, then gray trailing text (the entry type, the age, or a snippet
+  keyword). Selected: rounded selection fill with the accent pip
+  (`theme::selection_pip`) at its left edge. Hovered: hover fill. The text
+  color does not change. Edge: the first or last row drawn while more rows
+  wait above or below dims to 45%, unless selected.
 - **Favorites.** Up to 5 pinned entries (`core::favorites`) lead the empty
   root list under a "Favorites" header, followed by a "Suggestions" header
   (which takes one row). While searching they rank normally, and their trailing
@@ -145,7 +160,7 @@ The font is Segoe UI, with egui's bundled fonts as fallbacks.
   card and that header take exactly three list rows, so the window keeps its
   height. The card is selected first; Enter pastes the result (the footer
   reads "Paste Answer"). Fill: control at rest, hover fill on hover,
-  selection fill when selected.
+  selection fill and pip when selected.
 - **Row icons.** Use the program's real icon wherever one exists. For
   applications, it comes from the Start Menu shortcut or the packaged app. For
   scripts, it comes from the interpreter executable, with bare names such as
@@ -169,13 +184,17 @@ The font is Segoe UI, with egui's bundled fonts as fallbacks.
   are 6 points apart and sections 16 points apart. Short gray hints sit beside
   controls. Save, Revert and the status are on the left of the bottom row, and
   "Edit config file…" is on the right.
-- **Key cap** (`theme::key_cap`). Small gray text on a rounded selection fill.
-  It is painted at the text's size so centered layouts cannot stretch it.
-  While its key is held, the cap lights up (brighter fill, full-strength text).
+- **Key cap** (`theme::key_cap`). Small gray text on a rounded selection fill
+  with a darker 1-point lower lip, like a physical key. It is painted at the
+  text's size so centered layouts cannot stretch it. While its key is held,
+  the cap lights up (brighter fill, full-strength text) and the lip flattens.
 - **Action hint** (`theme::action_hint`). A label followed by its key caps,
   for right-to-left footer layouts.
-- **Back button** (`theme::back_button`). A painted arrow, not a font glyph.
-  On hover the arrow leans 1.5 points to the left.
+- **Back button** (`theme::back_button`). A painted arrow, not a font glyph,
+  in a 28-point square centered on the icon slot. On hover the arrow leans
+  1.5 points to the left.
+- **Search glyph** (`theme::search_glyph`). A painted magnifier in the icon
+  slot, secondary text color, 1.5-point stroke.
 - **Busy indicator** (`theme::busy`, `busy_small`, `action_busy`). A small
   egui spinner beside weak text. Gate it with `theme::busy_due`, which applies
   the 150 ms delay. Spinners animate only while drawn, so a hidden palette
@@ -193,7 +212,7 @@ and keys always act on final positions, and typing works from the first frame.
 | Dismiss (Esc, click-away) | Content fades out and scales to 97%, input off, then the window hides; a summon meanwhile reverses it | 90 ms | ease in (cubic) |
 | Completed action (launch, paste, web search) | Nothing: the window hides at once | — | — |
 | View change, form open or close | Body slides 12 pt in (from the right going deeper, from the left going back) and fades in; the search line fades | 150 ms | ease out (cubic) |
-| Selection | The row or emoji cell fill glides to its new place | 80 ms | linear |
+| Selection | The row or emoji cell fill (and the row's pip) glides to its new place | 80 ms | linear |
 | Hover | Row and cell hover fills fade in and out | 80 ms | linear |
 | Emoji cell | The selected glyph lifts to 108% | 120 ms | ease out (cubic) |
 | Back button | The arrow leans 1.5 pt left on hover | 100 ms | linear |
@@ -239,7 +258,7 @@ palette is idle.
   `theme::ROW_STRIDE`, never magic numbers.
 - **Color only for status.** Warnings are amber and errors are red, in small
   text. Nothing else gets color, except the accent where Principles allow it
-  (the About page's heart).
+  (the selection pip, the About page's heart).
 - **Check new views in both themes.** Also check them at 100%, 150% and 200%
   scaling, with reduced motion on, and under a high-contrast theme.
 - **Animate paint, never input.** New motion goes through `core::motion`

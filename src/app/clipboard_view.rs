@@ -654,9 +654,10 @@ impl ClipboardView {
                         None => theme::busy(ui, "Loading clipboard history…"),
                     });
                 }
-                for index in shown {
+                for index in shown.clone() {
+                    let state = list::RowState::of(index, selected, &shown, filtered.len());
                     if let Some(row) = filtered.get(index).and_then(|key| by_key.get(key))
-                        && row_ui(ui, row, index == selected, now).clicked()
+                        && row_ui(ui, row, state, now).clicked()
                     {
                         clicked = Some(index);
                     }
@@ -797,7 +798,7 @@ fn preview_ui(ui: &mut egui::Ui, row: &Row<'_>, thumbnails: &mut Thumbnails, lis
     }
 }
 
-fn row_ui(ui: &mut egui::Ui, row: &Row<'_>, selected: bool, now: i64) -> egui::Response {
+fn row_ui(ui: &mut egui::Ui, row: &Row<'_>, state: list::RowState, now: i64) -> egui::Response {
     let (glyph, text) = match &row.content {
         RowContent::Text(text) => {
             // Runs every frame for every visible row over items of up to
@@ -818,7 +819,7 @@ fn row_ui(ui: &mut egui::Ui, row: &Row<'_>, selected: bool, now: i64) -> egui::R
     let age = relative_age(now, row.captured_at_ms);
     list::row(
         ui,
-        selected,
+        state,
         &text,
         |ui| {
             ui.label(glyph);
