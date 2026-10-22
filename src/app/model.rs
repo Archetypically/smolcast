@@ -95,6 +95,8 @@ pub enum AppEvent {
     /// A rasterized emoji glyph (§9) for table index `index`.
     EmojiGlyph {
         index: usize,
+        /// The pixel edge rendered at; a glyph for an older edge is dropped.
+        edge: u32,
         result: Result<IconRgba, String>,
     },
     /// The clipboard changed while smolcast's own capture was off (§7.0).
@@ -914,7 +916,11 @@ impl AppModel {
             }
             AppEvent::ClipboardCaptured(payload) => self.clipboard.record(payload),
             AppEvent::ThumbnailReady { id, image } => self.clipboard.on_thumbnail(ctx, id, image),
-            AppEvent::EmojiGlyph { index, result } => self.emoji.on_glyph(ctx, index, result),
+            AppEvent::EmojiGlyph {
+                index,
+                edge,
+                result,
+            } => self.emoji.on_glyph(ctx, index, edge, result),
             AppEvent::ClipboardHistoryLoaded(entries) => self.clipboard.on_loaded(entries),
             AppEvent::ClipboardChanged => self
                 .clipboard

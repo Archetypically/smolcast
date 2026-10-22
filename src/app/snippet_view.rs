@@ -13,6 +13,7 @@ use egui::{Key, Modifiers, RichText, Vec2};
 use crate::core::app_index::Command;
 use crate::core::config::{PaletteSize, SnippetConfig};
 use crate::core::config_edit::SnippetEdit;
+use crate::core::list_cursor::{self, ListCursor};
 use crate::core::snippet::{self, Snippet};
 
 use super::{list, theme};
@@ -79,8 +80,7 @@ pub struct SnippetView {
     /// Indices into `snippets` for `results_for`.
     results: Vec<usize>,
     results_for: Option<String>,
-    selected: usize,
-    first_row: usize,
+    cursor: ListCursor,
     mode: Mode,
     status: Status,
     /// Select this id once the list next shows it (after a save).
@@ -92,8 +92,6 @@ pub struct SnippetView {
     open_file: bool,
     /// Rows shown at once, from the palette size.
     rows: usize,
-    /// Mouse-wheel distance not yet worth a whole row.
-    wheel: f32,
 }
 
 impl SnippetView {
@@ -102,8 +100,7 @@ impl SnippetView {
             snippets: snippet::from_config(snippets),
             results: Vec::new(),
             results_for: None,
-            selected: 0,
-            first_row: 0,
+            cursor: ListCursor::default(),
             mode: Mode::List,
             status: Status::Idle,
             select_id: None,
@@ -112,7 +109,6 @@ impl SnippetView {
             left_editor: None,
             open_file: false,
             rows: MEDIUM_ROWS,
-            wheel: 0.0,
         }
     }
 
@@ -159,8 +155,7 @@ impl SnippetView {
         }
         self.mode = Mode::List;
         self.status = Status::Idle;
-        self.selected = 0;
-        self.first_row = 0;
+        self.cursor.reset();
         self.results_for = None;
     }
 
@@ -240,7 +235,7 @@ impl SnippetView {
 
     fn selected_snippet(&self) -> Option<&Snippet> {
         self.results
-            .get(self.selected)
+            .get(self.cursor.selected)
             .and_then(|&i| self.snippets.get(i))
     }
 
@@ -352,7 +347,7 @@ impl SnippetView {
                 i.consume_key(Modifiers::SHIFT, Key::Delete),
             )
         });
-        list::step_selection(&mut self.selected, self.results.len(), down, up);
+        self.cursor.step(self.results.len(), down, up);
         if enter && paste_enabled {
             self.commit();
         }
@@ -396,10 +391,7 @@ impl SnippetView {
             return;
         }
 
-        let step = list::wheel_rows(ui, theme::ROW_STRIDE, &mut self.wheel);
-        let count = self.results.len();
-        self.selected =
-            list::scroll_window(&mut self.first_row, self.selected, count, self.rows, step);
+        let visible = list::scroll(ui, &mut self.cursor, self.results.len(), self.rows);
 
         let mut clicked = None;
         let list_height = self.list_height();
@@ -413,10 +405,9 @@ impl SnippetView {
                 if self.results.is_empty() {
                     theme::inset(ui, |ui| ui.label(RichText::new("No matches.").weak()));
                 }
-                let end = (self.first_row + self.rows).min(self.results.len());
-                for row in self.first_row..end {
+                for row in visible {
                     let snippet = &self.snippets[self.results[row]];
-                    if row_ui(ui, snippet, row == self.selected).clicked() {
+                    if row_ui(ui, snippet, row == self.cursor.selected).clicked() {
                         clicked = Some(row);
                     }
                 }
@@ -430,7 +421,7 @@ impl SnippetView {
             });
         });
         if let Some(row) = clicked {
-            self.selected = row;
+            self.cursor.selected = row;
             if paste_enabled && !self.is_editing() {
                 self.commit();
             }
@@ -495,8 +486,7 @@ impl SnippetView {
         let query = query.trim();
         if self.results_for.as_deref() != Some(query) {
             if self.results_for.is_some() {
-                self.selected = 0;
-                self.first_row = 0;
+                self.cursor.reset();
             }
             self.results = snippet::search(query, &self.snippets);
             self.results_for = Some(query.to_owned());
@@ -504,10 +494,10 @@ impl SnippetView {
         if let Some(id) = self.select_id.take()
             && let Some(row) = self.results.iter().position(|&i| self.snippets[i].id == id)
         {
-            self.selected = row;
+            self.cursor.selected = row;
         }
-        self.selected = self.selected.min(self.results.len().saturating_sub(1));
-        list::keep_visible(self.selected, &mut self.first_row, self.rows);
+        self.cursor.clamp_selected(self.results.len());
+        list_cursor::keep_visible(self.cursor.selected, &mut self.cursor.first_row, self.rows);
     }
 
     fn editor_ui(&mut self, ui: &mut egui::Ui) {
