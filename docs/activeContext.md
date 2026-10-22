@@ -59,6 +59,10 @@ new imports winhttp, powrprof, propsys (all system DLLs).
   relaunch with `--wait-pid`. Unsigned for now (user: plumbing first).
   `.github/workflows/release.yml` publishes on a `v*` tag.
 - `projectbrief.md` now allows the update check as the one network request.
+- **Native icons** (decision 023): built-in commands, system actions,
+  quicklinks and the files fallback draw Windows' icon font (Segoe Fluent
+  Icons / MDL2, loaded from `%WINDIR%\Fonts`), emoji only as fallback;
+  Search Files rows show Explorer's icon per item.
 
 ## Pending Windows checks
 
@@ -66,7 +70,9 @@ new imports winhttp, powrprof, propsys (all system DLLs).
   with an unsaved Notepad still prompts; dark mode flips apps and taskbar;
   mute shows the flyout; display off stays off), the new glyphs render;
   quicklinks with and without `{query}`, Tab fill-in, a folder path target;
-  the fallback header and rows scroll correctly in every window size;
+  the fallback header and rows scroll correctly in every window size; the
+  icon-font glyphs render at 100/150/200% in light, dark and high contrast
+  (Sign Out's SwitchUser glyph reads right); file icons load in Search Files;
   Search Files with the service on and off, typing fast sends one query,
   stale entries hidden, Ctrl+Enter selects in Explorer; update check against
   a real release (needs the public repo), Skip, a failed download, an

@@ -1,7 +1,10 @@
 //! List mechanics shared by the launcher, clipboard, and snippet views:
 //! wrapping arrow-key selection, the visible-row window, and row chrome.
 
-use egui::{Align, Layout, RichText, Sense, Shape, UiBuilder, Vec2};
+use egui::emath::GuiRounding as _;
+use egui::{
+    Align, Color32, Layout, Pos2, Rect, RichText, Sense, Shape, TextureHandle, UiBuilder, Vec2,
+};
 
 use super::{motion, theme};
 
@@ -64,6 +67,26 @@ pub fn scroll_window(
     *first_row = first_row.saturating_add_signed(step).min(max_first);
     let last = (*first_row + visible).min(count) - 1;
     selected.clamp(*first_row, last)
+}
+
+/// A prescaled icon texture in an `edge`-point square, drawn texel-for-pixel
+/// on whole device pixels: any resample here would blur it.
+pub fn icon(ui: &mut egui::Ui, texture: &TextureHandle, edge: f32) {
+    let (slot, _) = ui.allocate_exact_size(Vec2::splat(edge), Sense::hover());
+    let ppp = ui.ctx().pixels_per_point();
+    let [w, h] = texture.size();
+    let mut drawn = Vec2::new(w as f32, h as f32) / ppp;
+    // One extracted before a DPI change: fit the slot.
+    if drawn.max_elem() > edge {
+        drawn *= edge / drawn.max_elem();
+    }
+    let min = (slot.center() - drawn / 2.0).round_to_pixels(ppp);
+    ui.painter().image(
+        texture.id(),
+        Rect::from_min_size(min, drawn),
+        Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)),
+        Color32::WHITE,
+    );
 }
 
 /// One clickable result row: `leading` (an icon or glyph), then a truncating

@@ -477,8 +477,17 @@ fn launch(spec: &LaunchSpec) -> Result<(), LaunchError> {
 
 // ---- icons --------------------------------------------------------------------
 
+/// Whose icon a request is for, so the result reaches the right view.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum IconTarget {
+    /// A launcher entry.
+    App(AppId),
+    /// A Search Files result, by its path (§6.6).
+    File(String),
+}
+
 struct IconRequest {
-    app_id: AppId,
+    target: IconTarget,
     icon_key: String,
     size: u32,
 }
@@ -507,10 +516,10 @@ impl IconWorker {
         })
     }
 
-    pub fn request(&self, app_id: AppId, icon_key: String, size: u32) {
+    pub fn request(&self, target: IconTarget, icon_key: String, size: u32) {
         if let Some(tx) = &self.tx {
             let _ = tx.send(IconRequest {
-                app_id,
+                target,
                 icon_key,
                 size,
             });
@@ -548,7 +557,7 @@ fn icon_main(rx: Receiver<IconRequest>, cancel: Arc<AtomicBool>, wake: Wake) {
             Err(e) => Err(e.clone()),
         };
         wake.send(AppEvent::IconReady {
-            app_id: request.app_id,
+            target: request.target,
             icon_key: request.icon_key,
             result,
         });
@@ -556,7 +565,8 @@ fn icon_main(rx: Receiver<IconRequest>, cancel: Arc<AtomicBool>, wake: Wake) {
 }
 
 /// `icon_key` is a shell parsing name: a `.lnk` path, `shell:AppsFolder\<AUMID>`,
-/// or a script interpreter, which may be a bare name such as `pwsh.exe`.
+/// a file or folder path, or a script interpreter, which may be a bare name
+/// such as `pwsh.exe`.
 fn extract_icon(icon_key: &str, size: u32) -> Result<IconRgba, LaunchError> {
     let key = resolve_executable(icon_key).unwrap_or_else(|| wide(icon_key));
     let factory: IShellItemImageFactory =
