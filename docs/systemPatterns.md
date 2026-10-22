@@ -1321,9 +1321,12 @@ release import table. Upload both release executables, byte counts, and import
 reports as artifacts. Debug and release are separate commands; a debug build must
 never be described as both.
 
-No CI job claims runtime/UI behavior. The release gate is an interactive Windows
-11 desktop smoke on a clean standard-user account without Rust, Visual Studio,
-PowerShell 7, or other developer tools.
+The Windows job also runs the desktop smoke test (`tests/smoke.rs`, decision
+029): the release exe on the runner's desktop, driven with real `SendInput`
+input, checking only user-visible outcomes. It is a regression signal, not
+runtime acceptance. The release gate is an interactive Windows 11 desktop smoke
+on a clean standard-user account without Rust, Visual Studio, PowerShell 7, or
+other developer tools.
 
 Releases (2026-10-22, §13): `.github/workflows/release.yml` runs on a pushed
 `v*` tag. It refuses a tag that differs from `v` + the Cargo.toml version,

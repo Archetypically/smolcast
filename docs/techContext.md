@@ -75,8 +75,14 @@ rename the old one aside first.
 
 `.github/workflows/ci.yml` runs fmt, clippy and the MSVC release build on
 Windows, and the host tests plus the GNU release cross-link on Linux, with
-dependency builds cached between runs (§11). CI passing is not
-runtime acceptance: each milestone's Windows smoke gate (§12) is.
+dependency builds cached between runs (§11). The Windows job also runs
+the desktop smoke test (`tests/smoke.rs`, decision 029): the release exe on
+the runner's desktop, driven with real keystrokes and clicks, with Mesa's
+software OpenGL beside the exe (the runner has no GPU); a failure uploads a
+desktop screenshot. It only runs with `--ignored` and
+`SMOLCAST_SMOKE_DESKTOP=disposable`, never on a maintainer's desktop. New
+tests default to this level, not unit tests. CI passing is not runtime
+acceptance: each milestone's Windows smoke gate (§12) is.
 
 To release, bump `version` in `Cargo.toml`, merge, then push a matching tag
 (`git tag v0.2.0 && git push origin v0.2.0`). `.github/workflows/release.yml`
