@@ -24,3 +24,11 @@ updates:
     patterns:
       - "*"
     multi-ecosystem-group: dependencies
+  # The website's lint, format and render tools (website/package.json).
+  - package-ecosystem: npm
+    directory: /website
+    schedule:
+      interval: weekly
+    patterns:
+      - "*"
+    multi-ecosystem-group: dependencies

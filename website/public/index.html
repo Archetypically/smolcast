@@ -1,0 +1,642 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>smolcast: a small, native command palette for Windows 11</title>
+    <meta
+      name="description"
+      content="One hotkey for your apps, files, clipboard, emoji, scripts and snippets. A single 7 MB Windows executable with no Electron, no telemetry and no CPU use while hidden. Free and open source."
+    />
+    <link rel="canonical" href="https://smolcast.evanlee.engineer/" />
+    <meta name="color-scheme" content="dark light" />
+    <meta name="theme-color" content="#101012" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#f0f0f2" media="(prefers-color-scheme: light)" />
+    <meta name="author" content="Evan Lee" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-video-preview:-1" />
+
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <link rel="alternate" type="text/plain" href="/llms.txt" title="llms.txt" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="smolcast" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:url" content="https://smolcast.evanlee.engineer/" />
+    <meta property="og:title" content="smolcast: a small, native command palette for Windows 11" />
+    <meta
+      property="og:description"
+      content="One hotkey for your apps, files, clipboard, emoji, scripts and snippets, in a single 7 MB executable that sits idle until you need it."
+    />
+    <meta property="og:image" content="https://smolcast.evanlee.engineer/og.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta
+      property="og:image:alt"
+      content="The smolcast palette converting 40 cm to inches, next to the words: the smol command palette for Windows."
+    />
+    <meta property="og:video" content="https://smolcast.evanlee.engineer/media/smolcast-demo.mp4" />
+    <meta property="og:video:type" content="video/mp4" />
+    <meta property="og:video:width" content="1920" />
+    <meta property="og:video:height" content="1080" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="smolcast: a small, native command palette for Windows 11" />
+    <meta
+      name="twitter:description"
+      content="One hotkey for your apps, files, clipboard, emoji, scripts and snippets, in a single 7 MB executable."
+    />
+    <meta name="twitter:image" content="https://smolcast.evanlee.engineer/og.png" />
+    <meta
+      name="twitter:image:alt"
+      content="The smolcast palette converting 40 cm to inches, next to the words: the smol command palette for Windows."
+    />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "SoftwareApplication",
+            "@id": "https://smolcast.evanlee.engineer/#app",
+            "name": "smolcast",
+            "description": "A small, fully native command palette for Windows 11: app launcher, calculator and unit conversions, file search, clipboard history, emoji picker, scripts, snippets and quicklinks behind one hotkey.",
+            "url": "https://smolcast.evanlee.engineer/",
+            "image": "https://smolcast.evanlee.engineer/og.png",
+            "screenshot": "https://smolcast.evanlee.engineer/og.png",
+            "applicationCategory": "UtilitiesApplication",
+            "operatingSystem": "Windows 11",
+            "processorRequirements": "x86-64",
+            "fileSize": "7MB",
+            "downloadUrl": "https://github.com/Archetypically/smolcast/releases/latest",
+            "softwareHelp": "https://github.com/Archetypically/smolcast#readme",
+            "license": "https://opensource.org/licenses/MIT",
+            "isAccessibleForFree": true,
+            "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+            "author": { "@id": "https://smolcast.evanlee.engineer/#author" },
+            "sameAs": ["https://github.com/Archetypically/smolcast"]
+          },
+          {
+            "@type": "Person",
+            "@id": "https://smolcast.evanlee.engineer/#author",
+            "name": "Evan Lee",
+            "url": "https://evanlee.engineer"
+          },
+          {
+            "@type": "WebSite",
+            "@id": "https://smolcast.evanlee.engineer/#website",
+            "name": "smolcast",
+            "url": "https://smolcast.evanlee.engineer/",
+            "publisher": { "@id": "https://smolcast.evanlee.engineer/#author" }
+          },
+          {
+            "@type": "VideoObject",
+            "name": "smolcast in motion",
+            "description": "A simulation of smolcast on Windows 11, drawn to the app's own measurements and labels: a unit conversion and an emoji pasted into a notes window, a paste from clipboard history, and the web and file fallbacks.",
+            "thumbnailUrl": "https://smolcast.evanlee.engineer/media/smolcast-demo.jpg",
+            "contentUrl": "https://smolcast.evanlee.engineer/media/smolcast-demo.mp4",
+            "uploadDate": "2026-10-22",
+            "duration": "PT29S"
+          }
+        ]
+      }
+    </script>
+
+    <link rel="stylesheet" href="/styles.css" />
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <a class="skip" href="#features">Skip to the features</a>
+
+    <header class="topbar" id="top">
+      <a class="brand" href="#top" aria-label="smolcast, back to the top">
+        <img src="/favicon.svg" alt="" width="24" height="24" />
+        <span>smolcast</span>
+      </a>
+      <nav class="topbar-actions" aria-label="Site">
+        <button class="summon-pill" type="button" data-summon aria-label="Open the palette (Ctrl K)">
+          <svg aria-hidden="true"><use href="/icons.svg#search" /></svg>
+          <span>Search</span>
+          <kbd class="cap" data-key="Control">Ctrl</kbd><kbd class="cap" data-key="k">K</kbd>
+        </button>
+        <a class="link" href="https://github.com/Archetypically/smolcast">GitHub</a>
+        <a class="button small" href="#install">Download</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero" aria-labelledby="hero-title">
+        <p class="eyebrow">Free and open source · Windows 11</p>
+        <h1 id="hero-title">
+          The <span class="smol">smol</span> command palette for&nbsp;Windows<span class="dot">.</span>
+        </h1>
+        <p class="lead">
+          Apps, files, clipboard, emoji, scripts and snippets behind one hotkey, in a single 7&nbsp;MB executable that
+          sits idle until you need it.
+        </p>
+
+        <div class="stage" id="stage">
+          <div class="palette" id="palette" data-size="medium">
+            <noscript>
+              <div class="noscript">
+                <p>The palette here needs JavaScript. Everything it links to is below.</p>
+              </div>
+            </noscript>
+          </div>
+          <div class="dismissed" id="dismissed" hidden>
+            <p>Dismissed, the way smolcast is dismissed. It keeps your search for 30 seconds.</p>
+            <button type="button" class="summon-again" data-summon>
+              Bring it back
+              <kbd class="cap" data-key="Control">Ctrl</kbd><kbd class="cap" data-key="Alt">Alt</kbd
+              ><kbd class="cap" data-key=" ">Space</kbd>
+            </button>
+          </div>
+        </div>
+
+        <p class="try" id="try">
+          <span>A working recreation. Try</span>
+          <button type="button" class="chip" data-type="40cm to in">40cm to in</button>
+          <button type="button" class="chip" data-type="emoji">emoji</button>
+          <button type="button" class="chip" data-type="gh egui">gh egui</button>
+          <span>or</span>
+          <button type="button" class="chip play" id="tour">
+            <svg aria-hidden="true"><use href="/icons.svg#play" /></svg>Play the tour
+          </button>
+        </p>
+      </section>
+
+      <section class="section" id="features" aria-labelledby="features-title" tabindex="-1">
+        <div class="section-head">
+          <p class="label">Features</p>
+          <h2 id="features-title">One palette for the things you reach for all day.</h2>
+          <p class="lead">
+            Press <kbd class="cap" data-key="Control">Ctrl</kbd><kbd class="cap" data-key="Alt">Alt</kbd
+            ><kbd class="cap" data-key=" ">Space</kbd>, type a few letters, press
+            <kbd class="cap" data-key="Enter">Enter</kbd>. The footer always says what Enter will do.
+          </p>
+        </div>
+
+        <div class="tiles">
+          <article class="tile" id="launcher" tabindex="-1">
+            <div class="mini" aria-hidden="true">
+              <div class="mini-search">
+                <svg><use href="/icons.svg#search" /></svg><span class="typed">term</span>
+              </div>
+              <div class="mini-rule"></div>
+              <div class="mini-body">
+                <p class="mini-header">Results</p>
+                <div class="mini-row sel">
+                  <span class="app-icon" style="--hue: 210">&gt;_</span><span class="name"><b>Term</b>inal</span
+                  ><span class="trail">Favorite · Application</span>
+                </div>
+                <div class="mini-row">
+                  <span class="app-icon" style="--hue: 260">&gt;_</span><span class="name"><b>Term</b>inal Preview</span
+                  ><span class="trail">Application</span>
+                </div>
+                <div class="mini-row edge">
+                  <span class="app-icon" style="--hue: 30">Ω</span><span class="name">Charac<b>ter</b> <b>M</b>ap</span
+                  ><span class="trail">Application</span>
+                </div>
+              </div>
+            </div>
+            <h3>App launcher</h3>
+            <p>
+              Fuzzy search over Start Menu shortcuts, Store apps and installed programs that add no shortcut, ranked by
+              how often and how recently you use them. Pin up to five favorites.
+            </p>
+          </article>
+
+          <article class="tile" id="calculator" tabindex="-1">
+            <div class="mini" aria-hidden="true">
+              <div class="mini-search">
+                <svg><use href="/icons.svg#search" /></svg><span class="typed">40cm to in</span>
+              </div>
+              <div class="mini-rule"></div>
+              <div class="mini-body">
+                <p class="mini-header">Calculator</p>
+                <div class="mini-card sel">
+                  <div><span class="big">40 cm</span><span class="pill">Centimeters</span></div>
+                  <svg class="arrow" viewBox="0 0 24 12"><path d="M1 6h20M16 1.5 21 6l-5 4.5" /></svg>
+                  <div><span class="big">15.748 in</span><span class="pill">Inches</span></div>
+                </div>
+              </div>
+            </div>
+            <h3>Calculator and conversions</h3>
+            <p>
+              <code>2^10</code>, <code>100f to c</code>, <code>3 GiB as MB</code>. The answer appears as you type and
+              Enter pastes it. Length, weight, volume, temperature, time, data, area, speed and angles, all offline.
+            </p>
+          </article>
+
+          <article class="tile" id="clipboard" tabindex="-1">
+            <div class="mini" aria-hidden="true">
+              <div class="mini-search">
+                <svg><use href="/icons.svg#back" /></svg><span class="ph">Search clipboard history…</span>
+              </div>
+              <div class="mini-rule"></div>
+              <div class="mini-body">
+                <p class="mini-header">Today</p>
+                <div class="mini-row sel">
+                  <svg class="glyph"><use href="/icons.svg#link" /></svg><span class="name">github.com/emilk/egui</span
+                  ><span class="trail">2 min ago</span>
+                </div>
+                <div class="mini-row">
+                  <span class="thumb"></span><span class="name">Image · 1280 × 720</span
+                  ><span class="trail">14 min ago</span>
+                </div>
+                <div class="mini-row edge">
+                  <svg class="glyph"><use href="/icons.svg#snippet" /></svg
+                  ><span class="name">Thanks, that works for Thursday.</span><span class="trail">1 h ago</span>
+                </div>
+              </div>
+            </div>
+            <h3>Clipboard history</h3>
+            <p>
+              Text and images, searchable, with a preview, pasted straight back into the app you came from. Uses Windows
+              clipboard history when it is on, or its own, encrypted on disk.
+            </p>
+          </article>
+
+          <article class="tile" id="emoji" tabindex="-1">
+            <div class="mini" aria-hidden="true">
+              <div class="mini-search">
+                <svg><use href="/icons.svg#back" /></svg><span class="typed">party</span>
+              </div>
+              <div class="mini-rule"></div>
+              <div class="mini-body">
+                <p class="mini-header">Emoji</p>
+                <div class="mini-grid">
+                  <span class="sel">🎉</span><span>🥳</span><span>🎊</span><span>🪅</span><span>🎈</span><span>🍾</span
+                  ><span>🎂</span><span>🪩</span>
+                </div>
+              </div>
+            </div>
+            <h3>Emoji picker</h3>
+            <p>
+              A searchable grid of every Unicode 17.0 emoji, in color, pasted exactly as chosen, skin tones and all.
+            </p>
+          </article>
+
+          <article class="tile" id="files" tabindex="-1">
+            <div class="mini" aria-hidden="true">
+              <div class="mini-search">
+                <svg><use href="/icons.svg#back" /></svg><span class="typed">invoice</span>
+              </div>
+              <div class="mini-rule"></div>
+              <div class="mini-body">
+                <p class="mini-header">Files</p>
+                <div class="mini-row sel">
+                  <svg class="glyph"><use href="/icons.svg#doc" /></svg><span class="name">invoice-2026-09.pdf</span
+                  ><span class="trail">…\Documents\Taxes</span>
+                </div>
+                <div class="mini-row">
+                  <svg class="glyph"><use href="/icons.svg#folder" /></svg><span class="name">Invoices</span
+                  ><span class="trail">…\Documents</span>
+                </div>
+                <div class="mini-row edge">
+                  <svg class="glyph"><use href="/icons.svg#doc" /></svg><span class="name">invoice-template.docx</span
+                  ><span class="trail">…\Downloads</span>
+                </div>
+              </div>
+            </div>
+            <h3>File search</h3>
+            <p>
+              Find files and folders by name through the Windows Search index, with no index of smolcast's own. Enter
+              opens; <kbd class="cap" data-key="Control">Ctrl</kbd><kbd class="cap" data-key="Enter">Enter</kbd> shows
+              the item in Explorer.
+            </p>
+          </article>
+
+          <article class="tile" id="system" tabindex="-1">
+            <div class="mini" aria-hidden="true">
+              <div class="mini-search">
+                <svg><use href="/icons.svg#search" /></svg><span class="typed">rest</span>
+              </div>
+              <div class="mini-rule"></div>
+              <div class="mini-body">
+                <p class="mini-header">Results</p>
+                <div class="mini-row sel">
+                  <svg class="glyph"><use href="/icons.svg#restart" /></svg><span class="name"><b>Rest</b>art</span
+                  ><span class="trail warn">Press Enter again to confirm</span>
+                </div>
+                <div class="mini-row">
+                  <svg class="glyph"><use href="/icons.svg#power" /></svg
+                  ><span class="name"><b>S</b>hu<b>t</b> Down</span><span class="trail">System</span>
+                </div>
+                <div class="mini-row edge">
+                  <svg class="glyph"><use href="/icons.svg#lock" /></svg><span class="name">Lock Screen</span
+                  ><span class="trail">System</span>
+                </div>
+              </div>
+            </div>
+            <h3>System commands</h3>
+            <p>
+              Lock, sleep, restart, shut down, sign out, empty the Recycle Bin, toggle dark mode or mute, turn off the
+              display. The ones that close apps or delete files ask for a second Enter.
+            </p>
+          </article>
+
+          <article class="tile" id="quicklinks" tabindex="-1">
+            <div class="mini" aria-hidden="true">
+              <div class="mini-search">
+                <svg><use href="/icons.svg#search" /></svg><span class="typed">gh rust egui</span>
+              </div>
+              <div class="mini-rule"></div>
+              <div class="mini-body">
+                <p class="mini-header">Results</p>
+                <div class="mini-row sel">
+                  <svg class="glyph"><use href="/icons.svg#link" /></svg
+                  ><span class="name">Search GitHub "rust egui"</span><span class="trail">Quicklink</span>
+                </div>
+                <p class="mini-header">Search for "gh rust egui"</p>
+                <div class="mini-row edge">
+                  <span class="badge" style="--badge: #4285f4">G</span
+                  ><span class="name">Search Google for "gh rust egui"</span><span class="trail">Web Search</span>
+                </div>
+              </div>
+            </div>
+            <h3>Quicklinks and web search</h3>
+            <p>
+              Open a URL, file or folder by name, or type a query after its keyword. Every search ends with a row for
+              Google, Bing, DuckDuckGo, Brave, Ecosia, Startpage, Kagi or your own URL.
+            </p>
+          </article>
+
+          <article class="tile" id="scripts" tabindex="-1">
+            <div class="mini" aria-hidden="true">
+              <div class="mini-search">
+                <svg><use href="/icons.svg#back" /></svg><span class="ph">Search snippets…</span>
+              </div>
+              <div class="mini-rule"></div>
+              <div class="mini-body">
+                <p class="mini-header">Snippets</p>
+                <div class="mini-row sel">
+                  <svg class="glyph"><use href="/icons.svg#snippet" /></svg><span class="name">Email signature</span
+                  ><span class="trail mono">;sig</span>
+                </div>
+                <div class="mini-row">
+                  <svg class="glyph"><use href="/icons.svg#snippet" /></svg><span class="name">Standup template</span
+                  ><span class="trail mono">;std</span>
+                </div>
+                <div class="mini-row edge">
+                  <svg class="glyph"><use href="/icons.svg#terminal" /></svg><span class="name">Open project</span
+                  ><span class="trail">Script</span>
+                </div>
+              </div>
+            </div>
+            <h3>Scripts and snippets</h3>
+            <p>
+              Name a command in the config and run it from the palette or its own hotkey. Save text you paste often,
+              find it by name or keyword, and edit it right in the palette.
+            </p>
+          </article>
+        </div>
+
+        <h3 class="also-title">Also included</h3>
+        <ul class="also">
+          <li>
+            <b>Favorites.</b> Pin five entries, reorder them with <kbd class="cap">Ctrl</kbd><kbd class="cap">Shift</kbd
+            ><kbd class="cap">↑</kbd>.
+          </li>
+          <li><b>Forgiving.</b> Dismiss by accident and it comes back as you left it for 30 seconds.</li>
+          <li><b>Self-updating.</b> Checks for a release once a day, installs in place when you say so.</li>
+          <li>
+            <b>Feels native.</b> Mica backdrop, rounded corners, light and dark, opens on the monitor under your cursor.
+          </li>
+          <li><b>Lively, never slow.</b> Views slide and the selection glides, and nothing waits on an animation.</li>
+          <li><b>Tidy.</b> Offers to move broken Start Menu shortcuts to the Recycle Bin.</li>
+        </ul>
+      </section>
+
+      <section class="section" id="motion" aria-labelledby="motion-title" tabindex="-1">
+        <div class="section-head">
+          <p class="label">In motion</p>
+          <h2 id="motion-title">Quick, and it never makes you wait for it.</h2>
+          <p class="lead">
+            Motion in smolcast is short, interruptible and paint-only: the palette settles in, views slide, the
+            selection glides, and your next key always lands. It follows Windows' Animation effects setting.
+          </p>
+        </div>
+        <figure class="film">
+          <video
+            id="film"
+            muted
+            controls
+            loop
+            playsinline
+            preload="none"
+            poster="/media/smolcast-demo.jpg"
+            width="1920"
+            height="1080"
+          >
+            <source src="/media/smolcast-demo.webm" type="video/webm" />
+            <source src="/media/smolcast-demo.mp4" type="video/mp4" />
+          </video>
+          <figcaption>
+            A simulation drawn to smolcast's own measurements, labels and results, in real time: a conversion and an
+            emoji pasted into a notes window, a paste from clipboard history, and the web and file fallbacks. Key caps
+            show the shortcuts pressed. App icons are stand-ins. Music is original.
+          </figcaption>
+        </figure>
+      </section>
+
+      <section class="section" id="keyboard" aria-labelledby="keyboard-title" tabindex="-1">
+        <div class="section-head">
+          <p class="label">Keyboard</p>
+          <h2 id="keyboard-title">Built for the keyboard. The mouse works too.</h2>
+          <p class="lead keys-hint">Try the keys here: the caps press down with yours.</p>
+        </div>
+        <dl class="keys">
+          <div>
+            <dt>
+              <kbd class="cap" data-key="Control">Ctrl</kbd><kbd class="cap" data-key="Alt">Alt</kbd
+              ><kbd class="cap" data-key=" ">Space</kbd>
+            </dt>
+            <dd>Open the palette (change it in settings)</dd>
+          </div>
+          <div>
+            <dt><kbd class="cap" data-key="ArrowUp">↑</kbd><kbd class="cap" data-key="ArrowDown">↓</kbd></dt>
+            <dd>Choose a result</dd>
+          </div>
+          <div>
+            <dt><kbd class="cap" data-key="Enter">Enter</kbd></dt>
+            <dd>Open, paste or run</dd>
+          </div>
+          <div>
+            <dt><kbd class="cap" data-key="Tab">Tab</kbd></dt>
+            <dd>Fill in a quicklink's keyword</dd>
+          </div>
+          <div>
+            <dt><kbd class="cap" data-key="Control">Ctrl</kbd><kbd class="cap" data-key="Enter">Enter</kbd></dt>
+            <dd>Show a file in Explorer</dd>
+          </div>
+          <div>
+            <dt>
+              <kbd class="cap" data-key="Control">Ctrl</kbd><kbd class="cap" data-key="Shift">Shift</kbd
+              ><kbd class="cap" data-key="f">F</kbd>
+            </dt>
+            <dd>Add to or remove from favorites</dd>
+          </div>
+          <div>
+            <dt><kbd class="cap" data-key="Escape">Esc</kbd></dt>
+            <dd>Go back, or dismiss</dd>
+          </div>
+          <div>
+            <dt><kbd class="cap" data-key="Backspace">Backspace</kbd></dt>
+            <dd>Go back from an empty search</dd>
+          </div>
+        </dl>
+      </section>
+
+      <section class="section" id="small" aria-labelledby="small-title" tabindex="-1">
+        <div class="section-head">
+          <p class="label">Small by design</p>
+          <h2 id="small-title">No Electron, no WebView, no Node runtime.</h2>
+          <p class="lead">
+            smolcast is written in Rust with egui and the Windows APIs. It imports only Windows system DLLs and stays
+            out of the way until you call it.
+          </p>
+        </div>
+        <ul class="figures">
+          <li>
+            <span class="figure">7&nbsp;MB</span><span>One executable. No installer, admin rights or runtime.</span>
+          </li>
+          <li><span class="figure">0%</span><span>CPU while hidden. It wakes on the hotkey and nothing else.</span></li>
+          <li><span class="figure">0</span><span>Extensions, accounts, AI features or telemetry.</span></li>
+          <li><span class="figure">MIT</span><span>Open source. Read it, build it, change it.</span></li>
+        </ul>
+      </section>
+
+      <section class="section split" id="privacy" aria-labelledby="privacy-title" tabindex="-1">
+        <div class="section-head">
+          <p class="label">Privacy</p>
+          <h2 id="privacy-title">Your data stays on your computer.</h2>
+        </div>
+        <div class="prose">
+          <p>
+            The only request smolcast makes on its own is a daily check of its GitHub releases, which sends nothing
+            about you beyond smolcast's version. Turn it off with
+            <code>check_for_updates</code>.
+          </p>
+          <p>
+            Web searches and quicklinks open in your browser only when you choose them, and file search uses the Windows
+            Search index on your PC. Clipboard contents never go into logs, smolcast's own history is encrypted for your
+            Windows account, and it honors apps that mark clipboard data as excluded from history.
+          </p>
+        </div>
+      </section>
+
+      <section class="section split" id="config" aria-labelledby="config-title" tabindex="-1">
+        <div class="section-head">
+          <p class="label">Configuration</p>
+          <h2 id="config-title">A settings form, or one TOML file.</h2>
+          <p class="lead">
+            Open <b>smolcast settings</b> from the palette, or edit <code>%APPDATA%\smolcast\config.toml</code>. The
+            form keeps your comments.
+          </p>
+        </div>
+        <div class="code" data-copy-target>
+          <button type="button" class="copy" aria-label="Copy the example configuration">
+            <svg aria-hidden="true"><use href="/icons.svg#copy" /></svg><span>Copy</span>
+          </button>
+          <pre><code><span class="t-c"># Open the palette with Ctrl+Alt+Space</span>
+<span class="t-k">summon_hotkey</span> = <span class="t-s">"control+alt+Space"</span>
+<span class="t-k">search_engine</span> = <span class="t-s">"duckduckgo"</span>
+<span class="t-k">palette_size</span>  = <span class="t-s">"medium"</span>
+
+<span class="t-h">[scripts.open-project]</span>
+<span class="t-k">name</span>        = <span class="t-s">"Open project"</span>
+<span class="t-k">interpreter</span> = <span class="t-s">"pwsh.exe"</span>
+<span class="t-k">args</span>        = [<span class="t-s">"-NoProfile"</span>, <span class="t-s">"-File"</span>, <span class="t-s">"C:\\Tools\\open.ps1"</span>]
+<span class="t-k">hotkey</span>      = <span class="t-s">"control+alt+KeyP"</span>
+
+<span class="t-h">[snippets.signature]</span>
+<span class="t-k">name</span>    = <span class="t-s">"Email signature"</span>
+<span class="t-k">keyword</span> = <span class="t-s">";sig"</span>
+<span class="t-k">text</span>    = <span class="t-s">"Best,\nMe"</span>
+
+<span class="t-h">[quicklinks.gh]</span>
+<span class="t-k">name</span> = <span class="t-s">"Search GitHub"</span>
+<span class="t-k">url</span>  = <span class="t-s">"https://github.com/search?q={query}"</span></code></pre>
+        </div>
+      </section>
+
+      <section class="section" id="install" aria-labelledby="install-title" tabindex="-1">
+        <div class="section-head">
+          <p class="label">Install</p>
+          <h2 id="install-title">Download it, run it, press the hotkey.</h2>
+        </div>
+        <div class="install">
+          <div class="install-card">
+            <img src="/favicon.svg" alt="" width="64" height="64" />
+            <div>
+              <a class="button" href="https://github.com/Archetypically/smolcast/releases/latest">
+                <svg aria-hidden="true"><use href="/icons.svg#download" /></svg>Download for Windows
+              </a>
+              <p class="meta">Windows 11 · x64 · about 7 MB · free</p>
+            </div>
+          </div>
+          <ol class="steps">
+            <li>
+              Put <code>smolcast-&lt;version&gt;-x86_64.exe</code> in a folder you can write to, such as
+              <code>%LOCALAPPDATA%\Programs\smolcast</code>, and run it.
+            </li>
+            <li>
+              Press <kbd class="cap" data-key="Control">Ctrl</kbd><kbd class="cap" data-key="Alt">Alt</kbd
+              ><kbd class="cap" data-key=" ">Space</kbd> and start typing.
+            </li>
+            <li>Turn on <b>Start smolcast when you sign in</b> in its settings to keep it around.</li>
+          </ol>
+          <p class="note">
+            Releases are not code-signed yet, so SmartScreen may warn about the first download. Updates installed from
+            inside smolcast are checked against the release's SHA-256 checksum.
+          </p>
+        </div>
+
+        <div class="source" id="install-source" tabindex="-1">
+          <h3>Build from source</h3>
+          <p>
+            Install <a href="https://taskfile.dev/docs/installation">Task</a>, then run these in PowerShell. It also
+            cross-compiles from Linux or WSL.
+          </p>
+          <div class="code" data-copy-target>
+            <button type="button" class="copy" aria-label="Copy the build commands">
+              <svg aria-hidden="true"><use href="/icons.svg#copy" /></svg><span>Copy</span>
+            </button>
+            <pre><code>git clone https://github.com/Archetypically/smolcast
+cd smolcast
+task up
+task build-release</code></pre>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer" id="about" tabindex="-1">
+      <div class="footer-inner">
+        <a class="brand" href="#top" aria-label="smolcast, back to the top">
+          <img src="/favicon.svg" alt="" width="24" height="24" /><span>smolcast</span>
+        </a>
+        <p class="made">
+          Made with
+          <svg class="heart" aria-hidden="true"><use href="/icons.svg#heart" /></svg
+          ><span class="sr-only">love</span> by <a href="https://evanlee.engineer">Evan Lee</a>
+        </p>
+        <p class="credits">
+          In the spirit of <a href="https://tinycast.dev">Tinycast</a>,
+          <a href="https://www.raycast.com">Raycast</a> and <a href="https://www.alfredapp.com">Alfred</a>. Not
+          affiliated with any of them.
+        </p>
+        <nav class="footer-links" aria-label="Project">
+          <a href="https://github.com/Archetypically/smolcast">Source</a>
+          <a href="https://github.com/Archetypically/smolcast/releases">Releases</a>
+          <a href="https://github.com/Archetypically/smolcast/issues">Issues</a>
+          <a href="https://github.com/Archetypically/smolcast/blob/main/LICENSE">MIT License</a>
+          <a href="/llms.txt">llms.txt</a>
+        </nav>
+      </div>
+    </footer>
+  </body>
+</html>
