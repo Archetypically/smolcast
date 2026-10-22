@@ -97,6 +97,26 @@ jobs:
           path: smoke-failure.png
           if-no-files-found: ignore
 
+  website:
+    name: Website format + lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: website
+    env:
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # The runner's preinstalled Node runs the pinned tools from the lockfile.
+      - name: Install the pinned tools
+        run: npm ci
+      - name: Check formatting
+        run: npx prettier --check .
+      - name: Lint JavaScript
+        run: npx eslint .
+      - name: Validate HTML
+        run: npx html-validate public/*.html media/*.html
+
   linux-gnu:
     name: Linux host tests + GNU cross-link
     runs-on: ubuntu-latest

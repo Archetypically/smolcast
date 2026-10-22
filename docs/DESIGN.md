@@ -264,3 +264,35 @@ palette is idle.
 - **Animate paint, never input.** New motion goes through `core::motion`
   tokens and `app::motion` helpers, stays under 200 ms, and has a reduced
   form with no movement.
+
+## Website
+
+The website (`website/`, decision 030) speaks the same language on the web:
+
+- **The palette is the hero and the navigation.** A recreation at the
+  medium size (640 wide, 38-point rows 4 apart) with the app's tokens in
+  `website/public/styles.css`; its rows jump to sections, and Esc dismisses
+  it the way the app is dismissed.
+- **Feature tiles are palette states**, not screenshots or icons: each shows
+  the query and rows that feature produces.
+- **Type**: the system UI stack led by Segoe UI Variable, Cascadia Code for
+  code; no web fonts. Headlines are tight (−0.035 em) and short.
+- **Accent**: as in the app. The red marks the caret, the selection pip,
+  a section reached from the palette, the tour's play glyph and the
+  footer heart; buttons are neutral (text-colored fill). The headline
+  "The smol command palette for Windows." ends on a red full stop, the
+  icon's "s." at headline size (`.dot`), and "smol" has a red underline
+  (`.smol`) that draws in once on the hero. Words stay in the text color:
+  red text fails contrast on the light theme.
+- **Motion**: the selection glides, rows enter with a 12 ms stagger when a
+  view opens, key caps press with the visitor's keys, sections fade up once,
+  the heart beats lub-dub once. Every animation has a reduced-motion form.
+- **Touch**: the palette stays the hero on phones (six rows, no trailing
+  types). The list scrolls natively with row snapping and hands the swipe
+  to the page at its ends; key caps and key hints are hidden on coarse
+  pointers, and the try chips type without raising the on-screen keyboard.
+- **Film**: the demo film is a simulation drawn to the app's own
+  measurements, labels and results (decision 031), on a Windows 11 desktop
+  at 150%, with the shortcuts pressed shown as key caps on a dark pill at
+  the bottom, ending on the icon, name and line. Keep it in step with the
+  app. The social card and the hero are the web recreation, and say so.

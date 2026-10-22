@@ -1,0 +1,48 @@
+# smolcast
+
+> smolcast is a small, fully native command palette for Windows 11: one hotkey (Ctrl+Alt+Space by default) for your apps, files, clipboard, emoji, scripts and snippets, in a single executable of about 7 MB. It is written in Rust with egui and the Windows APIs, has no Electron, WebView or Node runtime, no extensions, no AI features and no telemetry, and uses no CPU while hidden. Free and open source under the MIT license.
+
+smolcast is a Windows take on the core features of Tinycast and Raycast (both macOS launchers). It is not affiliated with either. It runs on Windows 11 x64 only, as a normal user, with no installer, admin rights or runtime.
+
+## Features
+
+- App launcher: fuzzy search across Start Menu shortcuts, Store apps and installed programs that add no shortcut, ranked by frequency and recency, with each program's real icon. Up to 5 pinned favorites (Ctrl+Shift+F).
+- Calculator and conversions: `2^10`, `40cm to in`, `100f to c`, `3 GiB as MB`; the answer appears inline and Enter pastes it. Length, weight, volume, temperature, time, data, area, speed and angles, offline.
+- Web search fallback: every search ends with a row for Google, Bing, DuckDuckGo, Brave, Ecosia, Startpage, Kagi or a custom URL.
+- File search: by name through the Windows Search index; Enter opens, Ctrl+Enter shows the item in Explorer.
+- System commands: Lock Screen, Sleep, Restart, Shut Down, Sign Out, Empty Recycle Bin, Toggle Dark Mode, Toggle Mute, Turn Off Display. Destructive ones ask for a second Enter.
+- Quicklinks: open a URL, file or folder by name, or type a query after its keyword (`gh rust egui`).
+- Clipboard history: text and images, searchable, pasted back into the previous app. Uses Windows clipboard history when it is on, or smolcast's own, encrypted on disk.
+- Emoji picker: every Unicode 17.0 emoji, in color, pasted exactly.
+- Scripts: named commands from the config, run from the palette or their own hotkey.
+- Snippets: saved text found by name or keyword and edited in the palette.
+- Also: keeps a dismissed search for 30 seconds, self-updates from GitHub releases when you agree, offers to recycle broken Start Menu shortcuts, follows light and dark mode and Windows' Animation effects setting.
+
+## Install
+
+1. Download `smolcast-<version>-x86_64.exe` from https://github.com/Archetypically/smolcast/releases/latest
+2. Put it in a folder you can write to, such as `%LOCALAPPDATA%\Programs\smolcast`, and run it.
+3. Press Ctrl+Alt+Space. Turn on "Start smolcast when you sign in" in its settings to keep it around.
+
+Releases are not code-signed yet, so SmartScreen may warn on first download. In-app updates are checked against the release's SHA-256 checksum.
+
+## Configuration
+
+Settings are in the palette ("smolcast settings") or in `%APPDATA%\smolcast\config.toml`. Scripts, snippets and quicklinks are TOML tables: `[scripts.<id>]`, `[snippets.<id>]`, `[quicklinks.<id>]`, where a quicklink's id is its keyword and `{query}` in its URL is replaced by the text typed after it.
+
+## Privacy
+
+Data stays on the computer. The only request smolcast makes on its own is a daily check of its GitHub releases (turn off with `check_for_updates = false`), which sends nothing beyond smolcast's version in the user agent.
+
+## Docs
+
+- [README](https://github.com/Archetypically/smolcast/blob/main/README.md): features, install, usage, the full settings table, privacy and building from source.
+- [Project brief](https://github.com/Archetypically/smolcast/blob/main/docs/projectbrief.md): scope and non-goals.
+- [Visual design](https://github.com/Archetypically/smolcast/blob/main/docs/DESIGN.md): layout, tokens and components.
+- [Decisions](https://github.com/Archetypically/smolcast/tree/main/docs/decisions): one file per design decision.
+- [Source](https://github.com/Archetypically/smolcast): MIT licensed.
+
+## Optional
+
+- [Website](https://smolcast.evanlee.engineer/): this page's human version, with a working recreation of the palette.
+- [Author](https://evanlee.engineer): Evan Lee.
