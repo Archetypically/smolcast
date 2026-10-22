@@ -1,0 +1,678 @@
+/* The demo film: smolcast on a Windows 11 desktop at 150% scale, drawn to
+   the app's own measurements (docs/DESIGN.md, src/app/theme.rs) in points.
+   The page is laid out at 1280 × 720 points and zoomed to the frame. */
+
+@font-face {
+  font-family: "Selawik";
+  src: url("film/fonts/selawk.woff2") format("woff2");
+  font-weight: 400;
+}
+
+@font-face {
+  font-family: "Selawik";
+  src: url("film/fonts/selawksb.woff2") format("woff2");
+  font-weight: 600;
+}
+
+@font-face {
+  font-family: "Selawik";
+  src: url("film/fonts/selawkb.woff2") format("woff2");
+  font-weight: 700;
+}
+
+:root {
+  --zoom: 1;
+  --text: #ededed;
+  --strong: #ffffff;
+  --weak: #8e8e93;
+  --sel: rgb(255 255 255 / 10%);
+  --hover: rgb(255 255 255 / 5%);
+  --control: rgb(255 255 255 / 7%);
+  --divider: rgb(255 255 255 / 10%);
+  --accent: #ff6363;
+  --win: "Selawik", "Segoe UI", sans-serif;
+  --mono: "Cascadia Mono", "DejaVu Sans Mono", monospace;
+  zoom: var(--zoom);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+}
+
+body {
+  position: relative;
+  width: 1280px;
+  height: 720px;
+  overflow: hidden;
+  font-family: var(--win);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  background: #0c0d12;
+}
+
+/* An original wallpaper: soft blooms of color on near black. */
+.wallpaper,
+.palette::before {
+  background:
+    radial-gradient(42% 60% at 22% 30%, #2b3f7a 0%, transparent 70%),
+    radial-gradient(38% 55% at 78% 70%, #5a2a55 0%, transparent 72%),
+    radial-gradient(30% 40% at 62% 18%, #1e5b63 0%, transparent 70%), #0c0d12;
+}
+
+.wallpaper {
+  position: absolute;
+  inset: 0;
+}
+
+/* A plain notes window, where pastes land. */
+.notes {
+  position: absolute;
+  left: 290px;
+  top: 196px;
+  width: 700px;
+  height: 420px;
+  overflow: hidden;
+  border-radius: 8px;
+  background: #1f1f1f;
+  box-shadow:
+    0 0 0 1px rgb(255 255 255 / 8%),
+    0 18px 50px rgb(0 0 0 / 45%);
+}
+
+.notes-title {
+  display: flex;
+  align-items: center;
+  height: 32px;
+  padding-left: 14px;
+  background: #202020;
+  font-size: 12px;
+  color: #c8c8c8;
+}
+
+.notes-title span {
+  flex: 1;
+}
+
+.notes-title i {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 32px;
+  font-style: normal;
+  font-size: 11px;
+  color: #c8c8c8;
+}
+
+.notes-body {
+  padding: 14px 18px;
+  font-size: 15px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  color: #e6e6e6;
+}
+
+.notes-body .emoji {
+  width: 1.15em;
+  height: 1.15em;
+  vertical-align: -0.2em;
+}
+
+.caret {
+  display: inline-block;
+  width: 1px;
+  height: 1.15em;
+  margin-left: 1px;
+  vertical-align: -0.2em;
+  background: #e6e6e6;
+}
+
+.notes.inactive .caret {
+  opacity: 0;
+}
+
+/* The palette window: 640 × 460 (medium), DWM's 8 pt corners and border,
+   Mica (the wallpaper, blurred and tinted) behind transparent panels. */
+.palette {
+  position: absolute;
+  left: 320px;
+  top: 71px;
+  width: 640px;
+  height: 460px;
+  overflow: hidden;
+  isolation: isolate;
+  border-radius: 8px;
+  box-shadow:
+    0 0 0 1px rgb(255 255 255 / 9%),
+    0 26px 70px rgb(0 0 0 / 55%),
+    0 8px 20px rgb(0 0 0 / 35%);
+  opacity: 0;
+  visibility: hidden;
+}
+
+.palette::before {
+  content: "";
+  position: absolute;
+  inset: -60px;
+  z-index: -2;
+  background-attachment: fixed;
+  filter: blur(60px) saturate(1.3);
+}
+
+.palette::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: rgb(28 28 30 / 88%);
+}
+
+.palette.shown {
+  visibility: visible;
+}
+
+.content {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  transform-origin: 50% 50%;
+}
+
+.search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 50px;
+  padding: 0 16px;
+  font-size: 18px;
+}
+
+.slot,
+.icon {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  flex: none;
+}
+
+.slot svg {
+  width: 17px;
+  height: 17px;
+  color: var(--weak);
+}
+
+.back {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin: 0 -3px;
+  border-radius: 6px;
+  background: var(--control);
+}
+
+.back svg {
+  width: 15px;
+  height: 15px;
+  color: var(--text);
+}
+
+.query {
+  white-space: pre;
+}
+
+.query .caret {
+  height: 22px;
+  margin-left: 1px;
+  vertical-align: -4px;
+  background: var(--accent);
+  width: 1.5px;
+}
+
+.placeholder {
+  color: var(--weak);
+}
+
+.rule {
+  flex: none;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--divider) 18%, var(--divider) 82%, transparent);
+}
+
+.body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  padding: 8px;
+  overflow: hidden;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  height: 24px;
+  margin: 2px 0 6px;
+  padding: 0 8px;
+  font-size: 12px;
+  color: var(--weak);
+}
+
+.row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 38px;
+  margin-bottom: 4px;
+  padding: 0 8px;
+  font-size: 14px;
+}
+
+.row .name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--strong);
+}
+
+.row .trail {
+  font-size: 12px;
+  color: var(--weak);
+  white-space: nowrap;
+}
+
+.row.edge {
+  opacity: 0.45;
+}
+
+/* Icon-font glyphs at 3/4 of the slot, in the text color. */
+.glyph {
+  width: 16.5px;
+  height: 16.5px;
+  background: var(--text);
+  mask: var(--icon) center / contain no-repeat;
+}
+
+.icon img {
+  width: 20px;
+  height: 20px;
+}
+
+/* Clipboard rows lead with an emoji glyph at the body text size. */
+.list .icon img {
+  width: 17px;
+  height: 17px;
+}
+
+.badge {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #4285f4;
+  color: var(--strong);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* App icons: plain drawings, since the real ones are each app's own. */
+.app {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  font: 600 10px/1 var(--mono);
+  color: var(--strong);
+}
+
+.app.terminal {
+  background: linear-gradient(160deg, #3a3a3a, #161616);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 14%);
+}
+
+.app.paint {
+  background: conic-gradient(from 30deg, #f25f5c, #ffe066, #70c1b3, #247ba0, #f25f5c);
+  border-radius: 50%;
+}
+
+.app.calculator {
+  background: linear-gradient(160deg, #5b5b5b, #2c2c2c);
+  font-family: var(--win);
+  font-size: 13px;
+}
+
+/* The selection: one fill that glides between rows (80 ms, linear), with
+   the accent pip 2 pt inside its left edge. */
+.sel {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  top: 0;
+  height: 38px;
+  border-radius: 8px;
+  background: var(--sel);
+  transition:
+    transform 80ms linear,
+    height 80ms linear,
+    width 80ms linear;
+  pointer-events: none;
+}
+
+.sel::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 50%;
+  width: 3px;
+  height: 14px;
+  margin-top: -7px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
+.sel.cell {
+  right: auto;
+}
+
+.list > .sel {
+  left: 0;
+  right: 0;
+}
+
+.sel.cell::before {
+  display: none;
+}
+
+.sel.off {
+  opacity: 0;
+}
+
+.card {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: center;
+  height: 90px;
+  margin-bottom: 4px;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.card .side {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.card .value {
+  font-size: 25px;
+  color: var(--strong);
+}
+
+.card .pill {
+  padding: 2px 6px;
+  border-radius: 99px;
+  background: var(--control);
+  font-size: 12px;
+  color: var(--weak);
+}
+
+.card .arrow {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 20px;
+  margin: -6px 0 0 -10px;
+  color: var(--weak);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(12, 44px);
+  gap: 2px;
+}
+
+.cell {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+}
+
+.missing {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 25%);
+  font-size: 11px;
+  color: var(--weak);
+}
+
+.cell img {
+  width: 28px;
+  height: 28px;
+  transition: transform 120ms cubic-bezier(0.33, 1, 0.68, 1);
+}
+
+.cell.selected img {
+  transform: scale(1.08);
+}
+
+.details {
+  position: absolute;
+  left: 16px;
+  bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.details img {
+  width: 42px;
+  height: 42px;
+}
+
+.details b {
+  display: block;
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--strong);
+}
+
+.details span {
+  font-size: 12px;
+  color: var(--weak);
+}
+
+.source {
+  padding: 2px 8px 8px;
+  font-size: 12px;
+  color: var(--weak);
+}
+
+.split {
+  display: flex;
+  gap: 0;
+}
+
+.split .list {
+  position: relative;
+  width: 300px;
+  flex: none;
+}
+
+.split .vsep {
+  width: 1px;
+  margin: 0 8px;
+  background: var(--divider);
+}
+
+.preview {
+  flex: 1;
+  min-width: 0;
+  padding: 2px 8px;
+  font: 12px/1.45 var(--mono);
+  color: var(--text);
+  word-break: break-all;
+}
+
+.preview small {
+  display: block;
+  margin-top: 6px;
+  font-family: var(--win);
+  color: var(--weak);
+}
+
+.buttons {
+  position: absolute;
+  left: 16px;
+  bottom: 8px;
+  display: flex;
+  gap: 6px;
+}
+
+.buttons span {
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: var(--control);
+  font-size: 13px;
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 16px;
+  font-size: 12px;
+  color: var(--weak);
+  white-space: nowrap;
+}
+
+.footer .right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--text);
+}
+
+.footer .right .label {
+  margin-right: 3px;
+}
+
+.footer .bar {
+  margin: 0 6px;
+  color: var(--divider);
+}
+
+.cap {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 4px;
+  background: var(--sel);
+  box-shadow: inset 0 -1px 0 rgb(0 0 0 / 28%);
+  font-size: 11px;
+  color: var(--weak);
+}
+
+.cap.held {
+  background: rgb(255 255 255 / 22%);
+  color: var(--text);
+  box-shadow: none;
+}
+
+/* The shortcuts being pressed, for the viewer: not part of the app. */
+.keys {
+  position: absolute;
+  left: 50%;
+  bottom: 36px;
+  display: flex;
+  gap: 4px;
+  padding: 7px 9px;
+  border-radius: 11px;
+  background: rgb(28 28 30 / 92%);
+  box-shadow:
+    0 0 0 1px rgb(255 255 255 / 10%),
+    0 8px 24px rgb(0 0 0 / 35%);
+  font-family: var(--win);
+  transform: translateX(-50%);
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.keys.show {
+  opacity: 1;
+}
+
+.keys .cap {
+  height: 30px;
+  min-width: 34px;
+  padding: 0 9px;
+  font-size: 17px;
+  color: var(--text);
+  background: rgb(255 255 255 / 12%);
+}
+
+/* The closing card. */
+.end {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 18px;
+  background: #101012;
+  font-family: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+  opacity: 0;
+  transition: opacity 600ms ease;
+}
+
+.end.show {
+  opacity: 1;
+}
+
+.end img {
+  border-radius: 22px;
+}
+
+.end h1 {
+  margin: 6px 0 0;
+  font-size: 56px;
+  font-weight: 700;
+  letter-spacing: -0.035em;
+}
+
+.end p {
+  margin: 0;
+  color: #a5a5aa;
+  font-size: 22px;
+}
+
+.end .url {
+  color: var(--weak);
+  font-size: 18px;
+}
+
+.end .smol {
+  background: linear-gradient(var(--accent), var(--accent)) 0 92% / 100% 0.09em no-repeat;
+}
+
+.end .dot {
+  color: var(--accent);
+}

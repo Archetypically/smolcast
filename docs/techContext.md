@@ -107,7 +107,7 @@ The app icon is generated from `assets/smolcast.svg`:
 move hosts. `website/public/` is deployed to Cloudflare Pages as-is: no build
 step, no framework, no third-party requests. `_headers` sets the CSP and
 caching; `404.html` is Pages' not-found page. `media/` holds render-only
-pages (the social card), served at `/_media/` by
+pages (the social card, the demo film), served at `/_media/` by
 `scripts/serve.mjs` and never deployed.
 
 | Command | Does |
@@ -116,6 +116,7 @@ pages (the social card), served at `/_media/` by
 | `task web:fmt` / `task web:fmt-check` | Prettier over HTML, CSS, JS and config |
 | `task web:lint` | ESLint and html-validate |
 | `task web:render` | Regenerate `og.png` and the PNG icons with Playwright (`-- og` or `icons` to pick) |
+| `task web:film` | Record the demo film from `media/film.html` (needs ffmpeg; about 4 minutes) |
 | `task web:deploy` | `wrangler pages deploy public` (run `npx wrangler login` once) |
 
 Tools are pinned in `website/package.json` and its lockfile; Playwright's

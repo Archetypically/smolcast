@@ -291,3 +291,8 @@ The website (`website/`, decision 030) speaks the same language on the web:
   types). The list scrolls natively with row snapping and hands the swipe
   to the page at its ends; key caps and key hints are hidden on coarse
   pointers, and the try chips type without raising the on-screen keyboard.
+- **Film**: the demo film is a simulation drawn to the app's own
+  measurements, labels and results (decision 031), on a Windows 11 desktop
+  at 150%, with the shortcuts pressed shown as key caps on a dark pill at
+  the bottom, ending on the icon, name and line. Keep it in step with the
+  app. The social card and the hero are the web recreation, and say so.
