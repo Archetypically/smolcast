@@ -346,18 +346,6 @@ body {
   height: 17px;
 }
 
-.badge {
-  display: grid;
-  place-items: center;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: #4285f4;
-  color: var(--strong);
-  font-size: 12px;
-  font-weight: 600;
-}
-
 /* App icons: plain drawings, since the real ones are each app's own. */
 .app {
   display: grid;
