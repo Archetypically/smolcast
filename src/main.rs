@@ -22,10 +22,12 @@ use windows::core::PCWSTR;
 use smolcast::app::eframe_host::{EframeApp, Startup};
 use smolcast::app::model::{AppEvent, AppModel, Wake};
 use smolcast::app::notice::{Notice, Severity, op};
+use smolcast::app::report_view::ReportView;
 use smolcast::app::theme;
 use smolcast::core::config::{self, ConfigFile};
 use smolcast::win::appearance;
 use smolcast::win::clipboard::ClipboardThread;
+use smolcast::win::crash_log;
 use smolcast::win::persistence::{self, StatePaths};
 use smolcast::win::single_instance::{AcquireError, SingleInstance};
 use smolcast::win::update;
@@ -64,6 +66,11 @@ fn main() -> eframe::Result {
         fatal("Could not locate the AppData folders.");
     };
 
+    // Panics from here on are logged locally before the abort (§14).
+    let windows = crash_log::windows_label();
+    crash_log::install(paths.crash_log.clone(), windows.clone());
+    let report = ReportView::new(windows, crash_log::last_crash(&paths.crash_log));
+
     // 3. Config bootstrap (§2.1, §10.2): a malformed file yields safe defaults,
     //    no scripts, a visible error notice, and a forced palette.
     let mut startup_notices = Vec::new();
@@ -85,6 +92,13 @@ fn main() -> eframe::Result {
     startup_notices.extend(usage_notice);
     let (favorites, favorites_notice) = persistence::load_favorites(&paths.favorites);
     startup_notices.extend(favorites_notice);
+    if crash_log::take_unseen(&paths.crash_log) {
+        startup_notices.push(Notice::new(
+            Severity::Warning,
+            op::STARTUP,
+            "smolcast quit unexpectedly last time. Report a Bug can include what went wrong.",
+        ));
+    }
 
     // 4. Shared egui context and event channel (§1.2). Producers clone the
     //    sender and the context; the same context is handed to eframe below.
@@ -136,6 +150,7 @@ fn main() -> eframe::Result {
                 favorites,
                 startup_notices,
                 config_failed,
+                report,
             );
             let app = EframeApp::build(
                 cc,

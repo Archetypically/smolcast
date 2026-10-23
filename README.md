@@ -36,7 +36,7 @@ smolcast runs as a normal user and needs no installer, admin rights, or runtime.
 3. Type `clipboard`, `emoji`, `snippets`, `files` or `settings` to open those views; **Esc** or **Backspace** on an empty search goes back.
 4. Right-click any app to add it to your favorites.
 
-The footer always shows what Enter will do. The tray icon has Open, Refresh and Quit. **About smolcast** shows the version and credits, and **Check for Updates** asks for a new release right away.
+The footer always shows what Enter will do. The tray icon has Open, Refresh and Quit. **About smolcast** shows the version and credits, **Check for Updates** asks for a new release right away, and **Report a Bug** opens a GitHub issue filled in with your version and Windows build (and, if you tick it, the last crash report).
 
 ## Configuration
 

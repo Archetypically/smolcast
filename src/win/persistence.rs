@@ -52,6 +52,8 @@ pub struct StatePaths {
     /// `%LOCALAPPDATA%\smolcast\update.json`: when updates were last
     /// checked and any skipped version (§13).
     pub update_state: PathBuf,
+    /// `%LOCALAPPDATA%\smolcast\crash.log`: panics, newest last (§14).
+    pub crash_log: PathBuf,
 }
 
 impl StatePaths {
@@ -64,6 +66,7 @@ impl StatePaths {
             usage: local.join("usage.json"),
             clipboard_dir: local.join("clipboard"),
             update_state: local.join("update.json"),
+            crash_log: local.join("crash.log"),
         })
     }
 }

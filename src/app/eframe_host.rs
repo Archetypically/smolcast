@@ -364,12 +364,10 @@ impl EframeApp {
                     Ok(job) => self.launch_jobs.push(job),
                     Err(e) => self.model.recycle_start_failed(&e.to_string()),
                 },
-                Effect::Launch(request) => {
-                    match shell::spawn_launch(request.app_id, request.spec, self.wake()) {
-                        Ok(job) => self.launch_jobs.push(job),
-                        Err(e) => self.model.launch_start_failed(&e.to_string()),
-                    }
-                }
+                Effect::Launch(request) => match shell::spawn_launch(request, self.wake()) {
+                    Ok(job) => self.launch_jobs.push(job),
+                    Err(e) => self.model.launch_start_failed(&e.to_string()),
+                },
                 Effect::Icon(request) => {
                     if let Some(worker) = &self.icon_worker {
                         worker.request(

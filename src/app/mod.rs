@@ -13,6 +13,7 @@ pub mod list;
 pub mod model;
 pub mod motion;
 pub mod notice;
+pub mod report_view;
 pub mod script_view;
 pub mod settings_view;
 pub mod snippet_view;

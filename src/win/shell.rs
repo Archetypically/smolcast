@@ -32,6 +32,7 @@ use windows::Win32::UI::Shell::{
 use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
 use windows::core::{GUID, Interface, PCWSTR, w};
 
+use crate::app::launcher::LaunchRequest;
 use crate::app::model::{AppEvent, Wake};
 use crate::core::app_index::{
     AppId, AppSource, IndexedApp, LaunchSpec, RawEntry, ShortcutTarget, aumid_key, dedup,
@@ -441,16 +442,17 @@ fn recycle(paths: &[PathBuf]) -> Result<bool, LaunchError> {
 /// Launch on its own thread; the result arrives as `AppEvent::LaunchFinished`.
 /// Success means the shell accepted the launch (§6.3); smolcast does not wait
 /// for a window.
-pub fn spawn_launch(
-    app_id: AppId,
-    spec: LaunchSpec,
-    wake: Wake,
-) -> std::io::Result<JoinHandle<()>> {
+pub fn spawn_launch(request: LaunchRequest, wake: Wake) -> std::io::Result<JoinHandle<()>> {
     thread::Builder::new()
         .name("smolcast-launch".into())
         .spawn(move || {
+            let LaunchRequest { seq, app_id, spec } = request;
             let result = launch(&spec);
-            wake.send(AppEvent::LaunchFinished { app_id, result });
+            wake.send(AppEvent::LaunchFinished {
+                seq,
+                app_id,
+                result,
+            });
         })
 }
 

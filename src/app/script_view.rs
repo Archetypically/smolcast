@@ -248,6 +248,8 @@ impl ScriptView {
     pub fn save_failed(&mut self, message: String) {
         if self.saving() {
             self.status = Status::Failed(message);
+            // Nothing new to select; a retry asks again.
+            self.select_id = None;
         }
     }
 
