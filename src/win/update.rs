@@ -28,6 +28,7 @@ use crate::core::update::{
 };
 use crate::win::http::{self, HttpError};
 use crate::win::persistence::{atomic_write, unix_ms_now};
+use crate::win::wide;
 
 /// The command-line flag a relaunched build gets: wait for this process id
 /// to exit before starting.
@@ -305,10 +306,10 @@ pub fn relaunch(exe: &Path) -> std::io::Result<()> {
 /// The update is installed but the new build did not start; say so, since
 /// the palette and tray are already gone.
 pub fn report_relaunch_failure(error: &std::io::Error) {
-    let text = crate::win::wide(&format!(
+    let text = wide(&format!(
         "smolcast was updated but could not restart ({error}). Start smolcast again."
     ));
-    let caption = crate::win::wide("smolcast");
+    let caption = wide("smolcast");
     unsafe {
         MessageBoxW(
             None,
@@ -323,21 +324,18 @@ pub fn report_relaunch_failure(error: &std::io::Error) {
 /// single-instance check does not mistake it for a second launch.
 pub fn wait_for_previous_instance() {
     let mut args = std::env::args().skip(1);
-    while let Some(arg) = args.next() {
-        if arg != WAIT_PID_FLAG {
-            continue;
-        }
-        let Some(pid) = args.next().and_then(|pid| pid.parse::<u32>().ok()) else {
-            return;
-        };
-        // Already gone: nothing to wait for.
-        let Ok(process) = (unsafe { OpenProcess(PROCESS_SYNCHRONIZE, false, pid) }) else {
-            return;
-        };
-        // A timeout falls through to the single-instance check, which then
-        // exits quietly if the old build is somehow still running.
-        unsafe { WaitForSingleObject(process, WAIT_FOR_EXIT.as_millis() as u32) };
-        let _ = unsafe { CloseHandle(process) };
+    if !args.any(|arg| arg == WAIT_PID_FLAG) {
         return;
     }
+    let Some(pid) = args.next().and_then(|pid| pid.parse::<u32>().ok()) else {
+        return;
+    };
+    // Already gone: nothing to wait for.
+    let Ok(process) = (unsafe { OpenProcess(PROCESS_SYNCHRONIZE, false, pid) }) else {
+        return;
+    };
+    // A timeout falls through to the single-instance check, which then
+    // exits quietly if the old build is somehow still running.
+    unsafe { WaitForSingleObject(process, WAIT_FOR_EXIT.as_millis() as u32) };
+    let _ = unsafe { CloseHandle(process) };
 }
