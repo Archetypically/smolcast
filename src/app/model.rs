@@ -44,6 +44,7 @@ use super::file_view::{FileAction, FileView};
 use super::launcher::Launcher;
 use super::motion;
 use super::notice::{Notice, NoticeStore, Severity, op};
+use super::report_view::ReportView;
 use super::script_view::ScriptView;
 use super::settings_view::SettingsView;
 use super::snippet_view::SnippetView;
@@ -83,6 +84,8 @@ pub enum AppEvent {
         result: Result<IconRgba, LaunchError>,
     },
     LaunchFinished {
+        /// The request's `LaunchRequest::seq`.
+        seq: u64,
         app_id: AppId,
         result: Result<(), LaunchError>,
     },
@@ -158,6 +161,7 @@ enum View {
     Settings,
     About,
     Files,
+    ReportBug,
 }
 
 /// What a recorded key chord is for.
@@ -288,6 +292,7 @@ pub struct AppModel {
     palette_window: Option<PaletteWindow>,
     settings: SettingsView,
     about: AboutView,
+    report: ReportView,
     /// The palette has held focus since it was shown; losing it afterwards
     /// dismisses the palette (click-away, §12.7).
     had_focus: bool,
@@ -327,6 +332,7 @@ impl AppModel {
         favorites: Stored<Favorites>,
         startup_notices: Vec<Notice>,
         force_visible: bool,
+        report: ReportView,
     ) -> Self {
         let mut notices = NoticeStore::new();
         for n in startup_notices {
@@ -350,6 +356,7 @@ impl AppModel {
                 history_limits(&config.settings),
                 config.settings.clipboard_source,
                 config.settings.clipboard_persist,
+                config.settings.clipboard_max_age_days,
                 loads_stored_history(&config.settings),
             ),
             emoji: EmojiView::new(),
@@ -368,6 +375,7 @@ impl AppModel {
             palette_window: None,
             settings: SettingsView::new(&config.settings),
             about: AboutView::default(),
+            report,
             had_focus: false,
             picking_file: false,
             hidden_at: None,
@@ -595,6 +603,10 @@ impl AppModel {
         self.visible
     }
 
+    pub fn thumbnail_failed(&mut self, id: u64) {
+        self.clipboard.thumbnail_failed(id);
+    }
+
     pub fn push_notice(&mut self, notice: Notice) {
         self.notices.push(notice);
     }
@@ -779,7 +791,10 @@ impl AppModel {
                 canonical: cfg.settings.summon_hotkey.clone(),
             };
         }
-        self.clipboard.set_limits(history_limits(&cfg.settings));
+        self.clipboard.set_limits(
+            history_limits(&cfg.settings),
+            cfg.settings.clipboard_max_age_days,
+        );
         self.clipboard.set_setting(cfg.settings.clipboard_source);
         self.launcher.set_scripts(&cfg.scripts);
         self.launcher.set_quicklinks(&cfg.quicklinks);
@@ -906,10 +921,14 @@ impl AppModel {
                 self.launcher
                     .on_shortcuts_recycled(result, &mut self.notices);
             }
-            AppEvent::LaunchFinished { app_id, result } => {
+            AppEvent::LaunchFinished {
+                seq,
+                app_id,
+                result,
+            } => {
                 if self
                     .launcher
-                    .on_launch_finished(app_id, result, &mut self.notices)
+                    .on_launch_finished(seq, app_id, result, &mut self.notices)
                     && self.visible
                 {
                     self.finish(ctx);
@@ -1101,6 +1120,7 @@ impl AppModel {
             View::Settings => self.settings.open(),
             View::About => self.about.open(),
             View::Files => self.files.open(),
+            View::ReportBug => self.report.open(),
         }
     }
 
@@ -1194,7 +1214,7 @@ impl AppModel {
     /// editor or delete confirmation.
     fn search_hidden(&self) -> bool {
         match self.view {
-            View::Settings | View::About => true,
+            View::Settings | View::About | View::ReportBug => true,
             View::Snippets => self.snippets.is_editing(),
             View::Scripts => self.scripts.is_editing(),
             View::Root | View::Clipboard | View::Emoji | View::Files => false,
@@ -1207,12 +1227,13 @@ impl AppModel {
         match self.view {
             View::Snippets => self.snippets.escape(),
             View::Scripts => self.scripts.escape(),
+            View::Settings => self.settings.escape(),
             View::Root
             | View::Clipboard
             | View::Emoji
-            | View::Settings
             | View::About
-            | View::Files => false,
+            | View::Files
+            | View::ReportBug => false,
         }
     }
 
@@ -1234,6 +1255,7 @@ impl AppModel {
             View::Settings => Some(Command::Settings.title()),
             View::About => Some(Command::About.title()),
             View::Files => Some(Command::SearchFiles.title()),
+            View::ReportBug => Some(Command::ReportBug.title()),
         };
         let paste_enabled = matches!(self.paste, PasteState::Idle);
         let run_enabled = self.launcher.launching_since().is_none();
@@ -1268,6 +1290,7 @@ impl AppModel {
                 View::Settings => self.settings.handle_keys(ui),
                 View::About => {}
                 View::Files => self.files.handle_keys(ui),
+                View::ReportBug => self.report.handle_keys(ui),
             }
         }
         let (nav_offset, nav_opacity) = self.navigation(ui.ctx());
@@ -1279,7 +1302,7 @@ impl AppModel {
             View::Scripts => "Search scripts…",
             View::Files => "Search file names…",
             // Forms have no search field.
-            View::Settings | View::About => "",
+            View::Settings | View::About | View::ReportBug => "",
         };
         let mut back = false;
         egui::Frame::new()
@@ -1448,6 +1471,7 @@ impl AppModel {
                             self.search.clear();
                             self.check_for_updates();
                         }
+                        Command::ReportBug => self.open_view(View::ReportBug),
                     }
                 }
                 theme::inset(ui, |ui| self.launcher.broken_shortcuts_ui(ui));
@@ -1518,13 +1542,22 @@ impl AppModel {
                 }
             }
             View::About => theme::inset(ui, |ui| self.about.ui(ui)),
+            View::ReportBug => {
+                theme::inset(ui, |ui| self.report.ui(ui));
+                // The browser takes over; the next summon starts fresh.
+                if let Some(url) = self.report.take_open_request() {
+                    crate::win::shell::open_uri(url);
+                    let ctx = ui.ctx().clone();
+                    self.finish(&ctx);
+                }
+            }
             View::Files => {
                 self.files.ui(ui, &self.search);
                 // Opening a file is a completed action: the palette hides
                 // and the next summon starts fresh.
                 if let Some(action) = self.files.take_action() {
                     match action {
-                        FileAction::Open(path) => crate::win::shell::open_uri(path),
+                        FileAction::Open(path) => crate::win::shell::open_file(path),
                         FileAction::Reveal(path) => crate::win::shell::reveal(path),
                     }
                     let ctx = ui.ctx().clone();
@@ -1573,6 +1606,7 @@ impl AppModel {
             View::Settings => Some(("Save", &["Ctrl", "S"])),
             View::Clipboard | View::Emoji | View::Snippets => Some(("Paste", &["Enter"])),
             View::Files => Some(("Open", &["Enter"])),
+            View::ReportBug => Some(("Open Issue", &["Enter"])),
             View::About => None,
         };
         // An action in flight replaces its key hint until it finishes.

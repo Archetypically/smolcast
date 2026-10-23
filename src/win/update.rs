@@ -14,7 +14,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::thread::{self, JoinHandle};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use windows::Win32::Foundation::CloseHandle;
 use windows::Win32::Security::Cryptography::{BCRYPT_SHA256_ALG_HANDLE, BCryptHash};
@@ -28,7 +28,7 @@ use crate::core::update::{
 };
 use crate::win::http::{self, HttpError};
 use crate::win::persistence::{atomic_write, unix_ms_now};
-use crate::win::wide;
+use crate::win::{join_by, wide};
 
 /// The command-line flag a relaunched build gets: wait for this process id
 /// to exit before starting.
@@ -101,22 +101,23 @@ impl UpdateWorker {
         }
     }
 
-    pub fn shutdown(mut self) {
-        self.stop_and_join();
+    /// Stop, waiting for the thread until `deadline` (plan §1.5).
+    pub fn shutdown(mut self, deadline: Instant) {
+        self.stop_and_join(Some(deadline));
     }
 
-    fn stop_and_join(&mut self) {
+    fn stop_and_join(&mut self, deadline: Option<Instant>) {
         self.cancel.store(true, Ordering::Release);
         self.tx = None;
         if let Some(join) = self.join.take() {
-            let _ = join.join();
+            join_by(join, deadline);
         }
     }
 }
 
 impl Drop for UpdateWorker {
     fn drop(&mut self) {
-        self.stop_and_join();
+        self.stop_and_join(None);
     }
 }
 

@@ -23,6 +23,7 @@
       content="smolcast collects nothing. What the Windows app keeps on your PC (five files), the one daily update check it makes, and what this website records (no cookies, no analytics)."
     />
     <link rel="canonical" href="https://smolcast.evanlee.engineer/privacy" />
+    <link rel="alternate" type="text/markdown" href="https://smolcast.evanlee.engineer/privacy.md" />
     <meta name="robots" content="index, follow, max-snippet:-1" />
     <meta property="og:type" content="article" />
     <meta property="og:site_name" content="smolcast" />
@@ -99,6 +100,12 @@
         <a class="button small" href="/#install">Download</a>
       </nav>
     </header>
+    <p class="for-agents" hidden>
+      For AI agents and other automated readers: every page on this site is also published as markdown at its path plus
+      <code>.md</code> (the home page is <a href="/index.md">/index.md</a>, and a folder’s page is its
+      <code>index.md</code>), linked from each page's head as <code>rel="alternate"</code>.
+      <a href="/llms.txt">/llms.txt</a> summarizes the whole site.
+    </p>
     <!-- /partial:topbar -->
 
     <main class="doc" id="content" tabindex="-1">
@@ -118,7 +125,9 @@
       </header>
 
       <ul class="facts">
-        <li class="card"><span class="figure">0</span><span>Accounts, trackers, telemetry or crash reports</span></li>
+        <li class="card">
+          <span class="figure">0</span><span>Accounts, trackers, telemetry or crash reports sent</span>
+        </li>
         <li class="card">
           <span class="figure">1</span><span>Request a day: the update check, with an off switch</span>
         </li>
@@ -126,7 +135,7 @@
       </ul>
 
       <section class="doc-section" aria-labelledby="files-title">
-        <h2 id="files-title">Four files and a folder, all yours</h2>
+        <h2 id="files-title">Five files and a folder, all yours</h2>
         <p>Everything lives in your own Windows profile. Delete the two <code>smolcast</code> folders and it’s gone.</p>
         <ul class="files">
           <li>
@@ -144,10 +153,14 @@
             <code>%LOCALAPPDATA%\smolcast\update.json</code
             ><span>When it last checked, and any version you skipped</span>
           </li>
+          <li>
+            <code>%LOCALAPPDATA%\smolcast\crash.log</code
+            ><span>Only after a crash: the version, Windows build and error. Kept small, never sent</span>
+          </li>
         </ul>
         <p>
-          No log file either. When something fails, the notice names the operation and an error code, never what you
-          copied or typed.
+          That crash log is the only log. When something fails, the notice names the operation and an error code, never
+          what you copied or typed.
         </p>
       </section>
 
@@ -179,6 +192,10 @@
               </li>
               <li><strong>File search</strong> asks the Windows Search index on your PC. No index of its own.</li>
               <li><strong>Scripts</strong> run the programs you set up, as you.</li>
+              <li>
+                <strong>Report a Bug</strong> opens a new GitHub issue in your browser with smolcast’s version and your
+                Windows build. The crash log goes in only if you tick it, and nothing is posted until you submit.
+              </li>
             </ul>
           </article>
           <article class="card">
@@ -192,7 +209,7 @@
               <li>
                 Otherwise it keeps its own: 100 items by default, encrypted so only your Windows account can read them.
                 <code>clipboard_persist = false</code> keeps it in memory; <code>clipboard_capture = false</code> keeps
-                nothing.
+                nothing; <code>clipboard_max_age_days</code> forgets items after that many days.
               </li>
               <li>
                 Skips anything an app marks as private, the flag password managers can set on what they copy. It can’t

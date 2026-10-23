@@ -31,6 +31,7 @@ pub const DEFAULT_CLIPBOARD_MAX_TOTAL_BYTES: usize = 64 * 1024 * 1024;
 /// §7.5 validation limits.
 pub const MIN_CLIPBOARD_ENTRIES: usize = 1;
 pub const MAX_CLIPBOARD_ENTRIES: usize = 500;
+pub const MAX_CLIPBOARD_AGE_DAYS: u32 = 365;
 pub const MIN_CLIPBOARD_ITEM_BYTES: usize = 64 * 1024;
 pub const MAX_CLIPBOARD_ITEM_BYTES: usize = 64 * 1024 * 1024;
 pub const MAX_CLIPBOARD_TOTAL_BYTES: usize = 512 * 1024 * 1024;
@@ -129,6 +130,10 @@ pub struct Settings {
     /// Optional for the same reason as `clipboard_source`.
     #[serde(default = "default_true")]
     pub clipboard_persist: bool,
+    /// Days an item stays in smolcast's own history; 0 keeps it until the
+    /// size limits push it out (§7.5). Optional; 0.
+    #[serde(default)]
+    pub clipboard_max_age_days: u32,
     /// Register smolcast in the per-user Run key (§12.7). Optional; off.
     #[serde(default)]
     pub start_at_login: bool,
@@ -251,6 +256,7 @@ impl Default for Settings {
             clipboard_max_total_bytes: DEFAULT_CLIPBOARD_MAX_TOTAL_BYTES,
             clipboard_source: ClipboardSource::Auto,
             clipboard_persist: true,
+            clipboard_max_age_days: 0,
             start_at_login: false,
             palette_size: PaletteSize::Medium,
             text_size: TextSize::Medium,
@@ -400,6 +406,12 @@ impl Settings {
                 ),
             ));
         }
+        check_range(
+            path,
+            "clipboard_max_age_days",
+            self.clipboard_max_age_days,
+            0..=MAX_CLIPBOARD_AGE_DAYS,
+        )?;
         check_range(
             path,
             "keep_state_secs",

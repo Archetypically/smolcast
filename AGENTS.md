@@ -4,6 +4,8 @@ smolcast keeps its shared context in `docs/` using the memory-bank pattern.
 Use the `.agents/skills/memory-bank/SKILL.md` skill: read
 `docs/activeContext.md` at the start of every session (by section), and update
 it after significant changes, committed together with the change it records.
+Write it as it will read on `main` after the merge: state what is true once
+the change lands, never "on this branch" or "not on this branch".
 
 - `docs/projectbrief.md`: scope and non-goals (source of truth for what smolcast is).
 - `docs/productContext.md`: why it exists and how each feature behaves for the user.

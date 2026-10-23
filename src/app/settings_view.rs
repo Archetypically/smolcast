@@ -9,9 +9,9 @@ use std::path::Path;
 use egui::{Key, Modifiers, RichText};
 
 use crate::core::config::{
-    ClipboardSource, MAX_CLIPBOARD_ENTRIES, MAX_CLIPBOARD_ITEM_BYTES, MAX_CLIPBOARD_TOTAL_BYTES,
-    MAX_KEEP_STATE_SECS, MIN_CLIPBOARD_ENTRIES, MIN_CLIPBOARD_ITEM_BYTES, PaletteSize,
-    ReduceMotion, SearchEngine, Settings, TextSize,
+    ClipboardSource, MAX_CLIPBOARD_AGE_DAYS, MAX_CLIPBOARD_ENTRIES, MAX_CLIPBOARD_ITEM_BYTES,
+    MAX_CLIPBOARD_TOTAL_BYTES, MAX_KEEP_STATE_SECS, MIN_CLIPBOARD_ENTRIES,
+    MIN_CLIPBOARD_ITEM_BYTES, PaletteSize, ReduceMotion, SearchEngine, Settings, TextSize,
 };
 use crate::win::hotkey;
 
@@ -35,6 +35,9 @@ pub struct SettingsView {
     save_request: Option<Settings>,
     open_file: bool,
     record_request: bool,
+    /// The draft as it was when Escape was pressed with unsaved changes; a
+    /// second press leaves and discards them unless the draft changed since.
+    confirm_discard: Option<Settings>,
 }
 
 impl SettingsView {
@@ -46,6 +49,7 @@ impl SettingsView {
             save_request: None,
             open_file: false,
             record_request: false,
+            confirm_discard: None,
         }
     }
 
@@ -55,6 +59,19 @@ impl SettingsView {
             self.draft = self.saved.clone();
             self.status = Status::Idle;
         }
+        self.confirm_discard = None;
+    }
+
+    /// Escape with unsaved changes asks once; true when it was handled here
+    /// rather than leaving the view.
+    pub fn escape(&mut self) -> bool {
+        let dirty = self.draft != self.saved;
+        let warned = self.confirm_discard.as_ref() == Some(&self.draft);
+        if dirty && !warned && !matches!(self.status, Status::Saving) {
+            self.confirm_discard = Some(self.draft.clone());
+            return true;
+        }
+        false
     }
 
     /// A config was accepted (a save finished, or the file was reloaded).
@@ -269,6 +286,17 @@ impl SettingsView {
             );
             ui.end_row();
 
+            ui.label("Forget after");
+            ui.horizontal(|ui| {
+                ui.add(
+                    egui::DragValue::new(&mut draft.clipboard_max_age_days)
+                        .range(0..=MAX_CLIPBOARD_AGE_DAYS)
+                        .suffix(" days"),
+                );
+                hint(ui, "0 keeps items until the limits below");
+            });
+            ui.end_row();
+
             ui.label("Max entries");
             ui.add(
                 egui::DragValue::new(&mut draft.clipboard_max_entries)
@@ -310,6 +338,10 @@ impl SettingsView {
             (None, Status::Saving) => ("Saving…".to_owned(), weak),
             (None, Status::Failed(e)) => (e.clone(), theme::ERROR),
             (None, Status::Saved) if !dirty => ("Saved.".to_owned(), weak),
+            (None, _) if dirty && self.confirm_discard.as_ref() == Some(&self.draft) => (
+                "Unsaved changes. Press Esc again to discard.".to_owned(),
+                weak,
+            ),
             (None, _) if dirty => ("Unsaved changes.".to_owned(), weak),
             (None, _) => (String::new(), weak),
         };

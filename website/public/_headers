@@ -16,3 +16,50 @@
 
 /*.svg
   Cache-Control: public, max-age=604800
+
+# markdown:start (written by scripts/sync.mjs)
+/*.md
+  Content-Type: text/markdown; charset=utf-8
+
+/code-signing.md
+  Link: <https://smolcast.evanlee.engineer/code-signing>; rel="canonical"
+
+/compare/alfred.md
+  Link: <https://smolcast.evanlee.engineer/compare/alfred>; rel="canonical"
+
+/compare/flow-launcher.md
+  Link: <https://smolcast.evanlee.engineer/compare/flow-launcher>; rel="canonical"
+
+/compare/fluent-search.md
+  Link: <https://smolcast.evanlee.engineer/compare/fluent-search>; rel="canonical"
+
+/compare/index.md
+  Link: <https://smolcast.evanlee.engineer/compare/>; rel="canonical"
+
+/compare/keypirinha.md
+  Link: <https://smolcast.evanlee.engineer/compare/keypirinha>; rel="canonical"
+
+/compare/listary.md
+  Link: <https://smolcast.evanlee.engineer/compare/listary>; rel="canonical"
+
+/compare/powertoys-command-palette.md
+  Link: <https://smolcast.evanlee.engineer/compare/powertoys-command-palette>; rel="canonical"
+
+/compare/raycast.md
+  Link: <https://smolcast.evanlee.engineer/compare/raycast>; rel="canonical"
+
+/compare/tinycast.md
+  Link: <https://smolcast.evanlee.engineer/compare/tinycast>; rel="canonical"
+
+/compare/ueli.md
+  Link: <https://smolcast.evanlee.engineer/compare/ueli>; rel="canonical"
+
+/compare/wox.md
+  Link: <https://smolcast.evanlee.engineer/compare/wox>; rel="canonical"
+
+/index.md
+  Link: <https://smolcast.evanlee.engineer/>; rel="canonical"
+
+/privacy.md
+  Link: <https://smolcast.evanlee.engineer/privacy>; rel="canonical"
+# markdown:end

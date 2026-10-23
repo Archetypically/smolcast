@@ -75,8 +75,9 @@ jobs:
       # and reset smolcast's state there. It runs after the artifacts upload
       # so a failure still reports size and imports.
       # The runner has no GPU and only OpenGL 1.1; Glow needs 2.0+. Mesa's
-      # software OpenGL beside the exe stands in (opengl32.dll is not a known
-      # DLL, so the app folder wins). The uploaded release is unaffected.
+      # software OpenGL beside the exe stands in: the smoke build turns on
+      # `app-folder-dlls`, so the exe's folder wins over System32 (release
+      # builds look in System32 only). The uploaded release is unaffected.
       - name: Software OpenGL for the smoke test
         shell: pwsh
         run: |
@@ -88,7 +89,7 @@ jobs:
         timeout-minutes: 10
         env:
           SMOLCAST_SMOKE_DESKTOP: disposable
-        run: cargo test --locked --release --target x86_64-pc-windows-msvc --test smoke -- --ignored --nocapture
+        run: cargo test --locked --release --target x86_64-pc-windows-msvc --features app-folder-dlls --test smoke -- --ignored --nocapture
       - name: Upload the failure screenshot
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -116,7 +117,7 @@ jobs:
         run: npx eslint .
       - name: Validate HTML
         run: npx html-validate "public/**/*.html" "media/*.html"
-      - name: Check shared chrome, tokens, sitemap and llms.txt
+      - name: Check shared chrome, tokens, markdown twins, sitemap and llms.txt
         run: node scripts/sync.mjs --check
 
   linux-gnu:

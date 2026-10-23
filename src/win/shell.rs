@@ -12,6 +12,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread::{self, JoinHandle};
+use std::time::Instant;
 
 use windows::Win32::Foundation::{PROPERTYKEY, SIZE};
 use windows::Win32::Storage::FileSystem::SearchPathW;
@@ -32,6 +33,7 @@ use windows::Win32::UI::Shell::{
 use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
 use windows::core::{GUID, Interface, PCWSTR, w};
 
+use crate::app::launcher::LaunchRequest;
 use crate::app::model::{AppEvent, Wake};
 use crate::core::app_index::{
     AppId, AppSource, IndexedApp, LaunchSpec, RawEntry, ShortcutTarget, aumid_key, dedup,
@@ -39,9 +41,12 @@ use crate::core::app_index::{
 };
 use crate::core::icon_scale;
 use crate::core::installed_programs::installed_entries;
+use crate::core::quicklink;
 use crate::win::icon::{IconRgba, OwnedBitmap, bitmap_to_rgba};
 use crate::win::installed::{existing_long_path, uninstall_entries};
-use crate::win::{from_wide_nul, take_pwstr, wide, wide_path, win_error_parts, windows_program};
+use crate::win::{
+    from_wide_nul, join_by, take_pwstr, wide, wide_path, win_error_parts, windows_program,
+};
 
 /// `System.AppUserModel.ID` ({9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3}, 5).
 const PKEY_APP_USER_MODEL_ID: PROPERTYKEY = PROPERTYKEY {
@@ -124,9 +129,13 @@ fn shell_execute(file: &[u16]) -> windows::core::Result<()> {
 
 /// [`shell_execute`] with a working directory (NUL-terminated).
 fn shell_execute_in(file: &[u16], dir: Option<&[u16]>) -> windows::core::Result<()> {
+    shell_execute_with(file, dir, SEE_MASK_NOASYNC | SEE_MASK_FLAG_NO_UI)
+}
+
+fn shell_execute_with(file: &[u16], dir: Option<&[u16]>, mask: u32) -> windows::core::Result<()> {
     let mut info = SHELLEXECUTEINFOW {
         cbSize: size_of::<SHELLEXECUTEINFOW>() as u32,
-        fMask: SEE_MASK_NOASYNC | SEE_MASK_FLAG_NO_UI,
+        fMask: mask,
         lpFile: PCWSTR(file.as_ptr()),
         lpDirectory: dir.map_or(PCWSTR::null(), |d| PCWSTR(d.as_ptr())),
         nShow: SW_SHOWNORMAL.0,
@@ -441,16 +450,17 @@ fn recycle(paths: &[PathBuf]) -> Result<bool, LaunchError> {
 /// Launch on its own thread; the result arrives as `AppEvent::LaunchFinished`.
 /// Success means the shell accepted the launch (§6.3); smolcast does not wait
 /// for a window.
-pub fn spawn_launch(
-    app_id: AppId,
-    spec: LaunchSpec,
-    wake: Wake,
-) -> std::io::Result<JoinHandle<()>> {
+pub fn spawn_launch(request: LaunchRequest, wake: Wake) -> std::io::Result<JoinHandle<()>> {
     thread::Builder::new()
         .name("smolcast-launch".into())
         .spawn(move || {
+            let LaunchRequest { seq, app_id, spec } = request;
             let result = launch(&spec);
-            wake.send(AppEvent::LaunchFinished { app_id, result });
+            wake.send(AppEvent::LaunchFinished {
+                seq,
+                app_id,
+                result,
+            });
         })
 }
 
@@ -473,7 +483,8 @@ fn launch(spec: &LaunchSpec) -> Result<(), LaunchError> {
         LaunchSpec::Script(script) => crate::win::process::spawn_script(script),
         LaunchSpec::System(action) => crate::win::system::run(*action),
         LaunchSpec::Quicklink { target } => {
-            shell_execute(&wide(target)).map_err(|e| LaunchError::from_win("open quicklink", &e))
+            let target = quicklink::expand_variable(target, |name| std::env::var(name).ok());
+            shell_execute(&wide(&target)).map_err(|e| LaunchError::from_win("open quicklink", &e))
         }
         LaunchSpec::Command(_) => Err(LaunchError {
             operation: "launch",
@@ -544,23 +555,24 @@ impl IconWorker {
         }
     }
 
-    /// Drop queued work, stop, and join (§1.5 step 5).
-    pub fn shutdown(mut self) {
-        self.stop_and_join();
+    /// Drop queued work and stop, waiting for the thread until `deadline`
+    /// (§1.5 step 5).
+    pub fn shutdown(mut self, deadline: Instant) {
+        self.stop_and_join(Some(deadline));
     }
 
-    fn stop_and_join(&mut self) {
+    fn stop_and_join(&mut self, deadline: Option<Instant>) {
         self.cancel.store(true, Ordering::Release);
         self.tx = None; // closing the channel ends the worker's recv loop
         if let Some(join) = self.join.take() {
-            let _ = join.join();
+            join_by(join, deadline);
         }
     }
 }
 
 impl Drop for IconWorker {
     fn drop(&mut self) {
-        self.stop_and_join();
+        self.stop_and_join(None);
     }
 }
 
@@ -664,14 +676,23 @@ pub fn open_in_notepad(path: &Path) {
 /// browser) with the shell, off the UI thread. Failures are ignored: there is
 /// nothing smolcast could do about a missing browser or Settings app.
 pub fn open_uri(uri: impl Into<String>) {
-    let uri = uri.into();
+    open_in_background(uri.into(), SEE_MASK_NOASYNC | SEE_MASK_FLAG_NO_UI);
+}
+
+/// Open a file found by Search Files. Windows keeps its own prompts, such
+/// as the warning for a file downloaded from the internet, which
+/// `SEE_MASK_FLAG_NO_UI` could suppress.
+pub fn open_file(path: String) {
+    open_in_background(path, SEE_MASK_NOASYNC);
+}
+
+fn open_in_background(target: String, mask: u32) {
     let _ = thread::Builder::new()
         .name("smolcast-open".into())
         .spawn(move || {
             let Ok(_com) = ComApartment::enter() else {
                 return;
             };
-            let file = wide(&uri);
-            let _ = shell_execute(&file);
+            let _ = shell_execute_with(&wide(&target), None, mask);
         });
 }
