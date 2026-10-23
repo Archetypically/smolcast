@@ -2063,7 +2063,7 @@ h2 {
   line-height: 1.4;
 }
 
-/* The better pick on a row is bold, whoever has it; a badge gets a ring. */
+/* Where smolcast comes out ahead on a row, its cell is bold; a badge gets a ring. */
 .compare td.win strong {
   color: var(--text);
   font-weight: 650;

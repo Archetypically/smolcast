@@ -120,13 +120,11 @@ page, and `public/tokens.css` is generated from `src/app/theme.rs`, both by
 to `sitemap.xml` and `llms.txt`, and run the sync. Comparison pages carry the
 date they were checked; recheck them when the other products change.
 
-Design audit: the site follows Hallmark's floor (DESIGN.md, Taste). The
-first lines of `styles.css` are its stamp (`redesign: polish`, the locked
-system) and any waivers. To audit, clone github.com/nutlope/hallmark
-outside the repo and run `node <hallmark>/skills/hallmark/scripts/sloplint.mjs
-<pages> --genre modern-minimal`. Its static pass resolves `href="/styles.css"`
-against the filesystem root, so lint a copy with relative stylesheet links,
-or every page falsely reports missing `:focus-visible` and `overflow-x`.
+Design audit: the site follows Hallmark's floor (DESIGN.md, Taste), vendored
+in `.agents/skills/hallmark/` (linked from `.claude/skills/`). The first
+lines of `styles.css` are its stamp (`redesign: polish`, the locked system)
+and any waivers. Its `VENDOR.md` says how to run `sloplint.mjs` and the
+relative-stylesheet workaround the static pass needs.
 
 Discovery: each page has a canonical URL, a description, Open Graph tags and
 JSON-LD (`SoftwareApplication` on home; `WebPage` or `CollectionPage` plus

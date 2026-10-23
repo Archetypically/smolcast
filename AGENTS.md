@@ -11,6 +11,8 @@ it after significant changes, committed together with the change it records.
 - `docs/techContext.md`: toolchain, setup, commands, constraints.
 - `docs/decisions/`: one file per durable decision, per `.agents/skills/making-decisions/SKILL.md`.
 - `docs/DESIGN.md`: visual design; consult it before adding or styling UI.
+- `.agents/skills/hallmark/` (vendored, see its `VENDOR.md`): the design
+  floor the website is held to; audit website changes with its `sloplint.mjs`.
 
 `README.md` is the public product page: features, install, usage, configuration.
 Never put status, contracts or internal notes there. This repository is public:
