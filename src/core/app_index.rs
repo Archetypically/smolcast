@@ -187,10 +187,12 @@ pub enum Command {
     SearchFiles,
     /// Asks GitHub for a newer release now (§13).
     CheckForUpdates,
+    /// Opens a prefilled GitHub issue (§14).
+    ReportBug,
 }
 
 impl Command {
-    pub const ALL: [Command; 10] = [
+    pub const ALL: [Command; 11] = [
         Command::ClipboardHistory,
         Command::Emoji,
         Command::Snippets,
@@ -201,6 +203,7 @@ impl Command {
         Command::About,
         Command::SearchFiles,
         Command::CheckForUpdates,
+        Command::ReportBug,
     ];
 
     pub fn title(self) -> &'static str {
@@ -215,6 +218,7 @@ impl Command {
             Command::About => "About smolcast",
             Command::SearchFiles => "Search Files",
             Command::CheckForUpdates => "Check for Updates",
+            Command::ReportBug => "Report a Bug",
         }
     }
 
@@ -226,6 +230,7 @@ impl Command {
             Command::About => &["Credits"],
             Command::SearchFiles => &["Find Files", "Documents"],
             Command::CheckForUpdates => &["Update smolcast"],
+            Command::ReportBug => &["Send Feedback", "File an Issue", "Bug Report"],
             _ => &[],
         }
     }
@@ -243,6 +248,7 @@ impl Command {
             Command::About => "about",
             Command::SearchFiles => "search-files",
             Command::CheckForUpdates => "check-for-updates",
+            Command::ReportBug => "report-bug",
         }
     }
 

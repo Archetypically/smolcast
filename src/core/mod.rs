@@ -4,6 +4,7 @@ pub mod app_index;
 pub mod calc;
 pub mod config;
 pub mod config_edit;
+pub mod crash_log;
 pub mod dib;
 pub mod emoji;
 pub mod favorites;

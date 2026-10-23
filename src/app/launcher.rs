@@ -55,6 +55,8 @@ enum Fallback {
 
 /// A launch the host should start.
 pub struct LaunchRequest {
+    /// Matches the launch's result to this request (`launch_seq`).
+    pub seq: u64,
     pub app_id: AppId,
     pub spec: LaunchSpec,
 }
@@ -98,8 +100,12 @@ pub struct Launcher {
 
     scan_request: Option<u64>,
     launch_request: Option<LaunchRequest>,
-    /// The app being launched, and since when.
-    launch_pending: Option<(AppId, Instant)>,
+    /// Numbers launch requests, so a late result from an earlier summon's
+    /// launch of the same app is not taken for this one.
+    launch_seq: u64,
+    /// The launch the palette waits on: its request number, the app, and
+    /// since when.
+    launch_pending: Option<(u64, AppId, Instant)>,
     open_command: Option<Command>,
     icon_requests: Vec<IconRequest>,
     usage_snapshot: Option<(u64, Vec<u8>)>,
@@ -180,6 +186,7 @@ impl Launcher {
             recycling: false,
             scan_request: None,
             launch_request: None,
+            launch_seq: 0,
             launch_pending: None,
             open_command: None,
             icon_requests: Vec::new(),
@@ -321,6 +328,7 @@ impl Launcher {
     /// leaves the palette as it is.
     pub fn on_launch_finished(
         &mut self,
+        seq: u64,
         app_id: AppId,
         result: Result<(), LaunchError>,
         notices: &mut NoticeStore,
@@ -328,7 +336,7 @@ impl Launcher {
         let pending = self
             .launch_pending
             .as_ref()
-            .is_some_and(|(id, _)| *id == app_id);
+            .is_some_and(|(pending, _, _)| *pending == seq);
         if pending {
             self.launch_pending = None;
         }
@@ -445,14 +453,11 @@ impl Launcher {
                 ));
             }
             Some(script) => {
-                if from_palette {
-                    self.launch_pending = Some((app_id.clone(), Instant::now()));
-                }
                 let mut spec = script.launch.clone();
                 if let LaunchSpec::Script(spec) = &mut spec {
                     spec.args.extend(extra);
                 }
-                self.launch_request = Some(LaunchRequest { app_id, spec });
+                self.request_launch(app_id, spec, from_palette);
             }
             None => notices.push(Notice::new(
                 Severity::Warning,
@@ -604,6 +609,16 @@ impl Launcher {
         self.paste_answer.take()
     }
 
+    /// Queue a launch for the host; `wait` makes the palette wait on it.
+    fn request_launch(&mut self, app_id: AppId, spec: LaunchSpec, wait: bool) {
+        self.launch_seq += 1;
+        let seq = self.launch_seq;
+        if wait {
+            self.launch_pending = Some((seq, app_id.clone(), Instant::now()));
+        }
+        self.launch_request = Some(LaunchRequest { seq, app_id, spec });
+    }
+
     pub fn take_launch_request(&mut self) -> Option<LaunchRequest> {
         self.launch_request.take()
     }
@@ -727,7 +742,7 @@ impl Launcher {
 
     /// When the launch the shell has not answered yet started.
     pub fn launching_since(&self) -> Option<Instant> {
-        self.launch_pending.as_ref().map(|(_, since)| *since)
+        self.launch_pending.as_ref().map(|(_, _, since)| *since)
     }
 
     /// The footer's label for Enter on the selected row.
@@ -1002,7 +1017,7 @@ impl Launcher {
             let launching = self
                 .launch_pending
                 .as_ref()
-                .is_some_and(|(id, _)| *id == app.id);
+                .is_some_and(|(_, id, _)| *id == app.id);
             let confirming = self.confirming.as_ref() == Some(&app.id);
             let leading = |ui: &mut egui::Ui| {
                 let size = Vec2::splat(ICON_POINTS);
@@ -1179,8 +1194,7 @@ impl Launcher {
             _ => {}
         }
         self.confirming = None;
-        self.launch_pending = Some((app_id.clone(), Instant::now()));
-        self.launch_request = Some(LaunchRequest { app_id, spec });
+        self.request_launch(app_id, spec, true);
     }
 }
 
@@ -1314,6 +1328,7 @@ fn command_glyph(command: Command) -> Glyph {
         Command::About => Glyph::new('\u{E946}', "ℹ"),             // Info
         Command::SearchFiles => GLYPH_SEARCH,
         Command::CheckForUpdates => Glyph::new('\u{E895}', "🔄"), // Sync
+        Command::ReportBug => Glyph::new('\u{EBE8}', "🐞"),       // Bug
     }
 }
 
