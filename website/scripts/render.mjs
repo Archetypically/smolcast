@@ -62,7 +62,8 @@ try {
     const sitemap = await readFile(pub("sitemap.xml"), "utf8");
     for (const [, loc] of sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)) {
       const path = new URL(loc).pathname.replace(/^\/|\/$/g, "");
-      if (!path) continue;
+      // Markdown twins share their page's card.
+      if (!path || path.endsWith(".md")) continue;
       const file = `og/${path.replaceAll("/", "-")}.png`;
       const page = await browser.newPage(cardOptions);
       await page.goto(`${base}/_media/og-page.html?page=${path}${loc.endsWith("/") ? "/" : ""}`);

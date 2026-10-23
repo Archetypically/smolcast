@@ -43,12 +43,15 @@ tasks:
     cmds:
       - python3 scripts/compare.py public
       - node scripts/sync.mjs
+      - npx prettier --write --log-level warn public
       - npx prettier --write public/compare
 
   sync:
-    desc: Stamp partials/ into every page and regenerate tokens.css from the app's theme.rs
+    desc: Stamp partials/ into every page, write each page's markdown twin, and regenerate tokens.css from the app's theme.rs
+    deps: [install]
     cmds:
       - node scripts/sync.mjs
+      - npx prettier --write --log-level warn public
 
   render:
     desc: Regenerate the icons and og.png from their HTML and SVG sources (needs Playwright's Chromium)

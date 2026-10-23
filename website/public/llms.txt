@@ -4,6 +4,8 @@
 
 smolcast is a Windows take on the core features of Tinycast (a macOS launcher) and Raycast (macOS and Windows). It is not affiliated with either. It runs on Windows 11 x64 only, as a normal user, with no installer, admin rights or runtime.
 
+Every page listed here is also published as markdown at its URL plus `.md` (the home page is https://smolcast.evanlee.engineer/index.md, the comparison hub https://smolcast.evanlee.engineer/compare/index.md).
+
 ## Features
 
 - App launcher: fuzzy search across Start Menu shortcuts, Store apps and installed programs that add no shortcut, ranked by frequency and recency, with each program's real icon. Up to 5 pinned favorites (Ctrl+Shift+F).
