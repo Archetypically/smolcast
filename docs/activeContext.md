@@ -183,6 +183,20 @@ every frame (cost only).
 
 ## Open questions and parked ideas
 
+- **Backlog from the user (2026-10-23)**, not designed yet:
+  - *Crash logs*: a panic hook writing a local log (the release profile
+    uses `panic = "abort"`; the hook still runs before the abort) to
+    `%LOCALAPPDATA%\smolcast\`, kept small and rotated. Nothing is sent.
+  - *Report a Bug* palette command: opens a prefilled GitHub issue (version,
+    Windows build, the last crash log only if the user chooses) in the
+    browser. User-initiated only; the privacy page promises nothing leaves
+    the device on its own.
+  - *Per-entry hiding*: "Hide" on any result (app, command, quicklink),
+    persisted like favorites (decision 011), with a way to list and unhide.
+  - *About links*: "About smolcast" exists (`app/about_view.rs`) but links
+    nowhere; add the website and the repository.
+  - *Donations via Polar (polar.sh)*: a "Support smolcast" link (About, the
+    website, maybe README); the app only opens a URL, no payment code.
 - **Emoji tile vs Hallmark 30a** (floor, unwaivable): the home emoji tile
   shows real emoji as the picker's output; Hallmark reads them as emoji
   icons. User's call: keep, or draw them as Fluent emoji images.
