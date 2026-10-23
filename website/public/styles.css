@@ -2073,6 +2073,16 @@ h2 {
   color: var(--muted);
 }
 
+/* The script bolds the systems that fit the visitor's computer. */
+.compare td.yours {
+  color: var(--text);
+  font-weight: 650;
+}
+
+.compare td.yours .note {
+  font-weight: 400;
+}
+
 .compare td.win .status {
   box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--text) 55%, transparent);
 }

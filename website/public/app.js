@@ -1214,7 +1214,40 @@ function toggleTheme(palette) {
   palette.flash(next === "dark" ? "Dark Mode On" : "Dark Mode Off");
 }
 
+// The visitor's system, as the comparison tables name them: "win11",
+// "win10", "windows" (a Windows the browser will not version) or "mac".
+async function visitorOS() {
+  const hints = navigator.userAgentData;
+  const platform = hints?.platform || navigator.platform || "";
+  const ua = navigator.userAgent;
+  if (/mac/i.test(platform) || (/Macintosh/.test(ua) && !/Mobile/.test(ua))) return "mac";
+  if (!/win/i.test(platform) && !/Windows NT/.test(ua)) return null;
+  // Chromium reports Windows 11 as platform version 13 and up; others can't tell.
+  try {
+    const { platformVersion } = await hints.getHighEntropyValues(["platformVersion"]);
+    return Number(platformVersion.split(".")[0]) >= 13 ? "win11" : "win10";
+  } catch {
+    return "windows";
+  }
+}
+
+// In a comparison's "Runs on" row, bold the tools that run on this computer.
+async function markYourOS() {
+  const cells = document.querySelectorAll("td[data-os]");
+  if (!cells.length) return;
+  const os = await visitorOS();
+  if (!os) return;
+  for (const td of cells) {
+    const runs = td.dataset.os.split(" ");
+    const fits = os === "windows" ? runs.some((r) => r.startsWith("win")) : runs.includes(os);
+    if (!fits) continue;
+    td.classList.add("yours");
+    td.append(el("span", { class: "note", text: "Runs on your computer" }));
+  }
+}
+
 function init() {
+  markYourOS();
   try {
     const saved = localStorage.getItem("theme");
     if (saved === "dark" || saved === "light") document.documentElement.dataset.theme = saved;
