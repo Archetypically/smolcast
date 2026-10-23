@@ -722,9 +722,10 @@ impl eframe::App for EframeApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
         self.step(&ctx);
-        // Re-hide after eframe's forced first-frame show (§2.1: the root viewport
-        // starts hidden). Viewport commands are applied after `post_rendering` in
-        // the same frame, so this wins; at most one blank frame can flash.
+        // Re-hide after eframe's forced first-frame show on a quiet start (§2.1,
+        // decision 037: a start by the user keeps it shown). Viewport commands
+        // are applied after `post_rendering` in the same frame, so this wins; at
+        // most one blank frame can flash.
         if !std::mem::replace(&mut self.first_frame_seen, true) && !self.model.is_visible() {
             ctx.send_viewport_cmd(ViewportCommand::Visible(false));
         }

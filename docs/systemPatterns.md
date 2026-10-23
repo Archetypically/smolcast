@@ -213,8 +213,10 @@ features. The default fonts make milestone 1 text reliable and give the approved
 monochrome emoji baseline. Measure their binary cost before considering system-font
 replacement.
 
-The root viewport is created hidden unless startup/config/hotkey registration has
-an error that requires user action. Summon sends `ViewportCommand::Visible(true)`
+The root viewport is created hidden. The first frame shows it when the user
+started smolcast (no `--login` from the Run entry, no `--wait-pid` from the
+updater; decision 037) or when startup/config/hotkey registration has an error
+that requires user action; otherwise it stays in the tray. Summon sends `ViewportCommand::Visible(true)`
 then `ViewportCommand::Focus`. Hide sends `Visible(false)`. Never send `Close` to
 implement hide.
 
@@ -1590,8 +1592,9 @@ base and never above 85% of the monitor height.
 Login registration (2026-09-25, `win/autostart.rs`): `start_at_login` is the
 source of truth for the value `smolcast` under `HKCU\...\CurrentVersion\Run`.
 Startup with a valid config and every accepted reload reconcile it: enabled
-writes the quoted running-exe path when missing or different (a moved exe
-re-registers), disabled deletes the value; both are idempotent and quit never
+writes the quoted running-exe path plus `--login` when missing or different
+(a moved exe or a flagless older entry re-registers), disabled deletes the
+value; both are idempotent and quit never
 touches it. A malformed startup config skips reconciliation so falling back to
 defaults cannot unregister. Task Manager's `StartupApproved` state is left alone.
 Failures are a content-free notice (op `autostart`).

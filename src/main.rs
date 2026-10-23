@@ -25,13 +25,13 @@ use smolcast::app::notice::{Notice, Severity, op};
 use smolcast::app::report_view::ReportView;
 use smolcast::app::theme;
 use smolcast::core::config::{self, ConfigFile};
-use smolcast::win::appearance;
 use smolcast::win::clipboard::ClipboardThread;
 use smolcast::win::crash_log;
 use smolcast::win::persistence::{self, StatePaths};
 use smolcast::win::single_instance::{AcquireError, SingleInstance};
 use smolcast::win::update;
 use smolcast::win::wide;
+use smolcast::win::{appearance, autostart};
 
 /// Show a fatal startup error and exit. `stderr` alone cannot reach a user in a
 /// GUI-subsystem process.
@@ -100,6 +100,14 @@ fn main() -> eframe::Result {
         ));
     }
 
+    // A start by the user opens the palette, so they see smolcast started;
+    // a start at sign-in (the Run entry's flag) or by the updater
+    // stays in the tray. A config error forces it either way (decision 037).
+    let quiet_start = std::env::args()
+        .skip(1)
+        .any(|arg| arg == autostart::LOGIN_FLAG || arg == update::WAIT_PID_FLAG);
+    let force_visible = config_failed || !quiet_start;
+
     // 4. Shared egui context and event channel (§1.2). Producers clone the
     //    sender and the context; the same context is handed to eframe below.
     let (event_tx, event_rx) = mpsc::channel::<AppEvent>();
@@ -149,7 +157,7 @@ fn main() -> eframe::Result {
                 usage,
                 favorites,
                 startup_notices,
-                config_failed,
+                force_visible,
                 report,
             );
             let app = EframeApp::build(
