@@ -1,0 +1,36 @@
+/* Generated from src/app/theme.rs by scripts/sync.mjs (`task web:sync`).
+   Do not edit: change the app's palette and run the sync. */
+
+:root {
+  --accent: #ff6363;
+  --warning: #e6b43c;
+  --surface: #fafafa;
+  --text: #1c1c1e;
+  --weak: #6e6e73;
+  --sel: rgb(0 0 0 / 7.8%);
+  --hover: rgb(0 0 0 / 3.9%);
+  --control: rgb(0 0 0 / 5.1%);
+  --divider: rgb(0 0 0 / 7.8%);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --surface: #1c1c1e;
+    --text: #ededed;
+    --weak: #8e8e93;
+    --sel: rgb(255 255 255 / 10.2%);
+    --hover: rgb(255 255 255 / 5.1%);
+    --control: rgb(255 255 255 / 7.1%);
+    --divider: rgb(255 255 255 / 10.2%);
+  }
+}
+
+:root[data-theme="dark"] {
+  --surface: #1c1c1e;
+  --text: #ededed;
+  --weak: #8e8e93;
+  --sel: rgb(255 255 255 / 10.2%);
+  --hover: rgb(255 255 255 / 5.1%);
+  --control: rgb(255 255 255 / 7.1%);
+  --divider: rgb(255 255 255 / 10.2%);
+}

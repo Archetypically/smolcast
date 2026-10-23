@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <!-- partial:head -->
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark light" />
+    <meta name="theme-color" content="#101012" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#f0f0f2" media="(prefers-color-scheme: light)" />
+    <meta name="author" content="Evan Lee" />
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <link rel="alternate" type="text/plain" href="/llms.txt" title="llms.txt" />
+    <link rel="stylesheet" href="/tokens.css" />
+    <link rel="stylesheet" href="/styles.css" />
+    <script src="/app.js" defer></script>
+    <!-- /partial:head -->
+    <title>Privacy · smolcast</title>
+    <meta
+      name="description"
+      content="smolcast collects nothing. What the Windows app keeps on your PC (five files), the one daily update check it makes, and what this website records (no cookies, no analytics)."
+    />
+    <link rel="canonical" href="https://smolcast.evanlee.engineer/privacy" />
+    <meta name="robots" content="index, follow, max-snippet:-1" />
+    <meta property="og:type" content="article" />
+    <meta property="og:site_name" content="smolcast" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:url" content="https://smolcast.evanlee.engineer/privacy" />
+    <meta property="og:title" content="smolcast collects nothing" />
+    <meta
+      property="og:description"
+      content="What the app keeps on your PC, the one request it makes on its own, and what this website records."
+    />
+    <meta property="og:image" content="https://smolcast.evanlee.engineer/og/privacy.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta
+      property="og:image:alt"
+      content="smolcast collects nothing: no accounts or telemetry, one update check a day you can turn off, and no cookies on this site."
+    />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="smolcast collects nothing" />
+    <meta
+      name="twitter:description"
+      content="What the app keeps on your PC, the one request it makes on its own, and what this website records."
+    />
+    <meta name="twitter:image" content="https://smolcast.evanlee.engineer/og/privacy.png" />
+    <meta
+      name="twitter:image:alt"
+      content="smolcast collects nothing: no accounts or telemetry, one update check a day you can turn off, and no cookies on this site."
+    />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebPage",
+            "@id": "https://smolcast.evanlee.engineer/privacy",
+            "url": "https://smolcast.evanlee.engineer/privacy",
+            "name": "smolcast privacy",
+            "description": "What the smolcast app keeps on your PC, the one request it makes on its own, and what its website records.",
+            "datePublished": "2026-10-23",
+            "dateModified": "2026-10-23",
+            "isPartOf": { "@id": "https://smolcast.evanlee.engineer/#website" },
+            "about": { "@id": "https://smolcast.evanlee.engineer/#app" },
+            "author": { "@id": "https://smolcast.evanlee.engineer/#author" }
+          },
+          {
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+              { "@type": "ListItem", "position": 1, "name": "smolcast", "item": "https://smolcast.evanlee.engineer/" },
+              { "@type": "ListItem", "position": 2, "name": "Privacy" }
+            ]
+          }
+        ]
+      }
+    </script>
+  </head>
+  <body>
+    <a class="skip" href="#content">Skip to the policy</a>
+
+    <!-- partial:topbar -->
+    <header class="topbar" id="top">
+      <a class="brand" href="/" aria-label="smolcast home">
+        <img src="/favicon.svg" alt="" width="24" height="24" />
+        <span>smolcast</span>
+      </a>
+      <nav class="topbar-actions" aria-label="Site">
+        <button class="summon-pill" type="button" data-summon aria-label="Open the palette (Ctrl K)">
+          <svg aria-hidden="true"><use href="/icons.svg#search" /></svg>
+          <span>Search</span>
+          <kbd class="cap" data-key="Control">Ctrl</kbd><kbd class="cap" data-key="k">K</kbd>
+        </button>
+        <a class="link" href="https://github.com/Archetypically/smolcast">GitHub</a>
+        <a class="button small" href="/#install">Download</a>
+      </nav>
+    </header>
+    <!-- /partial:topbar -->
+
+    <main class="doc" id="content" tabindex="-1">
+      <header class="doc-hero">
+        <ol class="crumbs">
+          <li><a href="/">smolcast</a></li>
+          <li aria-current="page">Privacy</li>
+        </ol>
+        <h1>smolcast collects nothing.</h1>
+        <p class="lead">
+          Your stuff stays on your PC. The app makes one request a day, an update check you can switch off. This site
+          has no cookies and no analytics.
+        </p>
+        <p class="stamp">
+          <span class="tag">Updated <time datetime="2026-10-23">23 Oct 2026</time></span>
+        </p>
+      </header>
+
+      <ul class="facts">
+        <li class="card"><span class="figure">0</span><span>Accounts, trackers, telemetry or crash reports</span></li>
+        <li class="card">
+          <span class="figure">1</span><span>Request a day: the update check, with an off switch</span>
+        </li>
+        <li class="card"><span class="figure">0</span><span>Cookies or analytics on this website</span></li>
+      </ul>
+
+      <section class="doc-section" aria-labelledby="files-title">
+        <h2 id="files-title">Four files and a folder, all yours</h2>
+        <p>Everything lives in your own Windows profile. Delete the two <code>smolcast</code> folders and it’s gone.</p>
+        <ul class="files">
+          <li>
+            <code>%APPDATA%\smolcast\config.toml</code><span>Your settings, scripts, snippets and quicklinks</span>
+          </li>
+          <li><code>%APPDATA%\smolcast\favorites.json</code><span>The results you pinned</span></li>
+          <li>
+            <code>%LOCALAPPDATA%\smolcast\usage.json</code><span>What you open and when, so results rank well</span>
+          </li>
+          <li>
+            <code>%LOCALAPPDATA%\smolcast\clipboard\</code
+            ><span>smolcast’s own clipboard history, encrypted (below)</span>
+          </li>
+          <li>
+            <code>%LOCALAPPDATA%\smolcast\update.json</code
+            ><span>When it last checked, and any version you skipped</span>
+          </li>
+        </ul>
+        <p>
+          No log file either. When something fails, the notice names the operation and an error code, never what you
+          copied or typed.
+        </p>
+      </section>
+
+      <section class="doc-section" aria-labelledby="net-title">
+        <h2 id="net-title">What leaves, and when</h2>
+        <div class="cards three">
+          <article class="card">
+            <h3>The update check</h3>
+            <p class="by"><span class="status part">Automatic, once a day</span></p>
+            <p>
+              Asks <code>api.github.com</code> for smolcast’s latest release. It sends smolcast’s version and nothing
+              about you. GitHub sees your IP, as with any visit (<a
+                href="https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement"
+                >GitHub’s privacy statement</a
+              >). Updates install only when you say so.
+            </p>
+            <p>
+              Off switch: <strong>Check GitHub for a new version once a day</strong> in settings, or
+              <code>check_for_updates = false</code>.
+            </p>
+          </article>
+          <article class="card">
+            <h3>Only when you ask</h3>
+            <p class="by"><span class="status yes">You’re in control</span></p>
+            <ul>
+              <li>
+                <strong>Web searches and quicklinks</strong> open in your browser when you pick them. That site gets
+                your query.
+              </li>
+              <li><strong>File search</strong> asks the Windows Search index on your PC. No index of its own.</li>
+              <li><strong>Scripts</strong> run the programs you set up, as you.</li>
+            </ul>
+          </article>
+          <article class="card">
+            <h3>Clipboard history</h3>
+            <p class="by"><span class="status yes">Encrypted, on your PC</span></p>
+            <ul>
+              <li>
+                Windows clipboard history (<kbd class="cap" data-key="Meta">Win</kbd
+                ><kbd class="cap" data-key="v">V</kbd>) on? smolcast just shows it and keeps no copy.
+              </li>
+              <li>
+                Otherwise it keeps its own: 100 items by default, encrypted so only your Windows account can read them.
+                <code>clipboard_persist = false</code> keeps it in memory; <code>clipboard_capture = false</code> keeps
+                nothing.
+              </li>
+              <li>
+                Skips anything an app marks as private, the flag password managers can set on what they copy. It can’t
+                spot an unmarked password.
+              </li>
+            </ul>
+          </article>
+        </div>
+      </section>
+
+      <section class="doc-section" aria-labelledby="site-title">
+        <h2 id="site-title">No cookies, no analytics, no trackers</h2>
+        <div class="cards">
+          <article class="card">
+            <h3>Nothing from anywhere else</h3>
+            <p>
+              Every page, script, style, image and font comes from this site, and its Content Security Policy enforces
+              that. If you flip between light and dark, your browser remembers it in local storage. That never leaves
+              your browser.
+            </p>
+          </article>
+          <article class="card">
+            <h3>Hosting and downloads</h3>
+            <p>
+              Cloudflare Pages serves the site, so Cloudflare handles each request, including your IP and user agent (<a
+                href="https://www.cloudflare.com/privacypolicy/"
+                >Cloudflare’s privacy policy</a
+              >). No visitor analytics are on. Downloads come from GitHub.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <footer class="footnotes" id="changes" aria-labelledby="changes-title">
+        <h2 id="changes-title">Changes and contact</h2>
+        <p>
+          Last updated <time datetime="2026-10-23">23 October 2026</time>. Every earlier version is in
+          <a href="https://github.com/Archetypically/smolcast/commits/main/website/public/privacy.html"
+            >the project’s history</a
+          >, and since smolcast is open source, you can check all of this against
+          <a href="https://github.com/Archetypically/smolcast">its code</a>.
+        </p>
+        <p>
+          Questions? Open an issue on <a href="https://github.com/Archetypically/smolcast/issues">GitHub</a> or reach
+          Evan Lee through <a href="https://evanlee.engineer">evanlee.engineer</a>.
+        </p>
+      </footer>
+    </main>
+
+    <!-- partial:footer -->
+    <footer class="footer" id="about" tabindex="-1">
+      <div class="footer-inner">
+        <a class="brand" href="/" aria-label="smolcast home">
+          <img src="/favicon.svg" alt="" width="24" height="24" /><span>smolcast</span>
+        </a>
+        <p class="made">
+          Made with
+          <svg class="heart" aria-hidden="true"><use href="/icons.svg#heart" /></svg
+          ><span class="sr-only">love</span> by <a href="https://evanlee.engineer">Evan Lee</a>
+        </p>
+        <p class="credits">
+          In the spirit of <a href="https://tinycast.dev">Tinycast</a>,
+          <a href="https://www.raycast.com">Raycast</a> and <a href="https://www.alfredapp.com">Alfred</a>. Not
+          affiliated with any of them.
+        </p>
+        <nav class="footer-links" aria-label="Project">
+          <a href="https://github.com/Archetypically/smolcast">Source</a>
+          <a href="https://github.com/Archetypically/smolcast/releases">Releases</a>
+          <a href="https://github.com/Archetypically/smolcast/issues">Issues</a>
+          <a href="/compare/">Compare</a>
+          <a href="/privacy">Privacy</a>
+          <a href="https://github.com/Archetypically/smolcast/blob/main/LICENSE">MIT License</a>
+          <a href="/llms.txt">llms.txt</a>
+        </nav>
+      </div>
+    </footer>
+    <!-- /partial:footer -->
+  </body>
+</html>

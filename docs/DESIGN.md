@@ -266,16 +266,140 @@ palette is idle.
   tokens and `app::motion` helpers, stays under 200 ms, and has a reduced
   form with no movement.
 
+## Taste: made, not generated
+
+smolcast should feel made by someone who cares, never generated. These
+rules bind the app and the website. The website's floor follows
+[Hallmark](https://github.com/nutlope/hallmark), whose linter
+(`sloplint.mjs`) is how to audit a page (techContext, Website).
+
+**Delight comes from responsiveness, not decoration.** The joy is a palette
+that answers before you finish typing, a key cap that presses with your
+key, a pip that slides to the row you chose. Motion:
+
+- answers something the person did, or marks one moment once (the
+  underline drawing in, the heart beat). Nothing loops or pulses to ask
+  for attention.
+- is short: interactions under 200 ms, an entrance under 350 ms, ease-out,
+  no bounce, overshoot or spring.
+- moves only `transform` and `opacity` (and color or shadow for hover
+  tints), never
+  width, height, top, left or padding, and never `transition: all`.
+- never makes anyone wait: input acts on final positions, content is
+  readable with scripts off, and hidden-until-script states are scoped
+  under `.js`.
+- has a reduced-motion form with no movement.
+- is spent on one signature per screen. A page that has a reveal has one,
+  and documents have none.
+
+**Never ship these tells:**
+
+- An eyebrow label over a heading, or labels in tracked capitals. The
+  heading says it.
+- Middle-dot meta strings ("Windows 11 · x64 · 7 MB") or arrows glued to
+  link text ("Compare →"). Use pills, line breaks, or a verb as the label.
+- Decorative status dots, emoji as icons, a card inside a card, a
+  purple-to-blue gradient, a hand-drawn browser window.
+- Fade-up-on-every-scroll, parallax, typewriter headlines, counting
+  numbers, shimmer, tilt or magnetic hovers, confetti, cursor trails.
+- An invented number, quote, logo or testimonial. Comparisons cite a
+  source, a version and a date, bold only where smolcast comes out ahead,
+  and leave a row plain when the other side does not publish the fact.
+- Literal colors past the token block. Every color is a token
+  (`tokens.css` from `theme.rs`, or the web-only block in `styles.css`).
+
+**Copy is short and casual for a skimmer.** One idea per screen, a lead of
+one or two short sentences, typographic quotes (’ “ ”), and facts in pills,
+badges and tables rather than paragraphs. Fullness comes from scale and
+real product states (palette states, never stock art), not more words.
+
+**Craft floor on the web:** `overflow-x: clip` on `html` and `body`; grid
+tracks as `minmax(0, 1fr)`; an instant `:focus-visible` ring on everything
+interactive; nothing scrolls sideways at 360 px.
+
+## Progressive enhancement and discovery
+
+The website works, and says everything it has to say, before any script
+runs, because that is what search crawlers and AI fetchers read. JavaScript
+only adds behavior on top.
+
+- **HTML first.** Every page is complete, static HTML: the facts, tables
+  and links are in the markup. A script may replace a piece of it (the home
+  palette replaces its plain list of links) or decorate it (the "Runs on"
+  bolding), never supply content that is not already there.
+- **Visible without script.** Nothing is hidden at rest unless the hiding
+  is scoped under `.js`, the class the script sets. Controls that need a
+  script (the search pill) are hidden when it never runs.
+- **No guesses in the markup.** Anything that depends on the visitor (their
+  OS, their theme) is added on the client; the served page is the same for
+  everyone.
+- **Real links, linked from home.** Every page is reachable through plain
+  `<a href>` links with descriptive text, from home and from its neighbors;
+  the sync check fails when an indexable page is not linked from home, the
+  sitemap or `llms.txt`.
+- **Answer first.** A page's title, description and lead state its answer
+  in plain words a reader or a model can quote ("smolcast collects
+  nothing."); facts sit in tables, lists and pills, not buried in prose.
+- **Cite and date.** Claims about other products carry a source, the version
+  checked and a date, in footnotes and as `dateModified`; stale facts are
+  worse for trust than missing ones.
+- **Describe it for machines too.** Each page has a canonical URL, a meta
+  description, Open Graph tags and JSON-LD (`SoftwareApplication` on home;
+  `WebPage` or `CollectionPage` plus `BreadcrumbList` elsewhere), and
+  `llms.txt` summarizes every page in a line.
+- **Never optimize visibly.** No keyword stuffing, hidden text, doorway
+  pages or FAQ filler written for crawlers. A page earns its ranking by
+  being the clearest, most honest answer, and reads as written for people.
+
 ## Website
 
 The website (`website/`, decision 030) speaks the same language on the web:
 
 - **The palette is the hero and the navigation.** A recreation at the
-  medium size (640 wide, 38-point rows 4 apart) with the app's tokens in
-  `website/public/styles.css`; its rows jump to sections, and Esc dismisses
+  medium size (640 wide, 38-point rows 4 apart) with the app's colors in
+  the generated `website/public/tokens.css`; its rows jump to sections and
+  open the other pages, and Esc dismisses
   it the way the app is dismissed.
 - **Feature tiles are palette states**, not screenshots or icons: each shows
   the query and rows that feature produces.
+- **Other pages** (privacy, comparisons) share the home page's top bar,
+  footer, type and tokens, in a 1040-wide column. Each opens with a hero
+  (breadcrumb, short headline, a lead that answers the page's question in
+  casual words, an "Updated" pill), then puts facts in
+  components a skimmer can read at a glance: **cards** (smolcast's carries
+  the selection pip), **pills** (`.tag`) for short facts, **status badges**
+  (`.status`: "Built in" on a green tint with a check, "Pro", "Plugin" or
+  "Optional" on an amber tint, a plain gray "No"; the word carries the
+  meaning), big
+  **figures**, a feature **matrix** grouped into The basics, Features and
+  Under the hood, where only smolcast's wins are bold (a ringed badge),
+  and only when the other side publishes the fact; the other tool's
+  strengths are told in its card and its "Go with" list, which sits second,
+  after smolcast's. The one exception is the "Runs on" row: its cells name
+  their systems (`data-os`), and the script bolds the ones that run on the
+  visitor's computer, with "Runs on your computer" under them (Windows 11
+  versus 10 only where the browser reports it; otherwise any Windows). The
+  served HTML stays plain, so crawlers see no guess. Each
+  competitor card links out to the tool itself ("Get Raycast for
+  Windows", tagged `?ref=smolcast`). Then
+  "Coming from" mapping cards, a download card, links to other pages
+  drawn as palette rows, and **footnotes** with each source, its version
+  and the date checked. Comparisons say where the other tool is the
+  better pick.
+- **Backdrop**: the film's stipple of s. marks (`public/stipple.svg`, a
+  mask colored by `--stipple`) on a fixed layer behind every page, full in
+  the side margins and fading out as it nears the content column, so never
+  behind text and faint or absent on phones. It does not move on the site.
+- **Social cards**: every page has its own 1200 × 630 card (`public/og/`),
+  rendered from `media/og-page.html`, which reads the page itself: its
+  headline and lead on the left, its facts on the right (the matrix's
+  glanceable rows, or the privacy figures), on the stippled dark page.
+  Home keeps `og.png`, the palette converting 40 cm to inches. Re-render
+  after changing a page's headline, lead or table.
+- **Elsewhere**, Ctrl+K opens the palette over the page on a blurred scrim;
+  Esc or a click outside dismisses it. Before its script runs (and for
+  crawlers), the home palette is a list of every section and page as
+  plain links drawn like its rows.
 - **Type**: the system UI stack led by Segoe UI Variable, Cascadia Code for
   code; no web fonts. Headlines are tight (−0.035 em) and short.
 - **Accent**: as in the app. The red marks the caret, the selection pip,
@@ -286,8 +410,11 @@ The website (`website/`, decision 030) speaks the same language on the web:
   (`.smol`) that draws in once on the hero. Words stay in the text color:
   red text fails contrast on the light theme.
 - **Motion**: the selection glides, rows enter with a 12 ms stagger when a
-  view opens, key caps press with the visitor's keys, sections fade up once,
-  the heart beats lub-dub once. Every animation has a reduced-motion form.
+  view opens, key caps press with the visitor's keys (on every page), the
+  home page's sections fade up once (6 px, 320 ms; its one reveal), the
+  heart beats lub-dub once, cards and matrix rows tint under the pointer.
+  Document pages have no reveal: facts are there at once. Every animation
+  has a reduced-motion form. See Taste for what never ships.
 - **Touch**: the palette stays the hero on phones (six rows, no trailing
   types). The list scrolls natively with row snapping and hands the swipe
   to the page at its ends; key caps and key hints are hidden on coarse

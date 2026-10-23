@@ -554,9 +554,10 @@ const CARD = () => [...$("end").children];
 // The backdrop drifts up and to the right, one diagonal repeat of its tile
 // per phrase, from the film's first frame; returns the moment it started.
 function drift() {
-  $("backdrop").animate([{ backgroundPosition: "0 0" }, { backgroundPosition: "96px -96px" }], {
+  $("backdrop").animate([{ maskPosition: "0 0" }, { maskPosition: "96px -96px" }], {
     duration: PHRASE * 1000,
     iterations: Infinity,
+    pseudoElement: "::before",
   });
   return performance.now();
 }

@@ -1,25 +1,33 @@
-/* smolcast.site: the app's own tokens (docs/DESIGN.md, src/app/theme.rs),
-   carried over to the web. One accent, used sparingly; neutral surfaces;
-   hairlines that dissolve at their ends. */
+/* Hallmark · built: the project · redesign: polish · genre: modern-minimal · system: locked, docs/DESIGN.md · nav: sticky top bar, the wordmark, search, GitHub and Download · footer: the wordmark over the project links · hero: Stage, the working palette (/); Settled, a document head (/privacy, /compare/) */
+/* Hallmark · pre-emit critique: P4 H4 E4 S5 R4 V3 · weakest: V, the subpages share one document shape by design; each opens on its own fact table instead of a stock feature grid */
+/* Hallmark · waive 26b · no form controls and no aria-disabled on any page · nothing on the smolcast site can be disabled, so no disabled state is drawn */
+/* Hallmark · waive 38iii · the .smol underline appears once, in the hero headline · DESIGN.md names the red underline on smol as the hero signature, echoing the s. icon */
+/* Hallmark · dismissed 41 · .install-card uses var(--surface) with var(--text), and both flip together in dark mode, so its text always contrasts */
+/* Hallmark · dismissed F4 · the hero chips are quiet query chips, not filled buttons, and Bring it back only shows after the palette is dismissed */
+/* Hallmark · answered F1 · Search GitHub "rust egui" is the app's own row label, copied exactly from the palette */
+/* smolcast.site: the app's own tokens (docs/DESIGN.md), carried over to the
+   web. One accent, used sparingly; neutral surfaces; hairlines that dissolve
+   at their ends. The app's colors (--accent, --surface, --text, --weak,
+   --sel, --hover, --control, --divider, --warning) come from tokens.css,
+   generated from src/app/theme.rs; the tokens here are the web's own. */
 
 :root {
-  --accent: #ff6363;
-  --warning: #e6b43c;
   --page: #f0f0f2;
-  --surface: #fafafa;
-  --text: #1c1c1e;
   --muted: #55555a;
-  --weak: #6e6e73;
-  --sel: rgb(0 0 0 / 8%);
-  --hover: rgb(0 0 0 / 4%);
-  --control: rgb(0 0 0 / 5%);
-  --divider: rgb(0 0 0 / 8%);
   --rim: rgb(0 0 0 / 10%);
   --lip: rgb(0 0 0 / 18%);
   --cap-down: rgb(0 0 0 / 14%);
   --glow: rgb(255 255 255 / 70%);
   --shadow: 0 1px 2px rgb(0 0 0 / 6%), 0 12px 32px -8px rgb(0 0 0 / 16%), 0 40px 90px -30px rgb(0 0 0 / 22%);
   --tile-shadow: 0 1px 2px rgb(0 0 0 / 5%);
+  --good: #1f8a45;
+  --stipple: rgb(0 0 0 / 13%);
+  --on-color: #fff;
+  --mask-ink: #000;
+  --thumb-sky: #8fb7d9;
+  --thumb-sand: #d8c3a5;
+  --thumb-shade: rgb(0 0 0 / 25%);
+  --google: #4285f4;
   --hairline: linear-gradient(90deg, transparent, var(--divider) 18%, var(--divider) 82%, transparent);
 
   --font: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
@@ -41,14 +49,7 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --page: #101012;
-    --surface: #1c1c1e;
-    --text: #ededed;
     --muted: #a5a5aa;
-    --weak: #8e8e93;
-    --sel: rgb(255 255 255 / 10%);
-    --hover: rgb(255 255 255 / 5%);
-    --control: rgb(255 255 255 / 7%);
-    --divider: rgb(255 255 255 / 10%);
     --rim: rgb(255 255 255 / 10%);
     --lip: rgb(0 0 0 / 45%);
     --cap-down: rgb(255 255 255 / 18%);
@@ -56,20 +57,15 @@
     --shadow:
       0 1px 2px rgb(0 0 0 / 40%), 0 16px 40px -10px rgb(0 0 0 / 55%), 0 50px 110px -30px rgb(0 0 0 / 70%);
     --tile-shadow: none;
+    --good: #3fb95f;
+    --stipple: rgb(255 255 255 / 10%);
     color-scheme: dark;
   }
 }
 
 :root[data-theme="dark"] {
   --page: #101012;
-  --surface: #1c1c1e;
-  --text: #ededed;
   --muted: #a5a5aa;
-  --weak: #8e8e93;
-  --sel: rgb(255 255 255 / 10%);
-  --hover: rgb(255 255 255 / 5%);
-  --control: rgb(255 255 255 / 7%);
-  --divider: rgb(255 255 255 / 10%);
   --rim: rgb(255 255 255 / 10%);
   --lip: rgb(0 0 0 / 45%);
   --cap-down: rgb(255 255 255 / 18%);
@@ -77,6 +73,8 @@
   --shadow:
     0 1px 2px rgb(0 0 0 / 40%), 0 16px 40px -10px rgb(0 0 0 / 55%), 0 50px 110px -30px rgb(0 0 0 / 70%);
   --tile-shadow: none;
+  --good: #3fb95f;
+  --stipple: rgb(255 255 255 / 10%);
   color-scheme: dark;
 }
 
@@ -97,6 +95,7 @@
 }
 
 html {
+  overflow-x: clip;
   scroll-padding-top: 80px;
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
@@ -113,7 +112,7 @@ body {
 }
 
 ::selection {
-  background: rgb(255 99 99 / 35%);
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
 }
 
 a {
@@ -308,13 +307,22 @@ svg {
   color: var(--weak);
   font: 14px var(--font);
   cursor: pointer;
-  opacity: 0;
-  pointer-events: none;
-  transform: translateY(-4px);
   transition:
     opacity 180ms ease,
     transform 220ms var(--ease),
     background-color 120ms ease;
+}
+
+/* With the script, the pill waits until the hero palette scrolls away;
+   without it there is no palette to open. */
+html:not(.js) .summon-pill {
+  display: none;
+}
+
+.js .topbar:not(.scrolled, .paged) .summon-pill {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-4px);
 }
 
 .summon-pill svg {
@@ -330,12 +338,6 @@ svg {
   background: var(--sel);
 }
 
-.topbar.scrolled .summon-pill {
-  opacity: 1;
-  pointer-events: auto;
-  transform: none;
-}
-
 /* Hero */
 .hero {
   display: flex;
@@ -344,13 +346,6 @@ svg {
   padding: 40px var(--page-gutter) 24px;
   text-align: center;
   background: radial-gradient(60% 50% at 50% 62%, var(--glow), transparent 70%);
-}
-
-.eyebrow {
-  margin: 0 0 14px;
-  color: var(--weak);
-  font-size: 13px;
-  letter-spacing: 0.01em;
 }
 
 h1,
@@ -381,7 +376,7 @@ h1 {
 
 /* On the hero, the underline draws in once the palette has settled. */
 .hero .smol {
-  animation: underline 520ms 520ms var(--ease) both;
+  animation: underline 320ms 520ms var(--ease) both;
 }
 
 @keyframes underline {
@@ -432,15 +427,32 @@ h1 {
   }
 }
 
-.palette.away {
+.js .palette.away {
   opacity: 0;
   transform: scale(0.97);
   pointer-events: none;
 }
 
-.noscript {
-  padding: 24px;
+/* Before app.js runs (or without it), the palette is a list of plain links
+   drawn like its rows, scrolling within the palette's height. */
+.pal-static {
+  max-height: calc(var(--rows) * var(--stride) + 92px);
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.pal-static-head {
+  margin: 6px 8px 8px;
   color: var(--weak);
+  font-size: 12px;
+}
+
+.pal-static .rows {
+  margin: 0;
+}
+
+.pal-static .rows a {
+  font-size: 14px;
 }
 
 .pal-search {
@@ -571,8 +583,6 @@ h1 {
   pointer-events: none;
   transition:
     transform 150ms var(--ease),
-    height 150ms var(--ease),
-    width 150ms var(--ease),
     opacity 120ms ease;
 }
 
@@ -595,7 +605,7 @@ h1 {
 }
 
 .pal-sel.blink::before {
-  animation: pip 360ms var(--ease);
+  animation: pip 200ms var(--ease);
 }
 
 @keyframes pip {
@@ -684,7 +694,7 @@ h1 {
 .pal-card {
   position: relative;
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
   height: calc(2 * var(--stride) + var(--row) - 30px);
   margin-bottom: 4px;
@@ -752,7 +762,7 @@ h1 {
 /* Emoji grid view. */
 .pal-grid {
   display: grid;
-  grid-template-columns: repeat(var(--cols, 12), 1fr);
+  grid-template-columns: repeat(var(--cols, 12), minmax(0, 1fr));
   gap: 4px;
 }
 
@@ -810,7 +820,7 @@ h1 {
 }
 
 .pal-footer .act.done {
-  animation: done 1.2s var(--ease);
+  animation: done 180ms var(--ease);
 }
 
 .pal-footer .act.done svg {
@@ -825,10 +835,6 @@ h1 {
   from {
     opacity: 0;
     transform: translateY(2px);
-  }
-  15% {
-    opacity: 1;
-    transform: none;
   }
 }
 
@@ -866,6 +872,7 @@ h1 {
 }
 
 .summon-again {
+  white-space: nowrap;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -945,38 +952,32 @@ h1 {
   max-width: 640px;
 }
 
-.label {
+/* Arriving from the palette draws the selection pip in the margin beside
+   the section's heading or a tile's title. */
+.section-head h2,
+.tile h3 {
   position: relative;
-  display: inline-block;
-  margin: 0 0 12px;
-  padding-left: 0;
-  color: var(--weak);
-  font-size: 13px;
-  transition: padding-left 260ms var(--ease);
 }
 
-/* Arriving from the palette draws the selection pip beside the label or a tile title. */
-.label::before,
+.section-head h2::before,
 .tile h3::before {
   content: "";
   position: absolute;
-  left: 0;
-  top: 50%;
+  left: -12px;
+  top: 0.32em;
   width: 3px;
-  height: 14px;
-  margin-top: -7px;
+  height: 0.75em;
   border-radius: 2px;
   background: var(--accent);
   transform: scaleY(0);
   transition: transform 260ms var(--ease);
 }
 
-.arrived .label,
-.tile.arrived h3 {
-  padding-left: 11px;
+.tile h3::before {
+  left: -10px;
 }
 
-.arrived .label::before,
+.arrived .section-head h2::before,
 .tile.arrived h3::before {
   transform: scaleY(1);
 }
@@ -996,7 +997,7 @@ h2 {
 /* Feature tiles, each showing the palette state it describes. */
 .tiles {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
   margin-top: 40px;
 }
@@ -1018,7 +1019,6 @@ h2 {
   font-size: 17px;
   font-weight: 650;
   letter-spacing: -0.01em;
-  transition: padding-left 260ms var(--ease);
 }
 
 .tile > p {
@@ -1207,7 +1207,7 @@ h2 {
   height: 20px;
   border-radius: 5px;
   background: linear-gradient(160deg, hsl(var(--hue) 45% 46%), hsl(var(--hue) 50% 32%));
-  color: #fff;
+  color: var(--on-color);
   font: 650 9px/1 var(--mono);
 }
 
@@ -1217,7 +1217,8 @@ h2 {
   margin: 0 0.5px;
   border-radius: 3px;
   background:
-    linear-gradient(160deg, transparent 55%, rgb(0 0 0 / 25%) 55%), linear-gradient(180deg, #8fb7d9, #d8c3a5);
+    linear-gradient(160deg, transparent 55%, var(--thumb-shade) 55%),
+    linear-gradient(180deg, var(--thumb-sky), var(--thumb-sand));
 }
 
 .badge {
@@ -1228,14 +1229,14 @@ h2 {
   margin: 0 1.5px;
   border-radius: 50%;
   background: var(--badge);
-  color: #fff;
+  color: var(--on-color);
   font: 600 10px/1 var(--font);
 }
 
 .mini-card {
   position: relative;
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
   height: 104px;
   border-radius: 7px;
@@ -1265,7 +1266,7 @@ h2 {
 
 .mini-grid {
   display: grid;
-  grid-template-columns: repeat(8, 1fr);
+  grid-template-columns: repeat(8, minmax(0, 1fr));
   gap: 3px;
   font: 22px/1 var(--emoji);
 }
@@ -1293,7 +1294,7 @@ h2 {
 
 .also {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 18px 32px;
   margin: 16px 0 0;
   padding: 0;
@@ -1330,7 +1331,7 @@ h2 {
 /* Keyboard */
 .keys {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0 40px;
   margin: 36px 0 0;
 }
@@ -1362,7 +1363,7 @@ h2 {
 /* Figures */
 .figures {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 24px;
   margin: 40px 0 0;
   padding: 0;
@@ -1389,7 +1390,7 @@ h2 {
 /* Split sections: heading on the left, body on the right. */
 .split {
   display: grid;
-  grid-template-columns: 5fr 7fr;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
   gap: 24px 56px;
   align-items: start;
 }
@@ -1485,7 +1486,7 @@ h2 {
 /* Install */
 .install {
   display: grid;
-  grid-template-columns: 5fr 7fr;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
   gap: 24px 56px;
   margin-top: 36px;
 }
@@ -1579,7 +1580,7 @@ h2 {
   margin: 0 auto;
   padding-top: 32px;
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: auto minmax(0, 1fr);
   gap: 10px 32px;
   color: var(--weak);
   font-size: 14px;
@@ -1648,6 +1649,7 @@ h2 {
 /* 404: the palette with nothing to show but the way home. */
 .lost {
   min-height: 100vh;
+  min-height: 100dvh;
   justify-content: center;
 }
 
@@ -1677,13 +1679,696 @@ h2 {
   background: var(--accent);
 }
 
+/* Pages other than home: the palette opens over the page, the way smolcast
+   opens over your work. */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 14vh var(--page-gutter) 0;
+  background: color-mix(in srgb, var(--page) 55%, transparent);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.overlay[hidden] {
+  display: none;
+}
+
+.overlay .stage {
+  margin-top: 0;
+}
+
+/* Documents: the privacy policy and the comparisons. A hero that answers
+   the page's question, then cards, pills and status badges for the facts,
+   so a skimmer gets it at a glance; prose stays at a readable measure. */
+.doc {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 40px var(--page-gutter) 0;
+}
+
+.doc-hero {
+  max-width: 720px;
+  padding-bottom: 8px;
+}
+
+.crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 32px;
+  padding: 0;
+  list-style: none;
+  color: var(--weak);
+  font-size: 13px;
+}
+
+.crumbs li + li::before {
+  content: "/";
+  margin-right: 6px;
+  opacity: 0.6;
+}
+
+.crumbs a {
+  color: inherit;
+}
+
+.doc h1 {
+  max-width: 16em;
+  font-size: clamp(34px, 5.4vw, 54px);
+  line-height: 1.04;
+}
+
+.doc p.lead {
+  margin: 20px 0 0;
+  max-width: 36em;
+}
+
+.doc p.stamp {
+  margin: 22px 0 0;
+  color: var(--weak);
+  font-size: 13px;
+}
+
+.doc-section {
+  margin-top: 88px;
+}
+
+.doc h2 {
+  margin: 0 0 8px;
+  font-size: clamp(25px, 3vw, 32px);
+  line-height: 1.15;
+}
+
+.doc h2 + p {
+  margin-top: 4px;
+}
+
+.doc h3 {
+  margin: 0 0 6px;
+  font-size: 17px;
+  font-weight: 650;
+}
+
+.doc p,
+.doc li,
+.doc dd {
+  color: var(--muted);
+  text-wrap: pretty;
+}
+
+.doc p {
+  max-width: 680px;
+  margin: 0 0 14px;
+}
+
+.doc strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* Pills: short facts (price, license, platform). */
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tag,
+.status {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 99px;
+  background: var(--control);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.tag {
+  gap: 6px;
+  color: var(--muted);
+}
+
+.tag svg {
+  width: 13px;
+  height: 13px;
+}
+
+/* Status badges: the word carries the meaning; "Built in" adds a check,
+   a partial answer is tinted amber, "No" stays plain. */
+.status {
+  gap: 5px;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.status svg {
+  width: 13px;
+  height: 13px;
+  margin-left: -2px;
+  color: var(--good);
+}
+
+.status.yes {
+  background: color-mix(in srgb, var(--good) 14%, transparent);
+}
+
+.status.part {
+  background: color-mix(in srgb, var(--warning) 18%, transparent);
+}
+
+.status.no {
+  padding: 0;
+  background: none;
+  color: var(--weak);
+  font-weight: 500;
+}
+
+/* Cards */
+.card {
+  transition: box-shadow 200ms ease;
+  position: relative;
+  padding: 22px 22px 20px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  box-shadow:
+    var(--tile-shadow),
+    0 0 0 1px var(--divider);
+  backdrop-filter: blur(2px);
+}
+
+.card:hover {
+  box-shadow:
+    var(--tile-shadow),
+    0 0 0 1px var(--rim),
+    0 8px 24px -16px var(--thumb-shade);
+}
+
+/* smolcast's own card carries the selection pip. */
+.card.us::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 26px;
+  width: 3px;
+  height: 18px;
+  border-radius: 0 2px 2px 0;
+  background: var(--accent);
+}
+
+.card h2,
+.card h3 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 4px;
+  font-size: 20px;
+  letter-spacing: -0.015em;
+}
+
+.card h2 img {
+  border-radius: 6px;
+}
+
+.card .by {
+  margin: 0 0 14px;
+  color: var(--weak);
+  font-size: 13px;
+}
+
+.card .best {
+  margin: 16px 0 0;
+  color: var(--text);
+  font-size: 15px;
+}
+
+.card .best b {
+  color: var(--weak);
+  font-weight: 500;
+}
+
+.doc .card h2 {
+  line-height: 1.2;
+}
+
+/* A card's links: to our comparison, and out to the tool itself. */
+.doc .card .links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  margin: 16px 0 0;
+  font-size: 14px;
+}
+
+.card .links a {
+  color: var(--text);
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin: 40px 0 0;
+}
+
+.cards.three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+/* Big numbers, as on the home page. */
+.facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin: 40px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.facts li {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.facts .figure {
+  color: var(--text);
+  font: 650 44px/1 var(--font-display);
+  letter-spacing: -0.03em;
+}
+
+.facts span:last-child {
+  color: var(--muted);
+  font-size: 15px;
+}
+
+/* The matrix: rows of features, a status badge per tool and a short note. */
+.table-wrap {
+  margin: 28px 0 0;
+  overflow-x: auto;
+}
+
+.compare {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  table-layout: fixed;
+}
+
+.compare th,
+.compare td {
+  padding: 14px 14px 14px 0;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--divider);
+}
+
+.compare thead th {
+  padding-bottom: 12px;
+  color: var(--text);
+  font: 650 15px/1.3 var(--font-display);
+}
+
+.compare thead th.us {
+  position: relative;
+  padding-left: 11px;
+}
+
+.compare thead th.us::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 3px;
+  width: 3px;
+  height: 14px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
+.compare tbody th {
+  width: 22%;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.compare tbody th small {
+  display: block;
+  margin-top: 2px;
+  color: var(--weak);
+  font-weight: 400;
+  font-size: 13px;
+}
+
+.compare td {
+  color: var(--muted);
+}
+
+/* A row tints under the pointer, as a palette row does. */
+.compare tbody tr:not(.group) {
+  transition: background-color 120ms ease;
+}
+
+.compare tbody tr:not(.group):hover {
+  background: var(--hover);
+}
+
+.compare tbody tr:not(.group) > :first-child {
+  padding-left: 8px;
+}
+
+.compare td .note {
+  display: block;
+  margin-top: 6px;
+  color: var(--weak);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+/* Where smolcast comes out ahead on a row, its cell is bold; a badge gets a ring. */
+.compare td.win strong {
+  color: var(--text);
+  font-weight: 650;
+}
+
+.compare td.win .note {
+  color: var(--muted);
+}
+
+/* The script bolds the systems that fit the visitor's computer. */
+.compare td.yours {
+  color: var(--text);
+  font-weight: 650;
+}
+
+.compare td.yours .note {
+  font-weight: 400;
+}
+
+.compare td.win .status {
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--text) 55%, transparent);
+}
+
+.compare tr.group th {
+  padding: 32px 0 8px 8px;
+  color: var(--weak);
+  font: 500 13px/1 var(--font);
+  border-bottom: 0;
+}
+
+.compare.wide {
+  min-width: 720px;
+}
+
+.choose {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+  margin: 28px 0 0;
+}
+
+.checks {
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.checks li {
+  position: relative;
+  margin: 0 0 8px;
+  padding-left: 24px;
+}
+
+.checks li::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 0.45em;
+  width: 9px;
+  height: 5px;
+  border-left: 1.75px solid var(--good);
+  border-bottom: 1.75px solid var(--good);
+  transform: rotate(-45deg);
+}
+
+.doc p.related {
+  margin: 20px 0 0;
+  font-size: 15px;
+}
+
+/* "Coming from": their name → smolcast's equivalent. */
+.maps {
+  display: grid;
+  gap: 10px;
+  margin: 28px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.maps li {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+  gap: 4px 20px;
+  align-items: baseline;
+  padding: 16px 18px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  box-shadow: 0 0 0 1px var(--divider);
+}
+
+.maps .from {
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* Links to other pages, drawn as palette rows. */
+.rows {
+  margin: 20px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rows a {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: var(--row);
+  margin-bottom: 4px;
+  padding: 0 8px;
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 15px;
+  text-decoration: none;
+}
+
+.rows a:hover,
+.rows a:focus-visible {
+  background: var(--sel);
+}
+
+.rows a:hover::before,
+.rows a:focus-visible::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 50%;
+  width: 3px;
+  height: 14px;
+  margin-top: -7px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
+.rows svg {
+  width: 17px;
+  height: 17px;
+  margin: 0 3px;
+  color: var(--weak);
+}
+
+.rows .name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.rows .trail {
+  color: var(--weak);
+  font-size: 13px;
+}
+
+/* Download, as a card. */
+.cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px 24px;
+  margin: 88px 0 0;
+  padding: 28px;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--surface) 80%, transparent);
+  box-shadow:
+    var(--tile-shadow),
+    0 0 0 1px var(--divider);
+}
+
+.cta img {
+  border-radius: 12px;
+}
+
+.cta h2 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.cta p {
+  margin: 4px 0 0;
+}
+
+.cta .button {
+  margin-left: auto;
+}
+
+/* Footnotes: sources, versions and the date checked. */
+.footnotes {
+  margin: 88px 0 0;
+  padding-top: 24px;
+  background: var(--hairline) top / 100% 1px no-repeat;
+}
+
+.doc .footnotes h2 {
+  color: var(--weak);
+  font: 600 13px/1.4 var(--font);
+  letter-spacing: 0;
+}
+
+.footnotes ol {
+  margin: 0 0 10px;
+  padding-left: 1.4em;
+}
+
+.doc .footnotes li,
+.doc .footnotes p {
+  margin: 0 0 4px;
+  color: var(--weak);
+  font-size: 13px;
+}
+
+/* Files the app keeps, as rows with their path. */
+.files {
+  margin: 20px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.files li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 4px 24px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--divider);
+}
+
+.files code {
+  justify-self: start;
+  font-size: 13px;
+}
+
+.doc .card ul:not(.tags, .checks) {
+  margin: 10px 0 0;
+  padding-left: 1.1em;
+}
+
+.stamp .tag {
+  margin-right: 8px;
+}
+
+.doc .card li {
+  margin-bottom: 8px;
+}
+
+@media (max-width: 860px) {
+  .cards.three {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .cards,
+  .cards.three,
+  .choose,
+  .facts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .maps li,
+  .files li {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .rows .trail {
+    display: none;
+  }
+
+  .cta .button {
+    margin-left: 0;
+  }
+
+  .doc-section {
+    margin-top: 64px;
+  }
+}
+
+/* The page's backdrop: the film's stipple of s. marks, full in the side
+   margins and fading out as it reaches the content (so faint or absent on
+   narrow screens). Still, so it costs nothing once painted. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: var(--stipple);
+  -webkit-mask:
+    url("/stipple.svg") 0 0 / 192px 192px,
+    linear-gradient(
+      90deg,
+      var(--mask-ink) calc(50% - 640px),
+      transparent calc(50% - 440px),
+      transparent calc(50% + 440px),
+      var(--mask-ink) calc(50% + 640px)
+    );
+  -webkit-mask-composite: source-in;
+  mask:
+    url("/stipple.svg") 0 0 / 192px 192px,
+    linear-gradient(
+      90deg,
+      var(--mask-ink) calc(50% - 640px),
+      transparent calc(50% - 440px),
+      transparent calc(50% + 440px),
+      var(--mask-ink) calc(50% + 640px)
+    );
+  mask-composite: intersect;
+}
+
 /* Reveal on scroll, once. */
 .js .reveal {
   opacity: 0;
-  transform: translateY(10px);
+  transform: translateY(6px);
   transition:
-    opacity 500ms ease,
-    transform 600ms var(--ease);
+    opacity 320ms ease,
+    transform 320ms var(--ease);
 }
 
 .js .reveal.in {
@@ -1696,7 +2381,7 @@ h2 {
   .keys,
   .split,
   .install {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .note {
@@ -1704,11 +2389,11 @@ h2 {
   }
 
   .also {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .figures {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .prose p:first-child {
@@ -1755,7 +2440,7 @@ h2 {
   }
 
   .also {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .keys dt {
@@ -1763,7 +2448,7 @@ h2 {
   }
 
   .footer-inner {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .made {

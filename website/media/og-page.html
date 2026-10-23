@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <title>smolcast page card</title>
+    <link rel="stylesheet" href="/tokens.css" />
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/_media/media.css" />
+    <script src="/_media/og-page.js" defer></script>
+  </head>
+  <!-- A page's social card, rendered to public/og/<page>.png at 1200 × 630 by
+       scripts/render.mjs. ?page=compare/raycast picks the page; the headline,
+       lead and facts are read from that page itself. -->
+  <body class="social page-card">
+    <div class="card-copy">
+      <p class="card-brand"><img src="/favicon.svg" alt="" width="44" height="44" />smolcast</p>
+      <h1 id="title">The page’s headline</h1>
+      <p class="card-lead" id="lead"></p>
+      <p class="card-url" id="url"></p>
+    </div>
+    <div class="card-facts" id="facts"></div>
+  </body>
+</html>
