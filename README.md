@@ -56,6 +56,7 @@ Open **smolcast settings** from the palette, or edit `%APPDATA%\smolcast\config.
 | `clipboard_capture` | `true` | Record clipboard history |
 | `clipboard_source` | `auto` | `auto` (Windows history when it is on), `windows`, or `smolcast` |
 | `clipboard_persist` | `true` | Keep smolcast's history across restarts, encrypted |
+| `clipboard_max_age_days` | `0` | Forget items older than this many days (`0` = keep until the limits push them out) |
 | `clipboard_max_entries` | `100` | History length |
 | `clipboard_max_item_bytes` / `clipboard_max_total_bytes` | 8 MiB / 64 MiB | Size limits |
 

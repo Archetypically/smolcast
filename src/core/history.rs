@@ -178,6 +178,26 @@ impl History {
         self.entries.iter().position(|e| e.id == id)
     }
 
+    /// Remove entries captured before `cutoff_ms`; returns their ids.
+    pub fn expire(&mut self, cutoff_ms: i64) -> Vec<u64> {
+        // Runs on every capture and most expire nothing: leave the list be.
+        if !self.entries.iter().any(|e| e.captured_at_ms < cutoff_ms) {
+            return Vec::new();
+        }
+        let mut expired = Vec::new();
+        let mut kept = VecDeque::with_capacity(self.entries.len());
+        for entry in std::mem::take(&mut self.entries) {
+            if entry.captured_at_ms < cutoff_ms {
+                self.forget(&entry);
+                expired.push(entry.id);
+            } else {
+                kept.push_back(entry);
+            }
+        }
+        self.entries = kept;
+        expired
+    }
+
     fn enforce_limits(&mut self) -> Vec<u64> {
         let mut evicted = Vec::new();
         while self.entries.len() > self.limits.max_entries
