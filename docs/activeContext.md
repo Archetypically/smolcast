@@ -67,8 +67,10 @@ at 150%.
 
 Decision 030: `website/`, a static site for Cloudflare Pages (`task
 web:*`), whose hero is a working recreation of the palette. Since
-2026-10-23 (branch `website-pages`, decision 033) it also has `/privacy`
-and `/compare/` (hub plus Raycast, PowerToys Command Palette/Run, Flow
+2026-10-23 (branch `website-pages`, decision 033) it also has `/privacy`,
+`/code-signing` (SignPath's required policy: roles, attribution, privacy
+link; its "being set up" badge comes off once releases are signed) and
+`/compare/` (hub plus Raycast, PowerToys Command Palette/Run, Flow
 Launcher, Tinycast, Fluent Search, Listary, Wox, Alfred, Keypirinha, Ueli;
 `task web:compare`). Chrome is stamped from `partials/`, colors come from
 `theme.rs` (`task web:sync`; CI checks both). Comparison facts checked
@@ -168,14 +170,18 @@ every frame (cost only).
    `main`. Also add release notes: license notices, checksum, first-run
    behavior, and the clean-account check (§12.7 gate). Updates only work
    once the repo is public and a `v*` tag has published a release.
-3. **Sign builds** (decision 019): Authenticode (Azure Artifact Signing if
-   the user qualifies as a US/Canada individual, else SignPath Foundation
-   once public; either also covers winget and a Store exe installer), then
-   `WinVerifyTrust` on the signer name before the update swap (or an ECDSA
-   P-256 key checked with BCrypt). Until then the checksum only catches
-   corruption. Done (2026-10-23): releases only on `v<semver>` tags, and
-   build provenance attestations, which start when the repo goes public
-   (plan §13); then mention `gh attestation verify` in the README.
+3. **Sign builds** (decisions 019, 034): Authenticode through SignPath
+   Foundation (user's choice, 2026-10-23; free for OSS, also covers winget
+   and a Store exe installer). In order: the repository public; the site
+   deployed with its `/code-signing` policy page (written 2026-10-23;
+   SignPath also wants it linked from each release's notes); an application
+   at signpath.org; SignPath's GitHub action in `release.yml` before the
+   checksum step. The updater's `WinVerifyTrust` check pins the subject and
+   smolcast's own version resource (plan §13, decision 034).
+   Until then the checksum only catches corruption. Done (2026-10-23):
+   releases only on `v<semver>` tags, and build provenance attestations,
+   which start when the repo goes public (plan §13); then mention
+   `gh attestation verify` in the README.
 4. Decide the deferred review items above. `old-review-fixes` (on main) moved
    every view onto `RequestCache` and `ListCursor` (decision 024). Windows
    check: icons, file icons, emoji and thumbnails stay sharp across a
@@ -183,6 +189,20 @@ every frame (cost only).
 
 ## Open questions and parked ideas
 
+- **Backlog from the user (2026-10-23)**, not designed yet:
+  - *Crash logs*: a panic hook writing a local log (the release profile
+    uses `panic = "abort"`; the hook still runs before the abort) to
+    `%LOCALAPPDATA%\smolcast\`, kept small and rotated. Nothing is sent.
+  - *Report a Bug* palette command: opens a prefilled GitHub issue (version,
+    Windows build, the last crash log only if the user chooses) in the
+    browser. User-initiated only; the privacy page promises nothing leaves
+    the device on its own.
+  - *Per-entry hiding*: "Hide" on any result (app, command, quicklink),
+    persisted like favorites (decision 011), with a way to list and unhide.
+  - *About links*: "About smolcast" exists (`app/about_view.rs`) but links
+    nowhere; add the website and the repository.
+  - *Donations via Polar (polar.sh)*: a "Support smolcast" link (About, the
+    website, maybe README); the app only opens a URL, no payment code.
 - **Emoji tile vs Hallmark 30a** (floor, unwaivable): the home emoji tile
   shows real emoji as the picker's output; Hallmark reads them as emoji
   icons. User's call: keep, or draw them as Fluent emoji images.

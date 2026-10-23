@@ -27,7 +27,7 @@ smolcast is a Windows take on [Tinycast](https://github.com/abue-ammar/tinycast)
 
 Download `smolcast-<version>-x86_64.exe` from the latest [release](https://github.com/Archetypically/smolcast/releases/latest), or build it from source (below). Put it in a folder you can write to, such as `%LOCALAPPDATA%\Programs\smolcast`, rename it `smolcast.exe` if you like, and run it. Turn on **Start smolcast when you sign in** in its settings to keep it around.
 
-smolcast runs as a normal user and needs no installer, admin rights, or runtime. Releases are not code-signed yet, so Windows SmartScreen may warn about the first download; updates installed from inside smolcast come only from this repository's GitHub releases and are checked against the release's SHA-256 checksum, which catches a corrupted download but is not a signature.
+smolcast runs as a normal user and needs no installer, admin rights, or runtime. Releases are not code-signed yet, so Windows SmartScreen may warn about the first download; updates installed from inside smolcast come only from this repository's GitHub releases and are checked against the release's SHA-256 checksum, which catches a corrupted download but is not a signature. The [code signing policy](https://smolcast.evanlee.engineer/code-signing) says how releases will be signed and how to check one.
 
 ## Using it
 

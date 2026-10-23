@@ -35,6 +35,7 @@ Settings are in the palette ("smolcast settings") or in `%APPDATA%\smolcast\conf
 Data stays on the computer. The only request smolcast makes on its own is a daily check of its GitHub releases (turn off with `check_for_updates = false`), which sends nothing beyond smolcast's version in the user agent. There is no account, telemetry, crash reporting or log file. The website sets no cookies, runs no analytics and loads nothing from other sites.
 
 - [Privacy policy](https://smolcast.evanlee.engineer/privacy): the files smolcast keeps and where, the update check, clipboard encryption and exclusions, and what the website records.
+- [Code signing policy](https://smolcast.evanlee.engineer/code-signing): once signing is on, releases are built from a tagged commit on GitHub and signed through SignPath Foundation after a maintainer approves each one (being set up; releases so far are unsigned); who holds each role, and how to check a download's signature, checksum and build attestation.
 
 ## Comparisons
 
