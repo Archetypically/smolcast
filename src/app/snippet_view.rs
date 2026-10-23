@@ -484,10 +484,15 @@ impl SnippetView {
             self.results = snippet::search(query, &self.snippets);
             self.results_for = Some(query.to_owned());
         }
-        if let Some(id) = self.select_id.take()
-            && let Some(row) = self.results.iter().position(|&i| self.snippets[i].id == id)
-        {
+        // Kept until the list shows it: the frame after a save may still
+        // filter with the old query, which the saved snippet can fail.
+        if let Some(row) = self.select_id.as_ref().and_then(|id| {
+            self.results
+                .iter()
+                .position(|&i| &self.snippets[i].id == id)
+        }) {
             self.cursor.selected = row;
+            self.select_id = None;
         }
         self.cursor.clamp_selected(self.results.len());
         list_cursor::keep_visible(self.cursor.selected, &mut self.cursor.first_row, self.rows);
