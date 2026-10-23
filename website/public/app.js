@@ -1,11 +1,15 @@
 // The site's palette: a working recreation of smolcast's root view
-// (docs/DESIGN.md). Rows are the page's sections; the calculator, the emoji
-// picker, a quicklink and Toggle Dark Mode work as they do in the app.
+// (docs/DESIGN.md). Rows are the home page's sections and the site's other
+// pages; the calculator, the emoji picker, a quicklink and Toggle Dark Mode
+// work as they do in the app. On the home page it is the hero; elsewhere
+// Ctrl+K opens it over the page.
 "use strict";
 
 const REPO = "https://github.com/Archetypically/smolcast";
 const ICONS = "/icons.svg";
 const KEEP_STATE_MS = 30_000;
+// This page's path as the rows name it: "/privacy", "/compare/".
+const HERE = location.pathname.replace(/index\.html$/, "").replace(/\.html$/, "");
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
 
 document.documentElement.classList.add("js");
@@ -81,6 +85,13 @@ const ROWS = [
     words: "size cpu memory native rust electron",
   },
   { name: "Privacy", type: "Section", icon: "shield", jump: "#privacy", words: "data telemetry network" },
+  {
+    name: "Privacy Policy",
+    type: "Page",
+    icon: "shield",
+    page: "/privacy",
+    words: "cookies analytics logs contact",
+  },
   { name: "Configuration", type: "Section", icon: "gear", jump: "#config", words: "settings toml config" },
   {
     name: "Build from Source",
@@ -88,6 +99,41 @@ const ROWS = [
     icon: "code",
     jump: "#install-source",
     words: "rust cargo task compile",
+  },
+  {
+    name: "Compare Windows Launchers",
+    type: "Page",
+    icon: "grid",
+    page: "/compare/",
+    words: "alternatives versus vs",
+  },
+  {
+    name: "smolcast vs Raycast",
+    type: "Page",
+    icon: "doc",
+    page: "/compare/raycast",
+    words: "raycast for windows alternative",
+  },
+  {
+    name: "smolcast vs PowerToys Command Palette",
+    type: "Page",
+    icon: "doc",
+    page: "/compare/powertoys-command-palette",
+    words: "cmdpal powertoys run microsoft",
+  },
+  {
+    name: "smolcast vs Flow Launcher",
+    type: "Page",
+    icon: "doc",
+    page: "/compare/flow-launcher",
+    words: "wox alternative",
+  },
+  {
+    name: "smolcast vs Tinycast",
+    type: "Page",
+    icon: "doc",
+    page: "/compare/tinycast",
+    words: "mac macos for windows",
   },
   { name: "Toggle Dark Mode", type: "System", icon: "moon", theme: true, words: "light theme appearance" },
   { name: "View Source on GitHub", type: "Link", icon: "external", href: REPO, words: "code repository" },
@@ -379,9 +425,10 @@ function highlight(name, hits) {
 }
 
 class Palette {
-  constructor(root, { onJump, onTheme, onDismiss } = {}) {
+  constructor(root, { onJump, onPage, onTheme, onDismiss } = {}) {
     this.root = root;
     this.onJump = onJump;
+    this.onPage = onPage;
     this.onTheme = onTheme;
     this.onDismiss = onDismiss;
     this.view = "root";
@@ -405,7 +452,7 @@ class Palette {
       "aria-expanded": "true",
       "aria-controls": "pal-list",
       "aria-autocomplete": "list",
-      "aria-label": "Search this page",
+      "aria-label": "Search this site",
       autocomplete: "off",
       autocapitalize: "off",
       spellcheck: "false",
@@ -500,7 +547,8 @@ class Palette {
       });
     }
 
-    const ranked = ROWS.map((row) => ({ row, m: match(text, row) }))
+    const ranked = ROWS.filter((row) => row.page !== HERE)
+      .map((row) => ({ row, m: match(text, row) }))
       .filter((r) => r.m)
       .sort((a, b) => (text ? b.m.score - a.m.score : 0));
     for (const { row, m } of ranked) items.push({ kind: "row", ...row, hits: m.hits });
@@ -739,6 +787,7 @@ class Palette {
     if (it.quicklink || it.href) return it.type === "Web Search" ? "Search" : "Open in Browser";
     if (it.theme) return "Toggle";
     if (it.view) return "Open Command";
+    if (it.page) return "Open Page";
     return "Jump to Section";
   }
 
@@ -937,6 +986,7 @@ class Palette {
     if (it.href) return window.open(it.href, "_blank", "noopener");
     if (it.theme) return this.onTheme?.();
     if (it.view) return this.open(it.view);
+    if (it.page) return this.onPage?.(it.page);
     if (it.jump) return this.onJump?.(it.jump);
   }
 }
@@ -1001,27 +1051,17 @@ function arrive(selector) {
   ];
 }
 
-function init() {
-  try {
-    const saved = localStorage.getItem("theme");
-    if (saved === "dark" || saved === "light") document.documentElement.dataset.theme = saved;
-  } catch {
-    /* storage may be unavailable */
-  }
-
-  const root = document.getElementById("palette");
-  if (!root) return;
+// The home page: the palette is the hero, and dismissing it leaves a note
+// with a way back.
+function initHero(root) {
   const stage = document.getElementById("stage");
   const dismissed = document.getElementById("dismissed");
   let dismissedAt = 0;
 
   const palette = new Palette(root, {
     onJump: arrive,
-    onTheme: () => {
-      const next = currentTheme() === "dark" ? "light" : "dark";
-      setTheme(next);
-      palette.flash(next === "dark" ? "Dark Mode On" : "Dark Mode Off");
-    },
+    onPage: (path) => location.assign(path),
+    onTheme: () => toggleTheme(palette),
     onDismiss: () => {
       root.classList.add("away");
       palette.input.blur();
@@ -1059,8 +1099,6 @@ function init() {
     palette.input.select();
   };
 
-  for (const b of document.querySelectorAll("[data-summon]")) b.addEventListener("click", () => summon());
-
   // Settle in on load, then take focus only if nothing else has it.
   root.classList.add("settle");
   if (!location.hash && finePointer) palette.input.focus({ preventScroll: true });
@@ -1096,8 +1134,112 @@ function init() {
   root.addEventListener("pointerdown", () => typing?.abort());
   palette.input.addEventListener("keydown", (e) => e.isTrusted && typing?.abort());
 
-  // Global keys: Ctrl+K, Ctrl+Alt+Space and / summon; typing on the page
-  // goes to the palette while it is on screen; key caps follow your keys.
+  // Top bar hairline and search pill once the palette has scrolled away.
+  const topbar = document.querySelector(".topbar");
+  if (topbar) {
+    new IntersectionObserver(([entry]) => topbar.classList.toggle("scrolled", !entry.isIntersecting), {
+      rootMargin: "-60px 0px 0px 0px",
+    }).observe(stage);
+  }
+
+  // Typing on the page goes to the palette while it is on screen.
+  const typeAhead = (e) => {
+    const onScreen = stage.getBoundingClientRect().bottom > 80;
+    if (onScreen && !root.classList.contains("away") && e.key.length === 1)
+      palette.input.focus({ preventScroll: true });
+    if (onScreen && root.classList.contains("away") && e.key === "Enter") summon();
+  };
+  return { summon, typeAhead };
+}
+
+// Every other page: the palette opens over the page, as smolcast opens over
+// your work, and Esc or a click outside puts it away.
+function initOverlay() {
+  const root = el("div", { class: "palette", id: "palette" });
+  const dialog = el(
+    "div",
+    { class: "stage", role: "dialog", "aria-modal": "true", "aria-label": "smolcast" },
+    root,
+  );
+  const scrim = el("div", { class: "overlay", hidden: "" }, dialog);
+  document.body.append(scrim);
+  let palette = null;
+  let returnTo = null;
+  let dismissedAt = 0;
+
+  const dismiss = () => {
+    if (scrim.hidden) return;
+    scrim.hidden = true;
+    dismissedAt = Date.now();
+    returnTo?.focus?.({ preventScroll: true });
+  };
+  const summon = () => {
+    if (!scrim.hidden) return palette.input.select();
+    palette ??= new Palette(root, {
+      onJump: (hash) => location.assign(`/${hash}`),
+      onPage: (path) => location.assign(path),
+      onTheme: () => toggleTheme(palette),
+      onDismiss: dismiss,
+    });
+    if (Date.now() - dismissedAt > KEEP_STATE_MS) {
+      palette.view = "root";
+      palette.setQuery("");
+    }
+    returnTo = document.activeElement;
+    scrim.hidden = false;
+    palette.render();
+    root.classList.remove("settle");
+    void root.offsetWidth;
+    root.classList.add("settle");
+    palette.input.focus({ preventScroll: true });
+    palette.input.select();
+  };
+  scrim.addEventListener("pointerdown", (e) => e.target === scrim && dismiss());
+
+  // The top bar always offers the palette here, and draws its hairline once
+  // the page scrolls.
+  const topbar = document.querySelector(".topbar");
+  if (topbar) {
+    topbar.classList.add("paged");
+    const edge = () => topbar.classList.toggle("scrolled", window.scrollY > 4);
+    window.addEventListener("scroll", edge, { passive: true });
+    edge();
+  }
+  return { summon };
+}
+
+function toggleTheme(palette) {
+  const next = currentTheme() === "dark" ? "light" : "dark";
+  setTheme(next);
+  palette.flash(next === "dark" ? "Dark Mode On" : "Dark Mode Off");
+}
+
+function init() {
+  try {
+    const saved = localStorage.getItem("theme");
+    if (saved === "dark" || saved === "light") document.documentElement.dataset.theme = saved;
+  } catch {
+    /* storage may be unavailable */
+  }
+
+  const hero = document.getElementById("palette");
+  const mode = hero ? initHero(hero) : initOverlay();
+  for (const b of document.querySelectorAll("[data-summon]"))
+    b.addEventListener("click", () => mode.summon());
+
+  // On the home page the brand scrolls back up instead of reloading.
+  if (hero) {
+    for (const brand of document.querySelectorAll("a.brand")) {
+      brand.addEventListener("click", (e) => {
+        e.preventDefault();
+        history.replaceState(null, "", "/");
+        window.scrollTo({ top: 0, behavior: reducedMotion.matches ? "auto" : "smooth" });
+      });
+    }
+  }
+
+  // Global keys: Ctrl+K, Ctrl+Alt+Space and / summon; key caps follow your
+  // keys; the mode decides where other typing goes.
   document.addEventListener("keydown", (e) => {
     const name = keyName(e);
     pressed.add(name);
@@ -1107,14 +1249,11 @@ function init() {
     const ctrlAltSpace = e.ctrlKey && e.altKey && e.code === "Space";
     if (ctrlK || ctrlAltSpace || (name === "/" && !inField)) {
       e.preventDefault();
-      summon();
+      mode.summon();
       return;
     }
     if (inField || e.ctrlKey || e.metaKey || e.altKey) return;
-    const onScreen = stage.getBoundingClientRect().bottom > 80;
-    if (onScreen && !root.classList.contains("away") && e.key.length === 1)
-      palette.input.focus({ preventScroll: true });
-    if (onScreen && root.classList.contains("away") && e.key === "Enter") summon();
+    mode.typeAhead?.(e);
   });
   document.addEventListener("keyup", (e) => {
     const name = keyName(e);
@@ -1132,14 +1271,6 @@ function init() {
     for (const k of pressed.keys()) lightCaps(k, false);
     pressed.clear();
   });
-
-  // Top bar hairline and search pill once the palette has scrolled away.
-  const topbar = document.querySelector(".topbar");
-  if (topbar) {
-    new IntersectionObserver(([entry]) => topbar.classList.toggle("scrolled", !entry.isIntersecting), {
-      rootMargin: "-60px 0px 0px 0px",
-    }).observe(stage);
-  }
 
   // Copy buttons.
   for (const block of document.querySelectorAll("[data-copy-target]")) {

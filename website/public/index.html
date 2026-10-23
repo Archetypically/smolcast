@@ -1,25 +1,29 @@
 <!doctype html>
 <html lang="en">
   <head>
+    <!-- partial:head -->
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark light" />
+    <meta name="theme-color" content="#101012" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#f0f0f2" media="(prefers-color-scheme: light)" />
+    <meta name="author" content="Evan Lee" />
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <link rel="alternate" type="text/plain" href="/llms.txt" title="llms.txt" />
+    <link rel="stylesheet" href="/tokens.css" />
+    <link rel="stylesheet" href="/styles.css" />
+    <script src="/app.js" defer></script>
+    <!-- /partial:head -->
     <title>smolcast: a small, native command palette for Windows 11</title>
     <meta
       name="description"
       content="One hotkey for your apps, files, clipboard, emoji, scripts and snippets. A single 7 MB Windows executable with no Electron, no telemetry and no CPU use while hidden. Free and open source."
     />
     <link rel="canonical" href="https://smolcast.evanlee.engineer/" />
-    <meta name="color-scheme" content="dark light" />
-    <meta name="theme-color" content="#101012" media="(prefers-color-scheme: dark)" />
-    <meta name="theme-color" content="#f0f0f2" media="(prefers-color-scheme: light)" />
-    <meta name="author" content="Evan Lee" />
     <meta name="robots" content="index, follow, max-image-preview:large, max-video-preview:-1" />
-
-    <link rel="icon" href="/favicon.ico" sizes="any" />
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    <link rel="manifest" href="/site.webmanifest" />
-    <link rel="alternate" type="text/plain" href="/llms.txt" title="llms.txt" />
 
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="smolcast" />
@@ -103,15 +107,13 @@
         ]
       }
     </script>
-
-    <link rel="stylesheet" href="/styles.css" />
-    <script src="/app.js" defer></script>
   </head>
   <body>
     <a class="skip" href="#features">Skip to the features</a>
 
+    <!-- partial:topbar -->
     <header class="topbar" id="top">
-      <a class="brand" href="#top" aria-label="smolcast, back to the top">
+      <a class="brand" href="/" aria-label="smolcast home">
         <img src="/favicon.svg" alt="" width="24" height="24" />
         <span>smolcast</span>
       </a>
@@ -122,9 +124,10 @@
           <kbd class="cap" data-key="Control">Ctrl</kbd><kbd class="cap" data-key="k">K</kbd>
         </button>
         <a class="link" href="https://github.com/Archetypically/smolcast">GitHub</a>
-        <a class="button small" href="#install">Download</a>
+        <a class="button small" href="/#install">Download</a>
       </nav>
     </header>
+    <!-- /partial:topbar -->
 
     <main>
       <section class="hero" aria-labelledby="hero-title">
@@ -525,6 +528,7 @@
             Search index on your PC. Clipboard contents never go into logs, smolcast's own history is encrypted for your
             Windows account, and it honors apps that mark clipboard data as excluded from history.
           </p>
+          <p><a href="/privacy">Read the privacy policy</a> for every file it keeps and what this site records.</p>
         </div>
       </section>
 
@@ -614,9 +618,10 @@ task build-release</code></pre>
       </section>
     </main>
 
+    <!-- partial:footer -->
     <footer class="footer" id="about" tabindex="-1">
       <div class="footer-inner">
-        <a class="brand" href="#top" aria-label="smolcast, back to the top">
+        <a class="brand" href="/" aria-label="smolcast home">
           <img src="/favicon.svg" alt="" width="24" height="24" /><span>smolcast</span>
         </a>
         <p class="made">
@@ -633,10 +638,13 @@ task build-release</code></pre>
           <a href="https://github.com/Archetypically/smolcast">Source</a>
           <a href="https://github.com/Archetypically/smolcast/releases">Releases</a>
           <a href="https://github.com/Archetypically/smolcast/issues">Issues</a>
+          <a href="/compare/">Compare</a>
+          <a href="/privacy">Privacy</a>
           <a href="https://github.com/Archetypically/smolcast/blob/main/LICENSE">MIT License</a>
           <a href="/llms.txt">llms.txt</a>
         </nav>
       </div>
     </footer>
+    <!-- /partial:footer -->
   </body>
 </html>

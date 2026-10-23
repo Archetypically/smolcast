@@ -271,11 +271,21 @@ palette is idle.
 The website (`website/`, decision 030) speaks the same language on the web:
 
 - **The palette is the hero and the navigation.** A recreation at the
-  medium size (640 wide, 38-point rows 4 apart) with the app's tokens in
-  `website/public/styles.css`; its rows jump to sections, and Esc dismisses
+  medium size (640 wide, 38-point rows 4 apart) with the app's colors in
+  the generated `website/public/tokens.css`; its rows jump to sections and
+  open the other pages, and Esc dismisses
   it the way the app is dismissed.
 - **Feature tiles are palette states**, not screenshots or icons: each shows
   the query and rows that feature produces.
+- **Other pages** (privacy, comparisons) share the home page's top bar,
+  footer, type and tokens. They are one readable column (760 wide) with a
+  breadcrumb, the section label, a short headline, a lead that answers the
+  page's question first, and a dated "checked against" line. Facts go in
+  tables, where smolcast's column carries the selection pip, and links to
+  other pages are drawn as palette rows. Ctrl+K opens the palette over the
+  page, on a blurred scrim, and Esc or a click outside dismisses it. The
+  copy is plain and fair: comparisons say where the other tool is the
+  better pick.
 - **Type**: the system UI stack led by Segoe UI Variable, Cascadia Code for
   code; no web fonts. Headlines are tight (−0.035 em) and short.
 - **Accent**: as in the app. The red marks the caret, the selection pip,

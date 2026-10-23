@@ -32,7 +32,19 @@ Settings are in the palette ("smolcast settings") or in `%APPDATA%\smolcast\conf
 
 ## Privacy
 
-Data stays on the computer. The only request smolcast makes on its own is a daily check of its GitHub releases (turn off with `check_for_updates = false`), which sends nothing beyond smolcast's version in the user agent.
+Data stays on the computer. The only request smolcast makes on its own is a daily check of its GitHub releases (turn off with `check_for_updates = false`), which sends nothing beyond smolcast's version in the user agent. There is no account, telemetry, crash reporting or log file. The website sets no cookies, runs no analytics and loads nothing from other sites.
+
+- [Privacy policy](https://smolcast.evanlee.engineer/privacy): the files smolcast keeps and where, the update check, clipboard encryption and exclusions, and what the website records.
+
+## Comparisons
+
+Checked against each project's own site on 2026-10-23.
+
+- [Windows launchers compared](https://smolcast.evanlee.engineer/compare/): smolcast, Raycast for Windows, PowerToys Command Palette and Flow Launcher side by side.
+- [smolcast vs Raycast for Windows](https://smolcast.evanlee.engineer/compare/raycast): Raycast has extensions, AI, window management and Cloud Sync, with a $10/month Pro plan; smolcast covers the core features with no account, AI or telemetry.
+- [smolcast vs PowerToys Command Palette](https://smolcast.evanlee.engineer/compare/powertoys-command-palette): Microsoft's extensible launcher, strong on Windows administration (WinGet, services, registry, Settings); smolcast adds emoji, snippets and unit conversions in one small app.
+- [smolcast vs Flow Launcher](https://smolcast.evanlee.engineer/compare/flow-launcher): a plugin-driven .NET launcher with Everything file search; smolcast builds in clipboard history, emoji and snippets instead of plugins.
+- [smolcast vs Tinycast](https://smolcast.evanlee.engineer/compare/tinycast): Tinycast is a free, open-source launcher for macOS only; smolcast is the closest equivalent on Windows, with a smaller feature set and its own code.
 
 ## Docs
 

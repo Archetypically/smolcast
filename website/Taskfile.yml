@@ -30,11 +30,17 @@ tasks:
       - npx prettier --check .
 
   lint:
-    desc: Lint the website's JavaScript and HTML
+    desc: Lint the website's JavaScript and HTML, and check pages and tokens are in sync
     deps: [install]
     cmds:
       - npx eslint .
-      - npx html-validate public/*.html media/*.html
+      - npx html-validate "public/**/*.html" "media/*.html"
+      - node scripts/sync.mjs --check
+
+  sync:
+    desc: Stamp partials/ into every page and regenerate tokens.css from the app's theme.rs
+    cmds:
+      - node scripts/sync.mjs
 
   render:
     desc: Regenerate the icons and og.png from their HTML and SVG sources (needs Playwright's Chromium)
