@@ -26,6 +26,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
 };
 
 use crate::app::model::{AppEvent, Wake};
+use crate::win::from_wide_nul;
 
 /// A captured paste destination (§8.1.3), belonging to one summon session.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -57,8 +58,8 @@ pub fn capture_destination() -> Option<Destination> {
 /// and paste-back falls back to "copied, not pasted" (§8.1).
 fn is_shell_surface(hwnd: HWND) -> bool {
     let mut class = [0u16; 64];
-    let len = unsafe { GetClassNameW(hwnd, &mut class) };
-    let class = String::from_utf16_lossy(&class[..len.max(0) as usize]);
+    let _ = unsafe { GetClassNameW(hwnd, &mut class) };
+    let class = from_wide_nul(&class);
     matches!(
         class.as_str(),
         "Shell_TrayWnd" | "Shell_SecondaryTrayWnd" | "Progman" | "WorkerW"

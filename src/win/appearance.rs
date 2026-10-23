@@ -26,6 +26,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
 };
 use windows::core::{BOOL, PCWSTR, w};
 
+use crate::win::from_wide_nul;
 use crate::win::placement::PaletteWindow;
 
 /// First build with `DWMWA_SYSTEMBACKDROP_TYPE` (Windows 11 22H2).
@@ -99,8 +100,7 @@ fn windows_build() -> Option<u32> {
         buffer.as_mut_ptr().cast(),
         &mut bytes,
     )?;
-    let len = buffer.iter().position(|&c| c == 0).unwrap_or(buffer.len());
-    String::from_utf16(&buffer[..len]).ok()?.parse().ok()
+    from_wide_nul(&buffer).parse().ok()
 }
 
 /// Settings > Personalization > Colors > Transparency effects. Absent means on.
