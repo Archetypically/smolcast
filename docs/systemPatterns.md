@@ -1669,3 +1669,10 @@ taking the single-instance mutex (§5.1). The update worker removes `.old` and
 Trust. The checksum detects corruption only; builds are unsigned. Before
 signing ships, an attacker who can publish a release can ship code. Signing
 will add a signature check before the swap.
+
+Publishing. `.github/workflows/release.yml` runs only on tags that are
+exactly `v<semver>` and match Cargo.toml's version; a tag with a hyphen
+publishes a prerelease. While the repository is public, the job also attests
+the exe's build provenance (`actions/attest-build-provenance`, Sigstore), so
+`gh attestation verify <exe> --repo Archetypically/smolcast` ties a download
+to the workflow and tag. The app does not check attestations.
