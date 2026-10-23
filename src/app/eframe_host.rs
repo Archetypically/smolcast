@@ -812,7 +812,7 @@ fn save_config(path: &Path, edit: &ConfigEdit) -> Result<(), String> {
 /// Open config.toml in Notepad, which exists on every Windows install and
 /// offers to create the file when it is absent.
 fn open_config_file(path: &Path) {
-    let _ = std::process::Command::new("notepad.exe").arg(path).spawn();
+    shell::open_in_notepad(path);
 }
 
 /// Put Segoe UI ahead of egui's bundled fonts, which remain as fallbacks for
