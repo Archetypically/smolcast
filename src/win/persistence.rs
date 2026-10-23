@@ -14,7 +14,9 @@ use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use windows::Win32::Foundation::{HLOCAL, LocalFree};
+use windows::Win32::Foundation::{
+    ERROR_INVALID_DATA, HLOCAL, LocalFree, NTE_BAD_DATA, NTE_BAD_KEY_STATE,
+};
 use windows::Win32::Security::Cryptography::{
     CRYPT_INTEGER_BLOB, CRYPTPROTECT_UI_FORBIDDEN, CryptProtectData, CryptUnprotectData,
 };
@@ -52,6 +54,8 @@ pub struct StatePaths {
     /// `%LOCALAPPDATA%\smolcast\update.json`: when updates were last
     /// checked and any skipped version (§13).
     pub update_state: PathBuf,
+    /// `%LOCALAPPDATA%\smolcast\crash.log`: panics, newest last (§14).
+    pub crash_log: PathBuf,
 }
 
 impl StatePaths {
@@ -64,6 +68,7 @@ impl StatePaths {
             usage: local.join("usage.json"),
             clipboard_dir: local.join("clipboard"),
             update_state: local.join("update.json"),
+            crash_log: local.join("crash.log"),
         })
     }
 }
@@ -500,11 +505,13 @@ fn clip_files(dir: &Path) -> Vec<PathBuf> {
     files
 }
 
-/// Read every stored entry, oldest first. Files that cannot be decrypted or
-/// decoded (for example after a Windows password reset invalidated the DPAPI
-/// key) are deleted. A file that cannot be read right now (an antivirus or
-/// indexer holding it) is skipped and kept, as is a record over the current
-/// item cap, which a later higher cap can load again.
+/// Read every stored entry, oldest first. A file that is definitely bad is
+/// deleted: it decrypts but does not decode, or DPAPI calls it damaged or
+/// its key gone (a Windows password reset). Any other decryption failure may
+/// pass (the profile still loading), so the file is kept, as is one that
+/// cannot be read right now (an antivirus or indexer holding it) and a
+/// record over the current item cap, which a later higher cap can load
+/// again.
 fn load_clipboard(dir: &Path, item_cap: usize) -> Vec<LoadedEntry> {
     let mut loaded = Vec::new();
     for path in clip_files(dir) {
@@ -514,17 +521,22 @@ fn load_clipboard(dir: &Path, item_cap: usize) -> Vec<LoadedEntry> {
         let Ok(blob) = fs::read(&path) else {
             continue;
         };
-        let decoded = dpapi_unprotect(&blob)
-            .ok()
-            .and_then(|plain| decode_record(&plain, usize::MAX).ok());
-        match decoded {
-            Some((payload, _)) if payload.byte_len() > item_cap => {}
-            Some((payload, captured_at_ms)) => loaded.push(LoadedEntry {
+        let plain = match dpapi_unprotect(&blob) {
+            Ok(plain) => plain,
+            Err(e) if is_bad_blob(&e) => {
+                let _ = fs::remove_file(&path);
+                continue;
+            }
+            Err(_) => continue,
+        };
+        match decode_record(&plain, usize::MAX) {
+            Ok((payload, _)) if payload.byte_len() > item_cap => {}
+            Ok((payload, captured_at_ms)) => loaded.push(LoadedEntry {
                 token,
                 payload,
                 captured_at_ms,
             }),
-            None => {
+            Err(_) => {
                 let _ = fs::remove_file(&path);
             }
         }
@@ -573,7 +585,14 @@ fn dpapi_protect(plain: &[u8]) -> io::Result<Vec<u8>> {
     Ok(take_blob(out))
 }
 
-fn dpapi_unprotect(cipher: &[u8]) -> io::Result<Vec<u8>> {
+/// DPAPI errors that will not pass: a damaged blob, or a key that no longer
+/// exists.
+fn is_bad_blob(e: &windows::core::Error) -> bool {
+    let code = e.code();
+    code == ERROR_INVALID_DATA.to_hresult() || code == NTE_BAD_DATA || code == NTE_BAD_KEY_STATE
+}
+
+fn dpapi_unprotect(cipher: &[u8]) -> windows::core::Result<Vec<u8>> {
     let (input, entropy) = (blob(cipher), blob(CLIP_ENTROPY));
     let mut out = CRYPT_INTEGER_BLOB::default();
     unsafe {
@@ -586,8 +605,7 @@ fn dpapi_unprotect(cipher: &[u8]) -> io::Result<Vec<u8>> {
             CRYPTPROTECT_UI_FORBIDDEN,
             &mut out,
         )
-    }
-    .map_err(io::Error::from)?;
+    }?;
     Ok(take_blob(out))
 }
 

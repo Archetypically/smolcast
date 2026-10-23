@@ -6,9 +6,8 @@ contracts are in `systemPatterns.md` (cited as "plan §N"), decisions in
 
 ## Where the project is
 
-All seven milestones are implemented (§12). `main` holds everything but the
-visual-language branch. Windows 11 is the acceptance environment; Linux runs
-library tests and cross-links only.
+All seven milestones are implemented (§12) and on `main`. Windows 11 is
+the acceptance environment; Linux runs library tests and cross-links only.
 
 | Milestone | State |
 | --- | --- |
@@ -23,9 +22,7 @@ library tests and cross-links only.
 ## 2026-10-21 batches, on main, unverified on Windows
 
 Decisions 011–018 (launcher features, motion and polish); details in
-`git log`. Deferred review items: Esc drops unsaved Settings edits; a failed
-thumbnail thread leaves "Loading preview…"; a failed clipboard write can
-leave the clipboard empty.
+`git log`. Their deferred review items were settled on 2026-10-23 (below).
 
 ## Launcher commands, files and updates (2026-10-22), on main, unverified
 
@@ -35,7 +32,7 @@ the fallback section (022), self-update (§13, 019; unsigned, user: plumbing
 first) and icon-font glyphs (023). New imports winhttp, powrprof, propsys
 (all system DLLs). Checks are under Pending Windows checks.
 
-## Tracked scripts (2026-10-23), branch `script-editor`, unverified
+## Tracked scripts (2026-10-23), on main, unverified
 
 Decision 032, plan §10.2–10.3: scripts are tracked files (`path`, saved
 `args`, hotkey) resolved by extension at index time; Manage Scripts runs,
@@ -55,7 +52,7 @@ Decision 026: "s." logo (`assets/smolcast.svg` → `scripts/generate_icon.py`
 evanlee.engineer until smolcast.evanlee.engineer is live. MSVC `rc.exe`
 path untested.
 
-## Own visual language (2026-10-22), branch, unverified
+## Own visual language (2026-10-22), on main, unverified
 
 Decision 028 (supersedes 010): search glyph on the icon column, red
 selection pip, dissolving dividers, dimmed edge rows (`list::RowState`),
@@ -63,18 +60,19 @@ key caps with a lower lip. Not seen on Windows yet: check every view in both
 themes, at 100/150/200%, reduced motion and high contrast; divider crispness
 at 150%.
 
-## Website (2026-10-22), branch, not deployed
+## Website (2026-10-22), on main, not deployed
 
 Decision 030: `website/`, a static site for Cloudflare Pages (`task
 web:*`), whose hero is a working recreation of the palette. Since
-2026-10-23 (branch `website-pages`, decision 033) it also has `/privacy`,
+2026-10-23 (decision 033) it also has `/privacy`,
 `/code-signing` (SignPath's required policy: roles, attribution, privacy
 link; its "being set up" badge comes off once releases are signed) and
 `/compare/` (hub plus Raycast, PowerToys Command Palette/Run, Flow
 Launcher, Tinycast, Fluent Search, Listary, Wox, Alfred, Keypirinha, Ueli;
 `task web:compare`). Chrome is stamped from `partials/`, colors come from
-`theme.rs` (`task web:sync`; CI checks both). Comparison facts checked
-2026-10-23; recheck when those products ship. Privacy contact: GitHub
+`theme.rs`, and every indexable page has a generated markdown twin at its
+path plus `.md` (decision 036; `task web:sync`; CI checks all three).
+Comparison facts checked 2026-10-23; recheck when those products ship. Privacy contact: GitHub
 issues and evanlee.engineer until the user names an email. Domain
 `smolcast.evanlee.engineer` is hard-coded in `public/` (canonical, OG,
 JSON-LD, sitemap, robots, llms.txt): grep and replace it on a move. The demo
@@ -94,25 +92,41 @@ field; a link from evanlee.engineer; a note to Tinycast's author.
 
 ## Full-repo review (2026-10-23), on main, unverified
 
-Fixes are in `git log` (PR #17). Deferred, user's call: delete `.clip`
-files only on definite bad data, not any DPAPI failure (§7.2); bounded joins on quit (§1.5); WinRT history
-conversion blocks the clipboard thread; `%VAR%` quicklinks are URLs (§10.7);
-path quicklinks take `..` in `{query}`; `SEE_MASK_FLAG_NO_UI` may hide the
-Mark-of-the-Web prompt for File Search opens (check on Windows); DLL search
-hardening (CI's Mesa `opengl32.dll` relies on the app folder); clipboard
-history TTL. Windows check: script hotkey with the palette open, paste from
+Fixes are in `git log` (PR #17). Its deferred items were settled on
+2026-10-23 (below). Windows check: script hotkey with the palette open, paste from
 a password manager is not captured, Reveal and Edit Config still open.
 
-## Code review leftovers (2026-10-23), unverified, not on this branch
+## Crash log, Report a Bug, review leftovers (2026-10-23), unverified
 
-Raised by the website branch's review, outside its diff; verify before
-fixing: `win/process.rs:50` resolves only `powershell.exe` by full path, so
-other bare interpreters (`python.exe`, `node.exe`) search the exe's folder
-first; `app/launcher.rs:225` a late launch result from an earlier summon can
-clear the new `launch_pending` (matched by AppId only);
-`app/script_view.rs:681` `select_id` is never cleared after a failed or
-cancelled save; `script_view.rs:792` `editor_ui` re-resolves the script
-every frame (cost only).
+Decision 035, plan §14: a panic hook appends to `crash.log` in
+`%LOCALAPPDATA%\smolcast\` (64 KiB, then `crash.old.log`); the next start
+shows one notice; the "Report a Bug" command shows what a prefilled GitHub
+issue carries, with the last crash report only when ticked. The privacy page
+lists both. Review leftovers fixed: bare script interpreters no longer
+resolve from smolcast's folder (§10.3); launch results match by request
+number, not AppId; a failed script save clears `select_id`. Left as is:
+`editor_ui` re-resolving the script each frame (a few small allocations
+while the form is open). Windows check: a forced panic (none can be
+triggered from the UI; use a debug build) writes the entry and the notice
+appears once; the issue opens prefilled, with and without the crash report;
+the Bug glyph renders; a `python.exe` dropped beside smolcast.exe is not
+the one a `.py` script runs.
+
+Deferred review items, settled by the user (2026-10-23): history files are
+deleted only on definite bad data (§7.2); clipboard writes allocate before
+emptying (§7.2); `clipboard_max_age_days`, off by default (§7.5); Quit waits
+2 s for threads other than the state writer (§1.5); a leading `%VAR%\` in a
+quicklink is a path, expanded at launch (§10.7); Search Files opens without
+`SEE_MASK_FLAG_NO_UI` (§6.6); MSVC builds load imported DLLs from System32
+only, with an `app-folder-dlls` feature for CI's Mesa (§0); Esc in Settings
+asks before discarding (§5.4); a failed thumbnail thread shows "No preview".
+Kept as is: WinRT history conversion on the clipboard thread (watch for lag)
+and `..` in path quicklinks (the user typed it). Windows check: CI's smoke
+test still renders with the feature; the release exe starts with no DLL
+beside it; Quit with a launch stuck on an offline share exits within ~2 s;
+a downloaded `.exe` opened from Search Files shows the security warning;
+`%USERPROFILE%\Downloads\{query}` opens a folder; Esc twice in Settings;
+an age limit drops old entries and their files.
 
 ## Pending Windows checks
 
@@ -182,21 +196,13 @@ every frame (cost only).
    releases only on `v<semver>` tags, and build provenance attestations,
    which start when the repo goes public (plan §13); then mention
    `gh attestation verify` in the README.
-4. Decide the deferred review items above. `old-review-fixes` (on main) moved
-   every view onto `RequestCache` and `ListCursor` (decision 024). Windows
+4. `old-review-fixes` (on main) moved every view onto `RequestCache` and `ListCursor` (decision 024). Windows
    check: icons, file icons, emoji and thumbnails stay sharp across a
    150%→100% monitor move; scrolling and selection in every list.
 
 ## Open questions and parked ideas
 
 - **Backlog from the user (2026-10-23)**, not designed yet:
-  - *Crash logs*: a panic hook writing a local log (the release profile
-    uses `panic = "abort"`; the hook still runs before the abort) to
-    `%LOCALAPPDATA%\smolcast\`, kept small and rotated. Nothing is sent.
-  - *Report a Bug* palette command: opens a prefilled GitHub issue (version,
-    Windows build, the last crash log only if the user chooses) in the
-    browser. User-initiated only; the privacy page promises nothing leaves
-    the device on its own.
   - *Per-entry hiding*: "Hide" on any result (app, command, quicklink),
     persisted like favorites (decision 011), with a way to list and unhide.
   - *About links*: "About smolcast" exists (`app/about_view.rs`) but links
@@ -241,6 +247,9 @@ every frame (cost only).
 
 - Use the memory-bank and making-decisions skills (`.agents/skills/`);
   commit bank updates with the change they record.
+- Write the bank as it will read on `main` after the merge: what is true
+  once the change lands, never "on this branch" or "not on this branch".
+  Name a branch only for work that will stay unmerged.
 - README is the public product page only. Never track machine-specific
   paths; they belong in `.env`.
 - Develop and build in WSL; try builds via `task stage` (or `task install`

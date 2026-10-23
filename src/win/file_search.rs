@@ -9,6 +9,7 @@
 
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread::{self, JoinHandle};
+use std::time::Instant;
 
 use windows::Win32::Foundation::PROPERTYKEY;
 use windows::Win32::System::Com::StructuredStorage::PropVariantToStringAlloc;
@@ -22,7 +23,7 @@ use windows::core::{GUID, IUnknown, Interface, PCWSTR};
 use crate::app::model::{AppEvent, Wake};
 use crate::core::file_search::{self, FileHit};
 use crate::win::shell::ComApartment;
-use crate::win::{take_pwstr, wide};
+use crate::win::{join_by, take_pwstr, wide};
 
 /// `CLSID_CollatorDataSource` (searchapi.h): the Windows Search OLE DB
 /// provider.
@@ -64,22 +65,23 @@ impl FileSearchWorker {
         }
     }
 
-    pub fn shutdown(mut self) {
-        self.stop_and_join();
+    /// Stop, waiting for the thread until `deadline` (plan §1.5).
+    pub fn shutdown(mut self, deadline: Instant) {
+        self.stop_and_join(Some(deadline));
     }
 
-    fn stop_and_join(&mut self) {
+    fn stop_and_join(&mut self, deadline: Option<Instant>) {
         // Closing the channel ends the loop after the query in flight.
         self.tx = None;
         if let Some(join) = self.join.take() {
-            let _ = join.join();
+            join_by(join, deadline);
         }
     }
 }
 
 impl Drop for FileSearchWorker {
     fn drop(&mut self) {
-        self.stop_and_join();
+        self.stop_and_join(None);
     }
 }
 

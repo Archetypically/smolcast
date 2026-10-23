@@ -12,6 +12,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread::{self, JoinHandle};
+use std::time::Instant;
 
 use windows::Win32::Graphics::Direct2D::Common::{
     D2D_RECT_F, D2D1_ALPHA_MODE_PREMULTIPLIED, D2D1_COLOR_F, D2D1_PIXEL_FORMAT,
@@ -39,6 +40,7 @@ use windows::core::w;
 
 use crate::app::model::{AppEvent, Wake};
 use crate::win::icon::IconRgba;
+use crate::win::join_by;
 
 /// Glyph em size relative to the square bitmap edge.
 const EM_FRACTION: f32 = 0.78;
@@ -78,23 +80,24 @@ impl EmojiRenderer {
         }
     }
 
-    /// Drop queued work, stop, and join (§1.5 step 5).
-    pub fn shutdown(mut self) {
-        self.stop_and_join();
+    /// Drop queued work and stop, waiting for the thread until `deadline`
+    /// (§1.5 step 5).
+    pub fn shutdown(mut self, deadline: Instant) {
+        self.stop_and_join(Some(deadline));
     }
 
-    fn stop_and_join(&mut self) {
+    fn stop_and_join(&mut self, deadline: Option<Instant>) {
         self.cancel.store(true, Ordering::Release);
         self.tx = None;
         if let Some(join) = self.join.take() {
-            let _ = join.join();
+            join_by(join, deadline);
         }
     }
 }
 
 impl Drop for EmojiRenderer {
     fn drop(&mut self) {
-        self.stop_and_join();
+        self.stop_and_join(None);
     }
 }
 

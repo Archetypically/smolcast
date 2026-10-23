@@ -72,6 +72,13 @@ windows = { version = "=0.62.2", features = [
     "Win32_UI_WindowsAndMessaging",
 ] }
 
+[features]
+# Lets the exe load the DLLs it imports from its own folder, as Windows does
+# by default. Release builds look only in System32 (build.rs) so a DLL
+# downloaded next to smolcast.exe cannot be loaded into it. Only CI's desktop
+# smoke test turns this on, for Mesa's software opengl32.dll.
+app-folder-dlls = []
+
 # Embeds the exe's icon and version information (build.rs).
 [build-dependencies]
 winresource = { version = "=0.1.34", default-features = false }
