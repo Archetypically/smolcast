@@ -6,7 +6,7 @@
 //! Windows (DirectWrite) on request for visible cells only, and cached in a
 //! bounded texture set; the pasted codepoints are the contract.
 
-use egui::{Key, Modifiers, RichText, TextureHandle, TextureOptions, Vec2};
+use egui::{Key, Modifiers, RichText, TextureHandle, Vec2};
 
 use crate::core::config::PaletteSize;
 use crate::core::emoji::{self, Emoji};
@@ -96,11 +96,7 @@ impl EmojiView {
         }
         match result {
             Ok(glyph) => {
-                let image = egui::ColorImage::from_rgba_premultiplied(
-                    [glyph.width as usize, glyph.height as usize],
-                    &glyph.rgba_premultiplied,
-                );
-                let texture = ctx.load_texture("emoji", image, TextureOptions::LINEAR);
+                let texture = list::icon_texture(ctx, "emoji", &glyph);
                 self.glyphs.insert(index, texture);
             }
             Err(_) => self.glyphs.fail(index),
