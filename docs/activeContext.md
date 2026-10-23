@@ -143,7 +143,7 @@ Decision 038: the web search fallback row is led by a globe glyph for every
 engine; the monogram badge (`theme::engine_badge`, `SearchEngine::badge`) is
 gone, and the website's quicklinks tile and the demo film's source match
 (the published film in `public/media/` still shows the badge until it is
-re-recorded with `task website:film`). Windows check: the row shows
+re-recorded with `task web:film`). Windows check: the row shows
 the globe from Segoe Fluent Icons (🌐 without the font), distinct from the
 Search Files magnifier below it.
 
