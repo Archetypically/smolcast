@@ -44,6 +44,7 @@ use super::file_view::{FileAction, FileView};
 use super::launcher::Launcher;
 use super::motion;
 use super::notice::{Notice, NoticeStore, Severity, op};
+use super::script_view::ScriptView;
 use super::settings_view::SettingsView;
 use super::snippet_view::SnippetView;
 use super::theme;
@@ -64,6 +65,9 @@ pub enum AppEvent {
     },
     /// A form's config.toml write failed before any reload (§12.7, §10.6).
     ConfigSaveFailed(String),
+    /// The Open dialog for a script file closed: a path, `None` when
+    /// cancelled, or why it could not be shown (§10.3).
+    ScriptFilePicked(Result<Option<String>, String>),
     IndexReady {
         generation: u64,
         result: Result<ScanOutcome, LaunchError>,
@@ -150,6 +154,7 @@ enum View {
     Clipboard,
     Emoji,
     Snippets,
+    Scripts,
     Settings,
     About,
     Files,
@@ -162,6 +167,8 @@ enum RecordTarget {
     Trial,
     /// The summon-hotkey field of the settings form.
     Settings,
+    /// The hotkey field of the script editor.
+    Script,
 }
 
 /// Shared paste service state (§8.2 steps 1–5); steps 6–8 run on the host's
@@ -261,6 +268,7 @@ pub struct AppModel {
     clipboard: ClipboardView,
     emoji: EmojiView,
     snippets: SnippetView,
+    scripts: ScriptView,
     files: FileView,
     paste: PasteState,
     next_request_id: u64,
@@ -283,6 +291,9 @@ pub struct AppModel {
     /// The palette has held focus since it was shown; losing it afterwards
     /// dismisses the palette (click-away, §12.7).
     had_focus: bool,
+    /// The Open dialog for a script file is up; losing focus to it does not
+    /// dismiss the palette.
+    picking_file: bool,
     /// When the palette was dismissed with its state kept; `None` after a
     /// completed action, so the next summon starts fresh.
     hidden_at: Option<Instant>,
@@ -343,6 +354,7 @@ impl AppModel {
             ),
             emoji: EmojiView::new(),
             snippets: SnippetView::new(&config.snippets),
+            scripts: ScriptView::new(&config.scripts, &config.settings.summon_hotkey),
             files: FileView::new(),
             paste: PasteState::Idle,
             next_request_id: 0,
@@ -357,6 +369,7 @@ impl AppModel {
             settings: SettingsView::new(&config.settings),
             about: AboutView::default(),
             had_focus: false,
+            picking_file: false,
             hidden_at: None,
             presence: Tween::at(0.0, Instant::now()),
             dismissing: false,
@@ -381,6 +394,7 @@ impl AppModel {
         self.launcher.set_palette_size(size);
         self.clipboard.set_palette_size(size);
         self.snippets.set_palette_size(size);
+        self.scripts.set_palette_size(size);
         self.emoji.set_palette_size(size);
         self.files.set_palette_size(size);
     }
@@ -417,7 +431,12 @@ impl AppModel {
         if self.visible {
             match ctx.input(|i| i.viewport().focused) {
                 Some(true) => self.had_focus = true,
-                Some(false) if self.had_focus && matches!(self.paste, PasteState::Idle) => {
+                // The script-file dialog takes focus on purpose.
+                Some(false)
+                    if self.had_focus
+                        && !self.picking_file
+                        && matches!(self.paste, PasteState::Idle) =>
+                {
                     self.dismiss();
                 }
                 _ => {}
@@ -488,10 +507,27 @@ impl AppModel {
 
     // ---- host-facing accessors -------------------------------------------------
 
+    /// The script-file dialog closed (or could not open); click-away
+    /// dismissal resumes.
+    pub fn script_file_picked(&mut self, result: Result<Option<String>, String>) {
+        self.picking_file = false;
+        // Click-away re-arms once the palette has focus again, so a frame
+        // that still reports the dialog's focus does not dismiss it.
+        self.had_focus = false;
+        match result {
+            Ok(Some(path)) => self.scripts.track_file(&path),
+            Ok(None) => {}
+            Err(message) => self
+                .notices
+                .push(Notice::new(Severity::Warning, op::CONFIG, message)),
+        }
+    }
+
     /// Only the form whose save is in flight takes the message.
     pub fn reduce_config_save_failed(&mut self, message: String) {
         self.settings.save_failed(message.clone());
-        self.snippets.save_failed(message);
+        self.snippets.save_failed(message.clone());
+        self.scripts.save_failed(message);
     }
 
     /// Everything the host must execute, in order: the model's own effects
@@ -760,7 +796,10 @@ impl AppModel {
         // Both forms see every accepted config; at most one had a save in flight.
         let settings_saved = self.settings.config_accepted(&cfg.settings);
         let snippet_saved = self.snippets.config_accepted(&cfg.snippets);
-        let from_form = settings_saved || snippet_saved;
+        let script_saved = self
+            .scripts
+            .config_accepted(&cfg.scripts, &cfg.settings.summon_hotkey);
+        let from_form = settings_saved || snippet_saved || script_saved;
         self.config = cfg;
         self.effects.push(Effect::Clipboard(self.capture_policy()));
         // The forms report their own "Saved."
@@ -825,7 +864,10 @@ impl AppModel {
             AppEvent::RunScript(_) if self.visible && self.recording => {
                 self.capture_hint = Some("That combination is used by a script.".into());
             }
-            AppEvent::RunScript(id) => self.launcher.run_script(&id, &mut self.notices),
+            AppEvent::RunScript(id) => {
+                self.launcher
+                    .run_script(&id, &mut self.notices, false, Vec::new());
+            }
             AppEvent::Tray(TrayCommand::OpenPalette) => self.summon(ctx),
             AppEvent::Tray(TrayCommand::Refresh) => {
                 self.effects.push(Effect::RefreshConfig);
@@ -892,6 +934,13 @@ impl AppModel {
             }
             AppEvent::PasteFinished(outcome) => self.on_paste_finished(outcome),
             AppEvent::Notice(n) => self.notices.push(n),
+            AppEvent::ScriptFilePicked(result) => {
+                self.script_file_picked(result);
+                // The dialog had focus; give it back so typing reaches the form.
+                if self.visible {
+                    ctx.send_viewport_cmd(ViewportCommand::Focus);
+                }
+            }
             AppEvent::FilesFound { generation, result } => {
                 self.files.on_results(generation, result);
             }
@@ -1036,7 +1085,7 @@ impl AppModel {
     fn open_view(&mut self, view: View) {
         // Recording belongs to the view it started in; the Back button can
         // leave without the Escape that would otherwise cancel it.
-        if self.record_target == RecordTarget::Settings {
+        if self.record_target != RecordTarget::Trial {
             self.recording = false;
             self.capture_hint = None;
         }
@@ -1048,6 +1097,7 @@ impl AppModel {
             View::Clipboard => self.clipboard.open(),
             View::Emoji => self.emoji.open(),
             View::Snippets => self.snippets.open(),
+            View::Scripts => self.scripts.open(),
             View::Settings => self.settings.open(),
             View::About => self.about.open(),
             View::Files => self.files.open(),
@@ -1140,21 +1190,23 @@ impl AppModel {
 
     // ---- palette UI -------------------------------------------------------------
 
-    /// Forms own the keyboard: the settings form, and the snippet editor or
-    /// delete confirmation.
+    /// Forms own the keyboard: the settings form, and the snippet or script
+    /// editor or delete confirmation.
     fn search_hidden(&self) -> bool {
         match self.view {
             View::Settings | View::About => true,
             View::Snippets => self.snippets.is_editing(),
+            View::Scripts => self.scripts.is_editing(),
             View::Root | View::Clipboard | View::Emoji | View::Files => false,
         }
     }
 
-    /// Let the view handle Escape itself (the snippet editor cancels before
-    /// the view is left). False means Escape returns to the root.
+    /// Let the view handle Escape itself (the snippet and script editors
+    /// cancel before the view is left). False means Escape returns to the root.
     fn view_escape(&mut self) -> bool {
         match self.view {
             View::Snippets => self.snippets.escape(),
+            View::Scripts => self.scripts.escape(),
             View::Root
             | View::Clipboard
             | View::Emoji
@@ -1178,11 +1230,13 @@ impl AppModel {
             View::Clipboard => Some(Command::ClipboardHistory.title()),
             View::Emoji => Some(Command::Emoji.title()),
             View::Snippets => Some(self.snippets.title()),
+            View::Scripts => Some(self.scripts.title()),
             View::Settings => Some(Command::Settings.title()),
             View::About => Some(Command::About.title()),
             View::Files => Some(Command::SearchFiles.title()),
         };
         let paste_enabled = matches!(self.paste, PasteState::Idle);
+        let run_enabled = self.launcher.launching_since().is_none();
         if self.dismissing {
             // Fading out: paint only.
         } else if self.recording {
@@ -1210,6 +1264,7 @@ impl AppModel {
                 View::Clipboard => self.clipboard.handle_keys(ui, paste_enabled),
                 View::Emoji => self.emoji.handle_keys(ui, paste_enabled),
                 View::Snippets => self.snippets.handle_keys(ui, paste_enabled),
+                View::Scripts => self.scripts.handle_keys(ui, run_enabled),
                 View::Settings => self.settings.handle_keys(ui),
                 View::About => {}
                 View::Files => self.files.handle_keys(ui),
@@ -1221,6 +1276,7 @@ impl AppModel {
             View::Clipboard => "Search clipboard history…",
             View::Emoji => "Search emoji…",
             View::Snippets => "Search snippets…",
+            View::Scripts => "Search scripts…",
             View::Files => "Search file names…",
             // Forms have no search field.
             View::Settings | View::About => "",
@@ -1321,6 +1377,14 @@ impl AppModel {
         timing::navigate_look(t, forward, motion::reduced(ctx))
     }
 
+    /// A form's editor closed; `clear_search` also empties the search field.
+    fn close_editor(&mut self, clear_search: bool) {
+        if clear_search {
+            self.search.clear();
+        }
+        self.focus_search = true;
+    }
+
     fn body_ui(&mut self, ui: &mut egui::Ui, paste_enabled: bool) {
         if self.view == View::Root {
             // A calculation leads with its answer card, as in Raycast.
@@ -1372,6 +1436,11 @@ impl AppModel {
                             self.open_view(View::Snippets);
                             self.snippets.start_new();
                         }
+                        Command::Scripts => self.open_view(View::Scripts),
+                        Command::TrackScript => {
+                            self.open_view(View::Scripts);
+                            self.scripts.start_track();
+                        }
                         Command::Settings => self.open_view(View::Settings),
                         Command::About => self.open_view(View::About),
                         Command::SearchFiles => self.open_view(View::Files),
@@ -1411,12 +1480,40 @@ impl AppModel {
                         .push(Effect::SaveConfig(ConfigEdit::Snippet(edit)));
                 }
                 if let Some(clear_search) = self.snippets.take_left_editor() {
-                    if clear_search {
-                        self.search.clear();
-                    }
-                    self.focus_search = true;
+                    self.close_editor(clear_search);
                 }
                 if self.snippets.take_open_file() {
+                    self.effects.push(Effect::OpenConfigFile);
+                }
+            }
+            View::Scripts => {
+                let recording = self.recording && self.record_target == RecordTarget::Script;
+                let run_enabled = self.launcher.launching_since().is_none();
+                self.scripts.ui(ui, &self.search, run_enabled, recording);
+                if recording && let Some(hint) = &self.capture_hint {
+                    theme::inset(ui, |ui| ui.label(RichText::new(hint).weak().small()));
+                }
+                if let Some((id, extra)) = self.scripts.take_run_request() {
+                    self.launcher
+                        .run_script(&id, &mut self.notices, true, extra);
+                }
+                if self.scripts.take_pick_request() && !self.picking_file {
+                    self.picking_file = true;
+                    self.effects.push(Effect::PickScriptFile);
+                }
+                if self.scripts.take_record_request() {
+                    self.recording = true;
+                    self.record_target = RecordTarget::Script;
+                    self.capture_hint = None;
+                }
+                if let Some(edit) = self.scripts.take_save_request() {
+                    self.effects
+                        .push(Effect::SaveConfig(ConfigEdit::Script(edit)));
+                }
+                if let Some(clear_search) = self.scripts.take_left_editor() {
+                    self.close_editor(clear_search);
+                }
+                if self.scripts.take_open_file() {
                     self.effects.push(Effect::OpenConfigFile);
                 }
             }
@@ -1472,6 +1569,7 @@ impl AppModel {
             View::Root => Some((self.launcher.primary_action(), &["Enter"])),
             View::Snippets if self.snippets.is_confirming_delete() => Some(("Delete", &["Enter"])),
             View::Snippets if self.snippets.is_editing() => Some(("Save", &["Ctrl", "S"])),
+            View::Scripts => Some(self.scripts.primary_action()),
             View::Settings => Some(("Save", &["Ctrl", "S"])),
             View::Clipboard | View::Emoji | View::Snippets => Some(("Paste", &["Enter"])),
             View::Files => Some(("Open", &["Enter"])),
@@ -1615,6 +1713,10 @@ impl AppModel {
                 RecordTarget::Settings => {
                     self.capture_hint = None;
                     self.settings.set_hotkey(chord);
+                }
+                RecordTarget::Script => {
+                    self.capture_hint = None;
+                    self.scripts.set_hotkey(chord);
                 }
             }
             return;

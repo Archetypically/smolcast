@@ -1,19 +1,21 @@
-//! Form writes to `config.toml`: the settings form (plan §12.7) and the snippet
-//! editor (§10.6). The file stays the single source of truth: each edit
-//! touches only the keys whose values changed, preserving comments,
-//! formatting, key order, and every other table, and the result is
-//! re-validated and round-trip checked before the caller writes it.
+//! Form writes to `config.toml`: the settings form (plan §12.7), the snippet
+//! editor (§10.6), and the script editor (§10.3). The file stays the single
+//! source of truth: each edit touches only the keys whose values changed,
+//! preserving comments, formatting, key order, and every other table, and the
+//! result is re-validated and round-trip checked before the caller writes it.
 //!
 //! The §10.2 rules hold: an existing file that does not parse or validate
 //! (including a newer `schema_version`) is never overwritten, and an absent
 //! file is created only by an explicit save.
 
+use std::collections::BTreeMap;
 use std::path::Path;
 
-use toml_edit::{DocumentMut, InlineTable, Item, Table, TableLike, Value};
+use toml_edit::{Array, DocumentMut, InlineTable, Item, Table, TableLike, Value};
 
 use super::config::{
-    ConfigError, ConfigFile, SCHEMA_VERSION, Settings, SnippetConfig, parse_str, validation,
+    ConfigError, ConfigFile, SCHEMA_VERSION, ScriptConfig, Settings, SnippetConfig, parse_str,
+    validation,
 };
 
 /// One form save.
@@ -21,6 +23,20 @@ use super::config::{
 pub enum ConfigEdit {
     Settings(Settings),
     Snippet(SnippetEdit),
+    Script(ScriptEdit),
+}
+
+/// A script-editor save (§10.3), shaped like [`SnippetEdit`].
+#[derive(Clone, Debug, PartialEq)]
+pub enum ScriptEdit {
+    Put {
+        id: String,
+        script: ScriptConfig,
+        create: bool,
+    },
+    Delete {
+        id: String,
+    },
 }
 
 /// A snippet-editor save (§10.6).
@@ -48,6 +64,7 @@ pub fn apply(
     match edit {
         ConfigEdit::Settings(settings) => write_settings(existing, settings, path),
         ConfigEdit::Snippet(edit) => write_snippet(existing, edit, path),
+        ConfigEdit::Script(edit) => write_script(existing, edit, path),
     }
 }
 
@@ -123,6 +140,70 @@ pub fn write_snippet(
     edit: &SnippetEdit,
     path: &Path,
 ) -> Result<String, ConfigError> {
+    let entry = match edit {
+        SnippetEdit::Put {
+            id,
+            snippet,
+            create,
+        } => (id, Some((snippet, *create))),
+        SnippetEdit::Delete { id } => (id, None),
+    };
+    write_entry(
+        existing,
+        path,
+        Kind {
+            name: "snippet",
+            key: "snippets",
+            map: |file| &mut file.snippets,
+            set_fields: set_snippet_fields,
+        },
+        entry,
+    )
+}
+
+/// Return the new file text with one script created, changed, or removed
+/// (§10.3). Other scripts, snippets, and settings are left byte-identical.
+pub fn write_script(
+    existing: Option<&str>,
+    edit: &ScriptEdit,
+    path: &Path,
+) -> Result<String, ConfigError> {
+    let entry = match edit {
+        ScriptEdit::Put { id, script, create } => (id, Some((script, *create))),
+        ScriptEdit::Delete { id } => (id, None),
+    };
+    write_entry(
+        existing,
+        path,
+        Kind {
+            name: "script",
+            key: "scripts",
+            map: |file| &mut file.scripts,
+            set_fields: set_script_fields,
+        },
+        entry,
+    )
+}
+
+/// A `[<key>.<id>]` table family the forms edit.
+struct Kind<T> {
+    /// Singular, for messages.
+    name: &'static str,
+    /// The top-level table.
+    key: &'static str,
+    map: fn(&mut ConfigFile) -> &mut BTreeMap<String, T>,
+    set_fields: fn(&mut dyn TableLike, &T, Option<&T>),
+}
+
+/// Create or change (`Some((value, create))`) or remove (`None`) one entry.
+/// `create` requires the id to be new; otherwise the id must exist, and only
+/// its changed fields are rewritten.
+fn write_entry<T: Clone>(
+    existing: Option<&str>,
+    path: &Path,
+    kind: Kind<T>,
+    (id, put): (&String, Option<(&T, bool)>),
+) -> Result<String, ConfigError> {
     let (mut doc, mut expected) = match existing {
         Some(text) => open_document(text, path)?,
         None => (
@@ -130,45 +211,42 @@ pub fn write_snippet(
             ConfigFile::default(),
         ),
     };
-    let gone = |id: &str| validation(path, format!("snippet {id:?} is no longer in the file"));
+    let name = kind.name;
+    let gone = || validation(path, format!("{name} {id:?} is no longer in the file"));
 
-    match edit {
-        SnippetEdit::Put {
-            id,
-            snippet,
-            create,
-        } => {
-            let old = expected.snippets.insert(id.clone(), snippet.clone());
+    match put {
+        Some((value, create)) => {
+            let old = (kind.map)(&mut expected).insert(id.clone(), value.clone());
             match (&old, create) {
                 (Some(_), true) => {
-                    return Err(validation(path, format!("snippet {id:?} already exists")));
+                    return Err(validation(path, format!("{name} {id:?} already exists")));
                 }
-                (None, false) => return Err(gone(id)),
+                (None, false) => return Err(gone()),
                 _ => {}
             }
-            // Field rules and keyword uniqueness, before touching the document.
+            // Field rules and whole-file rules, before touching the document.
             expected.validate(path)?;
-            let (snippets, inline) = snippets_table(&mut doc, path)?;
-            if let Some(item) = snippets.get_mut(id) {
+            let (entries, inline) = entries_table(&mut doc, kind.key, path)?;
+            if let Some(item) = entries.get_mut(id) {
                 let table = item
                     .as_table_like_mut()
-                    .ok_or_else(|| validation(path, format!("snippet {id:?} is not a table")))?;
-                set_fields(table, snippet, old.as_ref());
+                    .ok_or_else(|| validation(path, format!("{name} {id:?} is not a table")))?;
+                (kind.set_fields)(table, value, old.as_ref());
             } else if inline {
                 let mut table = InlineTable::new();
-                set_fields(&mut table, snippet, None);
-                snippets.insert(id, Item::Value(Value::InlineTable(table)));
+                (kind.set_fields)(&mut table, value, None);
+                entries.insert(id, Item::Value(Value::InlineTable(table)));
             } else {
                 let mut table = Table::new();
-                set_fields(&mut table, snippet, None);
-                snippets.insert(id, Item::Table(table));
+                (kind.set_fields)(&mut table, value, None);
+                entries.insert(id, Item::Table(table));
             }
         }
-        SnippetEdit::Delete { id } => {
-            if expected.snippets.remove(id).is_none() {
-                return Err(gone(id));
+        None => {
+            if (kind.map)(&mut expected).remove(id).is_none() {
+                return Err(gone());
             }
-            snippets_table(&mut doc, path)?.0.remove(id);
+            entries_table(&mut doc, kind.key, path)?.0.remove(id);
         }
     }
 
@@ -179,13 +257,14 @@ pub fn write_snippet(
     Ok(text)
 }
 
-/// The `[snippets]` table, created implicitly (no bare header) when absent,
+/// The `[<key>]` table, created implicitly (no bare header) when absent,
 /// and whether it is written inline (`snippets = { … }`).
-fn snippets_table<'a>(
+fn entries_table<'a>(
     doc: &'a mut DocumentMut,
+    key: &str,
     path: &Path,
 ) -> Result<(&'a mut dyn TableLike, bool), ConfigError> {
-    let item = doc.as_table_mut().entry("snippets").or_insert_with(|| {
+    let item = doc.as_table_mut().entry(key).or_insert_with(|| {
         let mut table = Table::new();
         table.set_implicit(true);
         Item::Table(table)
@@ -193,23 +272,64 @@ fn snippets_table<'a>(
     let inline = item.is_inline_table();
     let table = item
         .as_table_like_mut()
-        .ok_or_else(|| validation(path, "snippets is not a table".into()))?;
+        .ok_or_else(|| validation(path, format!("{key} is not a table")))?;
     Ok((table, inline))
+}
+
+/// Write the script's fields, skipping values equal to `old` as
+/// [`set_snippet_fields`] does.
+fn set_script_fields(table: &mut dyn TableLike, script: &ScriptConfig, old: Option<&ScriptConfig>) {
+    if old.is_none_or(|old| old.name != script.name) {
+        set_value(table, "name", Value::from(script.name.as_str()));
+    }
+    if old.is_none_or(|old| old.path != script.path) {
+        set_optional(table, "path", script.path.as_deref());
+    }
+    // Optional keys a tracked file does not need are left out when empty.
+    fn nonempty(s: &str) -> Option<&str> {
+        (!s.is_empty()).then_some(s)
+    }
+    if old.is_none_or(|old| old.interpreter != script.interpreter) {
+        set_optional(table, "interpreter", nonempty(&script.interpreter));
+    }
+    if old.is_none_or(|old| old.args != script.args) {
+        if script.args.is_empty() && script.path.is_some() {
+            table.remove("args");
+        } else {
+            let args: Array = script.args.iter().map(String::as_str).collect();
+            set_value(table, "args", Value::Array(args));
+        }
+    }
+    if old.is_none_or(|old| old.cwd != script.cwd) {
+        set_optional(table, "cwd", nonempty(&script.cwd));
+    }
+    if old.is_none_or(|old| old.hotkey != script.hotkey) {
+        set_optional(table, "hotkey", script.hotkey.as_deref());
+    }
+}
+
+/// Write `key` as a string, or remove it for `None`.
+fn set_optional(table: &mut dyn TableLike, key: &str, value: Option<&str>) {
+    match value {
+        Some(value) => set_value(table, key, Value::from(value)),
+        None => {
+            table.remove(key);
+        }
+    }
 }
 
 /// Write the snippet's fields, skipping values equal to `old` so their original
 /// spelling survives. A replaced value keeps its whitespace and comment.
-fn set_fields(table: &mut dyn TableLike, snippet: &SnippetConfig, old: Option<&SnippetConfig>) {
+fn set_snippet_fields(
+    table: &mut dyn TableLike,
+    snippet: &SnippetConfig,
+    old: Option<&SnippetConfig>,
+) {
     if old.is_none_or(|old| old.name != snippet.name) {
         set_value(table, "name", Value::from(snippet.name.as_str()));
     }
     if old.is_none_or(|old| old.keyword != snippet.keyword) {
-        match &snippet.keyword {
-            Some(keyword) => set_value(table, "keyword", Value::from(keyword.as_str())),
-            None => {
-                table.remove("keyword");
-            }
-        }
+        set_optional(table, "keyword", snippet.keyword.as_deref());
     }
     if old.is_none_or(|old| old.text != snippet.text) {
         set_value(table, "text", text_value(&snippet.text));

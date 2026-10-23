@@ -44,6 +44,8 @@ pub enum Effect {
     /// Re-read config.toml off the UI thread (§5.2).
     RefreshConfig,
     OpenConfigFile,
+    /// Show the Open dialog for a script file to track (§10.3).
+    PickScriptFile,
     /// A re-read config to apply: hotkeys re-register first (§5.2).
     ApplyConfig(ConfigFile),
     /// A session-only summon key from the conflict UI.

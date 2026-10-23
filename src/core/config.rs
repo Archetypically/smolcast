@@ -267,8 +267,17 @@ impl Default for Settings {
 #[serde(deny_unknown_fields)]
 pub struct ScriptConfig {
     pub name: String,
+    /// A tracked script file. Its extension picks the program and its folder
+    /// is the default `cwd`; `args` follow the path (§10.3).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+    /// The program; required without `path`, an override with it.
+    #[serde(default)]
     pub interpreter: String,
+    #[serde(default)]
     pub args: Vec<String>,
+    /// Required without `path`.
+    #[serde(default)]
     pub cwd: String,
     pub hotkey: Option<String>,
 }
@@ -340,7 +349,7 @@ impl ConfigFile {
         self.settings.validate(path)?;
         for (id, script) in &self.scripts {
             validate_id(path, "script", id)?;
-            script.validate(path)?;
+            script.validate(path, id)?;
         }
         // Keywords are unique ignoring case, so a future trigger map is
         // unambiguous whatever case rule it adopts.
@@ -405,54 +414,60 @@ impl Settings {
 }
 
 impl ScriptConfig {
-    pub fn validate(&self, path: &Path) -> Result<(), ConfigError> {
+    pub fn validate(&self, path: &Path, id: &str) -> Result<(), ConfigError> {
+        match self.problem() {
+            Some(what) => Err(validation(path, format!("script {id:?}: {what}"))),
+            None => Ok(()),
+        }
+    }
+
+    /// The first rule this script breaks, phrased for a form field (the
+    /// script editor shows it as-is). Whether the hotkey parses is checked
+    /// at registration, where a bad key disables only that hotkey (§10.3).
+    pub fn problem(&self) -> Option<String> {
         if self.name.is_empty() {
-            return Err(validation(path, "script name must be nonempty".into()));
+            return Some("name must be nonempty".into());
         }
         if self.name.chars().count() > MAX_SCRIPT_NAME_CHARS {
-            return Err(validation(
-                path,
-                format!("script name exceeds {MAX_SCRIPT_NAME_CHARS} Unicode scalar values"),
+            return Some(format!(
+                "name exceeds {MAX_SCRIPT_NAME_CHARS} Unicode scalar values"
             ));
         }
-        if self.interpreter.is_empty() {
-            return Err(validation(
-                path,
-                "script interpreter must be nonempty".into(),
-            ));
-        }
-        if self.cwd.is_empty() {
-            return Err(validation(path, "script cwd must be nonempty".into()));
+        match self.path.as_deref() {
+            Some("") => return Some("path must be nonempty".into()),
+            Some(path) => {
+                if let Some(problem) = super::script_file::path_problem(path, &self.interpreter) {
+                    return Some(problem);
+                }
+            }
+            None => {
+                if self.interpreter.is_empty() {
+                    return Some("interpreter must be nonempty".into());
+                }
+                if self.cwd.is_empty() {
+                    return Some("cwd must be nonempty".into());
+                }
+            }
         }
         if self.args.len() > MAX_SCRIPT_ARGS {
-            return Err(validation(
-                path,
-                format!("script has more than {MAX_SCRIPT_ARGS} arguments"),
+            return Some(format!("more than {MAX_SCRIPT_ARGS} arguments"));
+        }
+        if self.args.iter().any(|arg| arg.len() > MAX_SCRIPT_ARG_BYTES) {
+            return Some(format!(
+                "an argument exceeds {MAX_SCRIPT_ARG_BYTES} UTF-8 bytes"
             ));
         }
-        for arg in &self.args {
-            if arg.len() > MAX_SCRIPT_ARG_BYTES {
-                return Err(validation(
-                    path,
-                    format!("script argument exceeds {MAX_SCRIPT_ARG_BYTES} UTF-8 bytes"),
-                ));
-            }
-            if contains_nul(arg) {
-                return Err(validation(
-                    path,
-                    "script argument contains a NUL byte".into(),
-                ));
-            }
+        let fields = [&self.name, &self.interpreter, &self.cwd];
+        if fields
+            .into_iter()
+            .chain(&self.path)
+            .chain(&self.args)
+            .any(|s| contains_nul(s))
+            || self.hotkey.as_deref().is_some_and(contains_nul)
+        {
+            return Some("field contains a NUL byte".into());
         }
-        for s in [&self.name, &self.interpreter, &self.cwd] {
-            if contains_nul(s) {
-                return Err(validation(path, "script field contains a NUL byte".into()));
-            }
-        }
-        if self.hotkey.as_deref().is_some_and(contains_nul) {
-            return Err(validation(path, "script hotkey contains a NUL byte".into()));
-        }
-        Ok(())
+        None
     }
 }
 
@@ -538,6 +553,35 @@ pub fn is_valid_id(id: &str) -> bool {
         && id
             .bytes()
             .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
+}
+
+/// Table id for a new entry named `name`: ASCII letters and digits
+/// lowercased, every other run of characters collapsed to `-`, at most 48
+/// bytes, and `fallback` when nothing is left. A `-2`, `-3`, … suffix makes
+/// it unique among `existing`, ignoring case.
+pub fn new_id<'a>(name: &str, fallback: &str, existing: impl Iterator<Item = &'a str>) -> String {
+    let existing: Vec<&str> = existing.collect();
+    let mut base = String::new();
+    for c in name.chars() {
+        if c.is_ascii_alphanumeric() {
+            base.push(c.to_ascii_lowercase());
+        } else if !base.is_empty() && !base.ends_with('-') {
+            base.push('-');
+        }
+        if base.len() >= 48 {
+            break;
+        }
+    }
+    let base = base.trim_end_matches('-');
+    let base = if base.is_empty() { fallback } else { base };
+    let taken = |id: &str| existing.iter().any(|e| e.eq_ignore_ascii_case(id));
+    if !taken(base) {
+        return base.to_owned();
+    }
+    (2..)
+        .map(|n| format!("{base}-{n}"))
+        .find(|id| !taken(id))
+        .expect("a free suffix exists")
 }
 
 fn validate_id(path: &Path, kind: &str, id: &str) -> Result<(), ConfigError> {

@@ -58,6 +58,11 @@ impl PaletteWindow {
         HWND(self.hwnd as *mut _)
     }
 
+    /// The handle as an integer, for a thread that owns a dialog.
+    pub(crate) fn raw(&self) -> isize {
+        self.hwnd
+    }
+
     /// Summon fast path, called by a handler before it sends the summon event.
     /// A hidden palette is placed and shown cloaked without activation, so the
     /// paste destination is still the foreground window when the model

@@ -29,50 +29,36 @@ leave the clipboard empty.
 
 ## Launcher commands, files and updates (2026-10-22), on main, unverified
 
-Never run on Windows. GNU release exe 7.82 → 7.96 MB; new imports winhttp,
-powrprof, propsys (all system DLLs).
+Never run on Windows. System commands (§6.5), quicklinks (§10.7, 021),
+file search (§6.6, 020; the user chose a fallback row over omnisearch),
+the fallback section (022), self-update (§13, 019; unsigned, user: plumbing
+first) and icon-font glyphs (023). New imports winhttp, powrprof, propsys
+(all system DLLs). Checks are under Pending Windows checks.
 
-- **System commands** (§6.5): Lock Screen, Sleep, Restart, Shut Down, Sign
-  Out, Empty Recycle Bin, Toggle Dark Mode, Toggle Mute, Turn Off Display, as
-  root rows typed "System". Restart, Shut Down, Sign Out and Empty Recycle Bin
-  need a second Enter.
-- **Quicklinks** (§10.7, decision 021): `[quicklinks.<id>]` with `name` and
-  `url`; `{query}` takes text after the id (`gh rust egui`). Config-only.
-- **File search** (§6.6, decision 020): the Windows Search index over OLE DB,
-  no index of ours. "Search Files" view (debounced, Enter opens, Ctrl+Enter
-  reveals) and a "Search Files for …" row after any query. The user chose
-  that fallback row over omnisearch, so apps are not drowned by documents.
-- **Fallback section** (decision 022, supersedes 014's "only when nothing
-  matches"): every non-calculation, non-quicklink query ends with the web and
-  file search rows under a `Search for "query"` header (no header when they
-  are the only rows).
-- **Self-update** (§13, decision 019): daily check of `releases/latest`
-  (`check_for_updates`, on), "Check for Updates" command, offer row under the
-  root list, download over WinHTTP, size + SHA-256 check, rename swap,
-  relaunch with `--wait-pid`. Unsigned for now (user: plumbing first).
-  `.github/workflows/release.yml` publishes on a `v*` tag.
-- **Native icons** (decision 023): built-in commands, system actions,
-  quicklinks and the files fallback draw Windows' icon font (Segoe Fluent
-  Icons / MDL2, loaded from `%WINDIR%\Fonts`), emoji only as fallback;
-  Search Files rows show Explorer's icon per item.
+## Tracked scripts (2026-10-23), branch `script-editor`, unverified
+
+Decision 032, plan §10.2–10.3: scripts are tracked files (`path`, saved
+`args`, hotkey) resolved by extension at index time; Manage Scripts runs,
+runs with typed arguments (Tab), edits and untracks; Track Script File
+uses the Open dialog. Unit tests for `core::script_file` parsing only (the
+user's one-time exception). Linted for the GNU target. Windows check: the
+dialog stays in front and the palette does not dismiss while it is up;
+focus returns to the form; `.ps1`, `.cmd` and `.py` with spaces and
+Unicode in the path run in the file's folder; a `.cmd` given `a&b` gets
+it as one argument; a recorded hotkey registers on save; Enter on a row
+hides the palette after the spawn.
 
 ## App icon and file properties (2026-10-22), on main, unverified
 
-Decision 026: new "s." logo (`assets/smolcast.svg` →
-`scripts/generate_icon.py` → `assets/smolcast.ico`; user picked it from six
-directions),
-embedded with VERSIONINFO by `build.rs` (`winresource`, build dependency);
-the tray loads the embedded icon. Author, `homepage`
-(evanlee.engineer until smolcast.evanlee.engineer is live) and repository
-are in `Cargo.toml`. `release.yml` checks the embedded version. Resources
-verified in the GNU exe with `llvm-readobj`; MSVC `rc.exe` path untested.
+Decision 026: "s." logo (`assets/smolcast.svg` → `scripts/generate_icon.py`
+→ `.ico`) and VERSIONINFO embedded by `build.rs`. `homepage` is
+evanlee.engineer until smolcast.evanlee.engineer is live. MSVC `rc.exe`
+path untested.
 
 ## Installed programs (2026-10-22), on main, unverified
 
-Decision 027, plan §6.1: the scan adds filtered Uninstall registry rows no
-Start Menu shortcut covers (Raycast found Overwatch and Battle.net; neither
-has a shortcut). A dry run here adds Overwatch, Battle.net, 1Password and the
-Windows 11 Installation Assistant. Linted for the GNU target only.
+Decision 027, plan §6.1: filtered Uninstall registry rows no Start Menu
+shortcut covers (Overwatch, Battle.net). Linted for the GNU target only.
 
 ## Own visual language (2026-10-22), branch, unverified
 
@@ -100,15 +86,10 @@ seamlessly at 36 s in three cuts: wide for the page, square and vertical in
 create the Pages project and DNS, deploy, then point `Cargo.toml`
 `homepage` and the README at it.
 
-## Full-repo review (2026-10-23), branch `full-repo-review`, unverified
+## Full-repo review (2026-10-23), on main, unverified
 
-Code, simplify and security passes over all Rust. Fixed: a script hotkey's
-launch no longer hides an open palette; a summon clears a stuck pending
-launch; inline `settings = {…}` saves; the clipboard preview counts chars
-once per selection; capture re-checks exclusions (now with `Clipboard Viewer
-Ignore`) under the open (§7.2); Explorer and Notepad run by full path.
-Deferred, user's call: delete `.clip` files only on definite bad data, not
-any DPAPI failure (§7.2); bounded joins on quit (§1.5); WinRT history
+Fixes are in `git log` (PR #17). Deferred, user's call: delete `.clip`
+files only on definite bad data, not any DPAPI failure (§7.2); bounded joins on quit (§1.5); WinRT history
 conversion blocks the clipboard thread; `%VAR%` quicklinks are URLs (§10.7);
 path quicklinks take `..` in `{query}`; `SEE_MASK_FLAG_NO_UI` may hide the
 Mark-of-the-Web prompt for File Search opens (check on Windows); DLL search
@@ -203,25 +184,16 @@ a password manager is not captured, Reveal and Edit Config still open.
   above "flag in hole" for the bare query `flag`.
 - **Snippet expansion** tier 2 stays unapproved (decision 009).
 - **Theming**: shelved by the user (2026-10-22), "thinking about it for
-  sure". Tinycast refuses a theme editor (its not-planned list). Sketch if
-  revived: color-only themes as `%APPDATA%\smolcast\themes\<name>.toml`
-  based on `dark` or `light`, overriding the palette tokens (background, text,
-  secondary, selection, hover, control, divider, plus accent, warning, error,
-  which are constants in `app/theme.rs` today); settings `appearance =
-  system|dark|light` and `theme = "<name>"`; layout, spacing, fonts and radii
-  stay fixed (DESIGN.md); high contrast always wins; background alpha decides
-  how much Mica shows; hot reload through the config reload.
+  sure". Sketch: color-only `%APPDATA%\smolcast\themes\<name>.toml` over
+  `dark`/`light`, overriding the `app/theme.rs` color tokens; layout, fonts
+  and radii fixed; high contrast wins; hot reload via config reload.
 - **Tinycast gaps** (reviewed 2026-10-22, AI features ignored; Tinycast is
-  AGPL, so ideas only, never code). Done on the branch: system commands,
-  quicklinks, file search, self-update. Good fits not started: per-app
-  hotkeys (focus/hide an app), app aliases and hiding apps, running apps
-  with quit, Uninstall (Windows' uninstaller), clipboard pinning, paste as
-  plain text, an app block list and type filter, snippet placeholders and
-  arguments, script arguments and shown output, quicklink `{clipboard}` /
-  `{date}` and an editor. Bigger: window switcher, notes, translations.
-  Out: window management, layouts and rooms (non-goal), currency/crypto
-  (network), Raycast extensions (non-goal), dictionary (tabled), calendar,
-  Apple Shortcuts, menu-bar search, camera.
+  AGPL, so ideas only, never code). Good fits not started: per-app hotkeys,
+  app aliases/hiding, running apps with quit, Uninstall, clipboard pinning,
+  paste as plain text, snippet placeholders, script arguments and shown
+  output (Raycast's modes), quicklink `{clipboard}`/`{date}` and an editor.
+  Bigger: window switcher, notes. Out: window management, network features,
+  extensions, dictionary (tabled).
 - **Screen readers**: eframe's `accesskit` feature would expose the palette
   to Narrator, but adds dependencies and size, and the painted rows need
   `widget_info` labels. Not started; needs the user's call.

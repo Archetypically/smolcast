@@ -15,7 +15,7 @@ smolcast is a Windows take on [Tinycast](https://github.com/abue-ammar/tinycast)
 - **Quicklinks**: open a URL, file or folder by name, or type a query after its keyword (`gh rust egui`).
 - **Clipboard history**: text and images, searchable, with a preview, pasted straight back into the app you came from. Uses Windows clipboard history (Win+V) when it is on, or smolcast's own, encrypted on disk.
 - **Emoji picker**: searchable grid of every Unicode 17.0 emoji, in color, pasted exactly.
-- **Scripts**: name a command in the config, run it from the palette or its own hotkey.
+- **Scripts**: track a script file on disk, then run it from the search or its own hotkey, with saved arguments or ones you type for that run.
 - **Snippets**: save text you paste often, find it by name or keyword, and edit it right in the palette.
 - **Feels native**: a calm look of its own in Raycast's shape, Mica backdrop, rounded corners, light and dark themes, opens on the monitor under your cursor.
 - **Lively, never slow**: the palette settles in, views slide, the selection glides, and nothing waits on an animation. Reduced motion follows Windows' Animation effects setting or your choice.
@@ -62,12 +62,11 @@ Open **smolcast settings** from the palette, or edit `%APPDATA%\smolcast\config.
 Scripts, snippets and quicklinks live in the same file:
 
 ```toml
-[scripts.open-project]
-name = "Open project"
-interpreter = "pwsh.exe"
-args = ["-NoLogo", "-NoProfile", "-File", "C:\\Tools\\open-project.ps1"]
-cwd = "C:\\Tools"
-hotkey = "control+alt+KeyP"   # optional
+[scripts.deploy]
+name = "Deploy"
+path = 'C:\Tools\deploy.ps1'
+args = ["-Env", "prod"]        # optional
+hotkey = "control+alt+KeyD"    # optional
 
 [snippets.signature]
 name = "Email signature"
@@ -83,7 +82,7 @@ name = "Downloads"
 url = 'C:\Users\me\Downloads'
 ```
 
-Scripts run exactly the interpreter and arguments you write: nothing is interpolated from your search. A quicklink's id is its keyword: type it, a space, then your query, and `{query}` in its URL is replaced (URL-encoded, or as typed for a folder path). Choose a quicklink without a query, or press Tab on it, to fill in its keyword.
+You rarely need to write `[scripts]` by hand: **Track Script File** picks a `.ps1`, `.cmd`, `.bat`, `.py`, `.pyw`, `.js`, `.mjs` or `.exe`, with optional arguments and a hotkey. smolcast runs it with the program for its type (Windows PowerShell for `.ps1`, under the RemoteSigned policy, so a downloaded script needs **Unblock-File** first; Python, Node.js; batch files and programs run themselves) in the file's folder. **Manage Scripts** lists them: **Enter** runs, **Tab** runs with extra arguments you type (quote one that has spaces), **Ctrl+E** edits and **Shift+Delete** untracks; untracking removes the entry and never touches the file. A hand-written entry with `interpreter`, `args` and `cwd` instead of `path` runs that command. Nothing from your search is passed to a script; only arguments you type into **Run with Arguments** are, each as its own argument, never through a shell. A quicklink's id is its keyword: type it, a space, then your query, and `{query}` in its URL is replaced (URL-encoded, or as typed for a folder path). Choose a quicklink without a query, or press Tab on it, to fill in its keyword.
 
 ## Privacy
 
