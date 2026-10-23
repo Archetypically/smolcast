@@ -91,6 +91,12 @@ const ROWS = [
   },
   { name: "Privacy", type: "Section", icon: "shield", jump: "#privacy", words: "data telemetry network" },
   pageRow("Privacy Policy", "/privacy", "cookies analytics logs contact", "shield"),
+  pageRow(
+    "Code Signing Policy",
+    "/code-signing",
+    "signpath certificate signature smartscreen verify",
+    "check",
+  ),
   { name: "Configuration", type: "Section", icon: "gear", jump: "#config", words: "settings toml config" },
   {
     name: "Build from Source",

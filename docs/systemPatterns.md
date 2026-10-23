@@ -1668,7 +1668,10 @@ taking the single-instance mutex (§5.1). The update worker removes `.old` and
 
 Trust. The checksum detects corruption only; builds are unsigned. Before
 signing ships, an attacker who can publish a release can ship code. Signing
-will add a signature check before the swap.
+(decision 034, SignPath Foundation) will add a check before the swap:
+`WinVerifyTrust` on the download, the SignPath Foundation subject, and
+smolcast's `ProductName` and `OriginalFilename` in its signed version
+resource, since the certificate is shared with other projects.
 
 Publishing. `.github/workflows/release.yml` runs only on tags that are
 exactly `v<semver>` and match Cargo.toml's version; a tag with a hyphen

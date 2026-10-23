@@ -67,8 +67,10 @@ at 150%.
 
 Decision 030: `website/`, a static site for Cloudflare Pages (`task
 web:*`), whose hero is a working recreation of the palette. Since
-2026-10-23 (branch `website-pages`, decision 033) it also has `/privacy`
-and `/compare/` (hub plus Raycast, PowerToys Command Palette/Run, Flow
+2026-10-23 (branch `website-pages`, decision 033) it also has `/privacy`,
+`/code-signing` (SignPath's required policy: roles, attribution, privacy
+link; its "being set up" badge comes off once releases are signed) and
+`/compare/` (hub plus Raycast, PowerToys Command Palette/Run, Flow
 Launcher, Tinycast, Fluent Search, Listary, Wox, Alfred, Keypirinha, Ueli;
 `task web:compare`). Chrome is stamped from `partials/`, colors come from
 `theme.rs` (`task web:sync`; CI checks both). Comparison facts checked
@@ -168,14 +170,18 @@ every frame (cost only).
    `main`. Also add release notes: license notices, checksum, first-run
    behavior, and the clean-account check (§12.7 gate). Updates only work
    once the repo is public and a `v*` tag has published a release.
-3. **Sign builds** (decision 019): Authenticode (Azure Artifact Signing if
-   the user qualifies as a US/Canada individual, else SignPath Foundation
-   once public; either also covers winget and a Store exe installer), then
-   `WinVerifyTrust` on the signer name before the update swap (or an ECDSA
-   P-256 key checked with BCrypt). Until then the checksum only catches
-   corruption. Done (2026-10-23): releases only on `v<semver>` tags, and
-   build provenance attestations, which start when the repo goes public
-   (plan §13); then mention `gh attestation verify` in the README.
+3. **Sign builds** (decisions 019, 034): Authenticode through SignPath
+   Foundation (user's choice, 2026-10-23; free for OSS, also covers winget
+   and a Store exe installer). In order: the repository public; the site
+   deployed with its `/code-signing` policy page (written 2026-10-23;
+   SignPath also wants it linked from each release's notes); an application
+   at signpath.org; SignPath's GitHub action in `release.yml` before the
+   checksum step. The updater's `WinVerifyTrust` check pins the subject and
+   smolcast's own version resource (plan §13, decision 034).
+   Until then the checksum only catches corruption. Done (2026-10-23):
+   releases only on `v<semver>` tags, and build provenance attestations,
+   which start when the repo goes public (plan §13); then mention
+   `gh attestation verify` in the README.
 4. Decide the deferred review items above. `old-review-fixes` (on main) moved
    every view onto `RequestCache` and `ListCursor` (decision 024). Windows
    check: icons, file icons, emoji and thumbnails stay sharp across a
