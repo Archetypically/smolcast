@@ -126,9 +126,8 @@ The font is Segoe UI, with egui's bundled fonts as fallbacks.
   calculation or a quicklink query, scrolling with them, under a
   `Search for "query"` section header (the query cut with "…" past 40
   characters; the header takes one row, and is left out when nothing else
-  matched). First "Search Google for "query"", led by the engine's monogram
-  badge (`theme::engine_badge`: its letter on a circle in its color; logos are
-  not bundled) with a gray "Web Search" label; Enter opens the default
+  matched). First "Search Google for "query"", led by a globe glyph
+  (the same for every engine; no engine logos or marks, decision 038) with a gray "Web Search" label; Enter opens the default
   browser. Then "Search Files for "query"" (search glyph, gray "Files"), which opens the
   Search Files view with the query.
 - **Confirming row.** A system action that needs a second Enter (Restart,
