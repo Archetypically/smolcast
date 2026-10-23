@@ -240,6 +240,9 @@ pub struct ClipboardView {
     /// When the newest Windows refresh was requested, while it is in flight.
     windows_refreshing: Option<Instant>,
     thumbnails: Thumbnails,
+    /// Character count of the previewed text item: counting an 8 MiB item
+    /// on every repaint stalls the UI thread.
+    preview_chars: Option<(RowKey, usize)>,
     /// Rows shown at once, from the palette size.
     rows: usize,
     /// Row keys matching `filtered_for`, newest first.
@@ -277,6 +280,7 @@ impl ClipboardView {
             windows_generation: 0,
             windows_refreshing: None,
             thumbnails: Thumbnails::default(),
+            preview_chars: None,
             rows: MEDIUM_ROWS,
             filtered: Vec::new(),
             filtered_for: None,
@@ -623,6 +627,7 @@ impl ClipboardView {
         let rows = collect_rows(self.active, &self.history, &self.windows);
         let by_key: HashMap<&RowKey, &Row> = rows.iter().map(|row| (&row.key, row)).collect();
         let thumbnails = &mut self.thumbnails;
+        let preview_chars = &mut self.preview_chars;
         let (filtered, selected) = (&self.filtered, self.cursor.selected);
         let mut clicked = None;
         list::split(
@@ -654,7 +659,9 @@ impl ClipboardView {
             },
             |ui| {
                 if let Some(row) = filtered.get(selected).and_then(|k| by_key.get(k)) {
-                    theme::inset(ui, |ui| preview_ui(ui, row, thumbnails, list_height));
+                    theme::inset(ui, |ui| {
+                        preview_ui(ui, row, thumbnails, preview_chars, list_height);
+                    });
                 }
             },
         );
@@ -747,9 +754,25 @@ impl ClipboardView {
     }
 }
 
-fn preview_ui(ui: &mut egui::Ui, row: &Row<'_>, thumbnails: &mut Thumbnails, list_height: f32) {
+fn preview_ui(
+    ui: &mut egui::Ui,
+    row: &Row<'_>,
+    thumbnails: &mut Thumbnails,
+    preview_chars: &mut Option<(RowKey, usize)>,
+    list_height: f32,
+) {
     match &row.content {
-        RowContent::Text(text) => list::text_preview(ui, text, text.chars().count()),
+        RowContent::Text(text) => {
+            let chars = match preview_chars {
+                Some((key, chars)) if *key == row.key => *chars,
+                _ => {
+                    let chars = text.chars().count();
+                    *preview_chars = Some((row.key.clone(), chars));
+                    chars
+                }
+            };
+            list::text_preview(ui, text, chars);
+        }
         RowContent::Image {
             width,
             height,

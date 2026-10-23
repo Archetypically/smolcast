@@ -219,7 +219,10 @@ impl Launcher {
     }
 
     /// Summon rescans only a stale index; no periodic hidden wake exists (§1.4).
+    /// A launch still pending from the last summon no longer blocks Enter, and
+    /// its late result does not hide this one.
     pub fn on_summon(&mut self) {
+        self.launch_pending = None;
         if !self.scan_active
             && self
                 .last_scan_finished
@@ -313,25 +316,27 @@ impl Launcher {
         }
     }
 
-    /// Returns true when the launch succeeded and the palette should hide.
+    /// Returns true when the palette should hide: a launch it started
+    /// succeeded. A script hotkey's launch, or one from before this summon,
+    /// leaves the palette as it is.
     pub fn on_launch_finished(
         &mut self,
         app_id: AppId,
         result: Result<(), LaunchError>,
         notices: &mut NoticeStore,
     ) -> bool {
-        if self
+        let pending = self
             .launch_pending
             .as_ref()
-            .is_some_and(|(id, _)| *id == app_id)
-        {
+            .is_some_and(|(id, _)| *id == app_id);
+        if pending {
             self.launch_pending = None;
         }
         match result {
             Ok(()) => {
                 // Usage increments only after the shell accepted the launch (§6.3).
                 self.record_usage(&app_id);
-                true
+                pending
             }
             Err(e) => {
                 let name = self
