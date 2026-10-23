@@ -9,6 +9,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::Sender;
 use std::thread::JoinHandle;
+use std::time::{Duration, Instant};
 
 use egui::{Context, ViewportCommand};
 
@@ -30,7 +31,7 @@ use crate::win::placement::PaletteWindow;
 use crate::win::shell::{self, IconTarget, IconWorker};
 use crate::win::tray::{self, TrayHandle};
 use crate::win::update::{self, UpdateWorker};
-use crate::win::{appearance, autostart, file_dialog};
+use crate::win::{appearance, autostart, file_dialog, join_by};
 
 /// Startup facts decided before the window exists.
 pub struct Startup {
@@ -39,6 +40,10 @@ pub struct Startup {
     /// The window was created transparent for a Mica backdrop (§12.7).
     pub mica: bool,
 }
+
+/// How long Quit waits for background threads other than the state writer
+/// (§1.5).
+const QUIT_GRACE: Duration = Duration::from_secs(2);
 
 /// Frames a fast-path summon may stay cloaked waiting for a stable size; it
 /// is uncloaked after this many even if the size is still changing.
@@ -486,6 +491,7 @@ impl EframeApp {
     /// Downscale a stored clipboard image off the UI thread.
     fn start_thumbnail(&mut self, request: ThumbnailRequest) {
         let wake = self.wake();
+        let id = request.id;
         let spawned = std::thread::Builder::new()
             .name("smolcast-thumbnail".into())
             .spawn(move || {
@@ -497,13 +503,16 @@ impl EframeApp {
             });
         match spawned {
             Ok(job) => self.thumbnail_jobs.push(job),
-            // No thread: the preview stays "loading" until the next
-            // request; nothing is downscaled on the UI thread.
-            Err(e) => self.model.push_notice(Notice::new(
-                Severity::Warning,
-                op::CLIPBOARD,
-                format!("Could not start the image preview: {e}"),
-            )),
+            // No thread: the preview says so; nothing is downscaled on the
+            // UI thread.
+            Err(e) => {
+                self.model.thumbnail_failed(id);
+                self.model.push_notice(Notice::new(
+                    Severity::Warning,
+                    op::CLIPBOARD,
+                    format!("Could not start the image preview: {e}"),
+                ));
+            }
         }
     }
 
@@ -652,43 +661,52 @@ impl EframeApp {
         self.tray = None;
 
         // Clipboard and persistence workers flush/stop and join (§1.5 step 4).
+        // Only the state writer is waited for in full: it holds unsaved
+        // state. Every other thread gets `QUIT_GRACE`, so a call that hangs
+        // (a WinRT read, a launch on an unreachable share) cannot keep Quit or
+        // an update's restart waiting.
         if let Some(clipboard) = self.clipboard.take() {
-            clipboard.shutdown();
+            clipboard.shutdown(Instant::now() + QUIT_GRACE);
         }
         if let Some(writer) = self.state_writer.take() {
             writer.shutdown();
         }
+        // Counted from here, so a slow final save does not use up the others'
+        // grace.
+        let deadline = Instant::now() + QUIT_GRACE;
 
         // Scan/icon/launch jobs cancel between items and are joined (§1.5 step 5).
         self.scan_cancel.store(true, Ordering::Release);
+        for (_, cancel) in &self.paste_jobs {
+            cancel.store(true, Ordering::Release);
+        }
         if let Some(job) = self.scan_job.take() {
-            let _ = job.join();
+            join_by(job, Some(deadline));
         }
         if let Some(worker) = self.icon_worker.take() {
-            worker.shutdown();
+            worker.shutdown(deadline);
         }
         if let Some(renderer) = self.emoji_renderer.take() {
-            renderer.shutdown();
+            renderer.shutdown(deadline);
         }
         if let Some(worker) = self.file_search.take() {
-            worker.shutdown();
+            worker.shutdown(deadline);
         }
         if let Some(worker) = self.updates.take() {
-            worker.shutdown();
+            worker.shutdown(deadline);
         }
         for job in self.launch_jobs.drain(..) {
-            let _ = job.join();
+            join_by(job, Some(deadline));
         }
-        for (job, cancel) in self.paste_jobs.drain(..) {
-            cancel.store(true, Ordering::Release);
-            let _ = job.join();
+        for (job, _) in self.paste_jobs.drain(..) {
+            join_by(job, Some(deadline));
         }
         for job in self.thumbnail_jobs.drain(..) {
-            let _ = job.join();
+            join_by(job, Some(deadline));
         }
 
         if let Some(worker) = self.refresh_worker.take() {
-            let _ = worker.join();
+            join_by(worker, Some(deadline));
         }
     }
 }

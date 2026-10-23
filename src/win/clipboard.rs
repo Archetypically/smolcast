@@ -16,6 +16,7 @@ use std::cell::Cell;
 use std::collections::{HashMap, VecDeque};
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread::{self, JoinHandle};
+use std::time::Instant;
 
 use windows::ApplicationModel::DataTransfer::{
     Clipboard, ClipboardHistoryItem, ClipboardHistoryItemsResultStatus,
@@ -52,7 +53,7 @@ use crate::app::notice::{Notice, Severity, op};
 use crate::core::config::ClipboardSource;
 use crate::core::dib::{DibError, ImagePayload, decode_dib, encode_dib24, encode_dibv5};
 use crate::core::history::{Payload, TextError, decode_unicode_text, encode_unicode_text};
-use crate::win::{wide, win_error_parts};
+use crate::win::{join_by, wide, win_error_parts};
 
 /// Commands sent to the clipboard thread (§7.1).
 #[derive(Debug)]
@@ -240,16 +241,17 @@ impl ClipboardThread {
         }
     }
 
-    /// Ordered shutdown: enqueue `Shutdown`, wake, join (§1.5 step 4).
-    pub fn shutdown(mut self) {
-        self.stop_and_join();
+    /// Ordered shutdown: enqueue `Shutdown`, wake, and wait for the thread
+    /// until `deadline` (§1.5 step 4).
+    pub fn shutdown(mut self, deadline: Instant) {
+        self.stop_and_join(Some(deadline));
     }
 
-    fn stop_and_join(&mut self) {
+    fn stop_and_join(&mut self, deadline: Option<Instant>) {
         if let Some(join) = self.join.take() {
             let _ = self.command_tx.send(ClipboardCommand::Shutdown);
             let _ = unsafe { PostMessageW(Some(self.hwnd), WAKE_COMMAND, WPARAM(0), LPARAM(0)) };
-            let _ = join.join();
+            join_by(join, deadline);
         }
     }
 }
@@ -258,7 +260,7 @@ impl Drop for ClipboardThread {
     /// Safety net: on abnormal teardown (for example an app panic that skips
     /// `on_exit`), still stop the thread and destroy its message-only window.
     fn drop(&mut self) {
-        self.stop_and_join();
+        self.stop_and_join(None);
     }
 }
 
@@ -735,21 +737,30 @@ impl Worker {
     }
 
     /// Empty, publish the content, then the self-write marker, all inside one
-    /// open transaction (§7.2).
+    /// open transaction (§7.2). Every block is allocated before the empty, so
+    /// a failed allocation leaves the user's clipboard as it was.
     fn write_open(&self, write: &Write) -> Result<(), ClipboardError> {
-        unsafe { EmptyClipboard() }.map_err(|e| ClipboardError::from_win("empty clipboard", &e))?;
-        match write {
-            Write::Text { text, .. } => publish(CF_UNICODETEXT, &encode_unicode_text(text))?,
-            Write::Image { image, .. } => {
-                // Explicit 24-bit CF_DIB for alpha-unaware consumers; CF_DIBV5
-                // carries alpha for those that read it (§7.4).
-                publish(CF_DIB, &encode_dib24(image))?;
-                publish(CF_DIBV5, &encode_dibv5(image))?;
+        let blocks = match write {
+            Write::Text { text, .. } => {
+                vec![(CF_UNICODETEXT, Block::copy(&encode_unicode_text(text))?)]
             }
+            // Explicit 24-bit CF_DIB for alpha-unaware consumers; CF_DIBV5
+            // carries alpha for those that read it (§7.4).
+            Write::Image { image, .. } => vec![
+                (CF_DIB, Block::copy(&encode_dib24(image))?),
+                (CF_DIBV5, Block::copy(&encode_dibv5(image))?),
+            ],
+        };
+        // A missing marker is tolerated: the sequence guard still applies.
+        let marker = (self.formats.self_write != 0)
+            .then(|| Block::copy(&1u32.to_le_bytes()).ok())
+            .flatten();
+        unsafe { EmptyClipboard() }.map_err(|e| ClipboardError::from_win("empty clipboard", &e))?;
+        for (format, block) in blocks {
+            block.publish(format)?;
         }
-        if self.formats.self_write != 0 {
-            // A missing marker is tolerated: the sequence guard still applies.
-            let _ = publish(self.formats.self_write, &1u32.to_le_bytes());
+        if let Some(marker) = marker {
+            let _ = marker.publish(self.formats.self_write);
         }
         Ok(())
     }
@@ -923,27 +934,41 @@ fn copy_format(format: u32, max_bytes: usize) -> Copied {
     Copied::Bytes(bytes)
 }
 
-/// Publish `bytes` as `format` in a new `GMEM_MOVEABLE` block. On success the
-/// system owns the block; on failure it is freed here.
-fn publish(format: u32, bytes: &[u8]) -> Result<(), ClipboardError> {
-    let hglobal = unsafe { GlobalAlloc(GMEM_MOVEABLE, bytes.len()) }
-        .map_err(|e| ClipboardError::from_win("allocate clipboard memory", &e))?;
-    let ptr = unsafe { GlobalLock(hglobal) };
-    if ptr.is_null() {
-        let _ = unsafe { GlobalFree(Some(hglobal)) };
-        return Err(ClipboardError::new(
-            "lock clipboard memory",
-            "GlobalLock failed",
-        ));
-    }
-    unsafe { std::ptr::copy_nonoverlapping(bytes.as_ptr(), ptr as *mut u8, bytes.len()) };
-    let _ = unsafe { GlobalUnlock(hglobal) };
-    match unsafe { SetClipboardData(format, Some(HANDLE(hglobal.0))) } {
-        Ok(_) => Ok(()),
-        Err(e) => {
-            let _ = unsafe { GlobalFree(Some(hglobal)) };
-            Err(ClipboardError::from_win("set clipboard data", &e))
+/// Global memory holding one format's bytes. Freed on drop unless the
+/// clipboard took it.
+struct Block(HGLOBAL);
+
+impl Block {
+    fn copy(bytes: &[u8]) -> Result<Self, ClipboardError> {
+        let block = Self(
+            unsafe { GlobalAlloc(GMEM_MOVEABLE, bytes.len()) }
+                .map_err(|e| ClipboardError::from_win("allocate clipboard memory", &e))?,
+        );
+        let ptr = unsafe { GlobalLock(block.0) };
+        if ptr.is_null() {
+            return Err(ClipboardError::new(
+                "lock clipboard memory",
+                "GlobalLock failed",
+            ));
         }
+        unsafe { std::ptr::copy_nonoverlapping(bytes.as_ptr(), ptr as *mut u8, bytes.len()) };
+        let _ = unsafe { GlobalUnlock(block.0) };
+        Ok(block)
+    }
+
+    /// Hand the block to the open clipboard, which then owns it; on failure
+    /// it is freed here.
+    fn publish(self, format: u32) -> Result<(), ClipboardError> {
+        unsafe { SetClipboardData(format, Some(HANDLE(self.0.0))) }
+            .map_err(|e| ClipboardError::from_win("set clipboard data", &e))?;
+        std::mem::forget(self);
+        Ok(())
+    }
+}
+
+impl Drop for Block {
+    fn drop(&mut self) {
+        let _ = unsafe { GlobalFree(Some(self.0)) };
     }
 }
 

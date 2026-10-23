@@ -10,24 +10,23 @@
 
 use std::path::PathBuf;
 
-use windows::Win32::Foundation::{ERROR_SUCCESS, HWND};
+use windows::Win32::Foundation::HWND;
 use windows::Win32::Graphics::Dwm::{
     DWMSBT_MAINWINDOW, DWMWA_SYSTEMBACKDROP_TYPE, DWMWA_USE_IMMERSIVE_DARK_MODE,
     DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND, DWMWINDOWATTRIBUTE, DwmSetWindowAttribute,
 };
 use windows::Win32::System::Registry::{
-    HKEY, HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, REG_ROUTINE_FLAGS, RRF_RT_REG_DWORD,
-    RRF_RT_REG_SZ, RegGetValueW,
+    HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, RRF_RT_REG_DWORD, RRF_RT_REG_SZ,
 };
 use windows::Win32::UI::Accessibility::{HCF_HIGHCONTRASTON, HIGHCONTRASTW};
 use windows::Win32::UI::WindowsAndMessaging::{
     SPI_GETCLIENTAREAANIMATION, SPI_GETHIGHCONTRAST, SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS,
     SystemParametersInfoW,
 };
-use windows::core::{BOOL, PCWSTR, w};
+use windows::core::{BOOL, w};
 
-use crate::win::from_wide_nul;
 use crate::win::placement::PaletteWindow;
+use crate::win::{from_wide_nul, read_value};
 
 /// First build with `DWMWA_SYSTEMBACKDROP_TYPE` (Windows 11 22H2).
 const MICA_MIN_BUILD: u32 = 22621;
@@ -149,16 +148,4 @@ pub fn high_contrast() -> bool {
     }
     .is_ok()
         && info.dwFlags.contains(HCF_HIGHCONTRASTON)
-}
-
-fn read_value(
-    root: HKEY,
-    subkey: PCWSTR,
-    value: PCWSTR,
-    flags: REG_ROUTINE_FLAGS,
-    data: *mut core::ffi::c_void,
-    bytes: &mut u32,
-) -> Option<()> {
-    let status = unsafe { RegGetValueW(root, subkey, value, flags, None, Some(data), Some(bytes)) };
-    (status == ERROR_SUCCESS).then_some(())
 }

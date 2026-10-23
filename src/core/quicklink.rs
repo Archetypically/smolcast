@@ -27,14 +27,39 @@ pub fn expand(target: &str, query: &str) -> String {
     target.replace(QUERY_PLACEHOLDER, &value)
 }
 
-/// A drive (`C:\`) or UNC (`\\server`) path rather than a URL.
+/// A drive (`C:\`), UNC (`\\server`) or `%VAR%\` path rather than a URL.
 fn is_path(target: &str) -> bool {
     let bytes = target.as_bytes();
     target.starts_with("\\\\")
+        || leading_variable(target).is_some()
         || (bytes.len() >= 3
             && bytes[0].is_ascii_alphabetic()
             && bytes[1] == b':'
             && matches!(bytes[2], b'\\' | b'/'))
+}
+
+/// The name in a leading `%NAME%` followed by a path separator
+/// (`%USERPROFILE%\Downloads`). A URL's `%20` never matches: no closing `%`
+/// comes right before a separator.
+fn leading_variable(target: &str) -> Option<&str> {
+    let rest = target.strip_prefix('%')?;
+    let end = rest.find('%')?;
+    let name = &rest[..end];
+    let valid = !name.is_empty()
+        && name
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'(' | b')'));
+    (valid && matches!(rest.as_bytes().get(end + 1), Some(b'\\' | b'/'))).then_some(name)
+}
+
+/// `target` with a leading `%NAME%` replaced by `lookup(NAME)`, as Explorer
+/// reads such a path. Only that variable is expanded; one `lookup` does not
+/// know is left as typed.
+pub fn expand_variable(target: &str, lookup: impl Fn(&str) -> Option<String>) -> String {
+    match leading_variable(target).and_then(|name| lookup(name).map(|value| (name, value))) {
+        Some((name, value)) => format!("{value}{}", &target[name.len() + 2..]),
+        None => target.to_owned(),
+    }
 }
 
 /// Split a root query into a quicklink keyword and the query after it:

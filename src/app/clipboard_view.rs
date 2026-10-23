@@ -5,7 +5,7 @@
 //! Backend-neutral: the clipboard thread and paste service are driven by the
 //! model and host. This view only raises requests (`take_*`).
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::time::Instant;
 
 use egui::{Key, Modifiers, RichText, TextureHandle, TextureOptions};
@@ -134,6 +134,8 @@ struct Thumbnails {
     textures: RequestCache<RowKey, TextureHandle>,
     /// Stored images being downscaled by the host, and since when.
     pending: HashMap<u64, Instant>,
+    /// Stored images the host could not start downscaling.
+    failed: HashSet<u64>,
     requests: Vec<ThumbnailRequest>,
 }
 
@@ -142,6 +144,7 @@ impl Default for Thumbnails {
         Self {
             textures: RequestCache::new(THUMBNAIL_CACHE_CAP),
             pending: HashMap::new(),
+            failed: HashSet::new(),
             requests: Vec::new(),
         }
     }
@@ -149,26 +152,27 @@ impl Default for Thumbnails {
 
 impl Thumbnails {
     /// The texture for `key`. Images that need downscaling are requested from
-    /// the host; until they arrive this is the request time. Small ones load
-    /// inline.
+    /// the host; until they arrive this is the request time, or `None` when
+    /// the request failed. Small ones load inline.
     fn get(
         &mut self,
         ctx: &egui::Context,
         key: &RowKey,
         image: &ImagePayload,
-    ) -> Result<TextureHandle, Instant> {
+    ) -> Result<TextureHandle, Option<Instant>> {
         if let Some(texture) = self.textures.get(key) {
             return Ok(texture);
         }
         match key {
+            RowKey::Local(id) if self.failed.contains(id) => Err(None),
             RowKey::Local(id) if needs_downscale(image) => {
-                Err(*self.pending.entry(*id).or_insert_with(|| {
+                Err(Some(*self.pending.entry(*id).or_insert_with(|| {
                     self.requests.push(ThumbnailRequest {
                         id: *id,
                         image: image.clone(),
                     });
                     Instant::now()
-                }))
+                })))
             }
             _ => Ok(self.insert(ctx, key.clone(), thumbnail(image))),
         }
@@ -189,6 +193,7 @@ impl Thumbnails {
     fn forget(&mut self, key: &RowKey) {
         if let RowKey::Local(id) = key {
             self.pending.remove(id);
+            self.failed.remove(id);
         }
         self.textures.remove(key);
     }
@@ -196,6 +201,7 @@ impl Thumbnails {
     fn clear(&mut self) {
         self.textures.clear();
         self.pending.clear();
+        self.failed.clear();
     }
 }
 
@@ -254,6 +260,8 @@ pub struct ClipboardView {
     open_settings: bool,
     /// Persist smolcast's history across restarts (§7.2).
     persist: bool,
+    /// Days an entry is kept; 0 means until the limits evict it (§7.5).
+    max_age_days: u32,
     /// False until stored entries are loaded; captures wait in `pending`.
     loaded: bool,
     pending: Vec<(Payload, i64)>,
@@ -269,6 +277,7 @@ impl ClipboardView {
         limits: Limits,
         setting: ClipboardSource,
         persist: bool,
+        max_age_days: u32,
         awaiting_load: bool,
     ) -> Self {
         Self {
@@ -289,6 +298,7 @@ impl ClipboardView {
             commands: Vec::new(),
             open_settings: false,
             persist,
+            max_age_days,
             loaded: !awaiting_load,
             pending: Vec::new(),
             tokens: HashMap::new(),
@@ -301,6 +311,7 @@ impl ClipboardView {
 
     /// The view is being shown: pick or confirm the source (§7.0).
     pub fn open(&mut self) {
+        self.expire();
         self.cursor.reset();
         self.filtered_for = None;
         match self.setting {
@@ -321,11 +332,28 @@ impl ClipboardView {
         }
     }
 
-    pub fn set_limits(&mut self, limits: Limits) {
+    pub fn set_limits(&mut self, limits: Limits, max_age_days: u32) {
         for id in self.history.set_limits(limits) {
             self.forget_entry(id);
         }
+        self.max_age_days = max_age_days;
+        self.expire();
         self.filtered_for = None;
+    }
+
+    /// Drop entries older than `max_age_days`, with their stored files.
+    fn expire(&mut self) {
+        if self.max_age_days == 0 || !self.loaded {
+            return;
+        }
+        let max_age_ms = i64::from(self.max_age_days) * 86_400_000;
+        let expired = self.history.expire(unix_ms_now() - max_age_ms);
+        if !expired.is_empty() {
+            for id in expired {
+                self.forget_entry(id);
+            }
+            self.filtered_for = None;
+        }
     }
 
     /// Turning persistence off deletes the stored files; turning it on stores
@@ -355,6 +383,7 @@ impl ClipboardView {
             return;
         }
         self.insert(payload, now, None);
+        self.expire();
     }
 
     /// Stored entries arrived (oldest first); captures that raced the load are
@@ -367,6 +396,7 @@ impl ClipboardView {
         for (payload, at) in std::mem::take(&mut self.pending) {
             self.insert(payload, at, None);
         }
+        self.expire();
     }
 
     /// The store is unavailable; stop waiting for a load.
@@ -442,6 +472,13 @@ impl ClipboardView {
 
     pub fn take_thumbnail_requests(&mut self) -> Vec<ThumbnailRequest> {
         std::mem::take(&mut self.thumbnails.requests)
+    }
+
+    /// The host could not start downscaling entry `id`.
+    pub fn thumbnail_failed(&mut self, id: u64) {
+        if self.thumbnails.pending.remove(&id).is_some() {
+            self.thumbnails.failed.insert(id);
+        }
     }
 
     /// A downscaled stored image. Dropped when the entry is gone or was
@@ -786,10 +823,13 @@ fn preview_ui(
                         .min(1.0);
                     ui.add(egui::Image::new(&texture).fit_to_exact_size(size * fit));
                 }
-                Err(since) => {
+                Err(Some(since)) => {
                     if theme::busy_due(ui, since) {
                         theme::busy(ui, "Loading preview…");
                     }
+                }
+                Err(None) => {
+                    ui.label(RichText::new("No preview for this image.").weak());
                 }
             }
             ui.label(RichText::new(format!("{width} × {height}")).weak().small());

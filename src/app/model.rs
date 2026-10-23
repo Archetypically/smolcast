@@ -356,6 +356,7 @@ impl AppModel {
                 history_limits(&config.settings),
                 config.settings.clipboard_source,
                 config.settings.clipboard_persist,
+                config.settings.clipboard_max_age_days,
                 loads_stored_history(&config.settings),
             ),
             emoji: EmojiView::new(),
@@ -602,6 +603,10 @@ impl AppModel {
         self.visible
     }
 
+    pub fn thumbnail_failed(&mut self, id: u64) {
+        self.clipboard.thumbnail_failed(id);
+    }
+
     pub fn push_notice(&mut self, notice: Notice) {
         self.notices.push(notice);
     }
@@ -786,7 +791,10 @@ impl AppModel {
                 canonical: cfg.settings.summon_hotkey.clone(),
             };
         }
-        self.clipboard.set_limits(history_limits(&cfg.settings));
+        self.clipboard.set_limits(
+            history_limits(&cfg.settings),
+            cfg.settings.clipboard_max_age_days,
+        );
         self.clipboard.set_setting(cfg.settings.clipboard_source);
         self.launcher.set_scripts(&cfg.scripts);
         self.launcher.set_quicklinks(&cfg.quicklinks);
@@ -1219,10 +1227,10 @@ impl AppModel {
         match self.view {
             View::Snippets => self.snippets.escape(),
             View::Scripts => self.scripts.escape(),
+            View::Settings => self.settings.escape(),
             View::Root
             | View::Clipboard
             | View::Emoji
-            | View::Settings
             | View::About
             | View::Files
             | View::ReportBug => false,
@@ -1549,7 +1557,7 @@ impl AppModel {
                 // and the next summon starts fresh.
                 if let Some(action) = self.files.take_action() {
                     match action {
-                        FileAction::Open(path) => crate::win::shell::open_uri(path),
+                        FileAction::Open(path) => crate::win::shell::open_file(path),
                         FileAction::Reveal(path) => crate::win::shell::reveal(path),
                     }
                     let ctx = ui.ctx().clone();

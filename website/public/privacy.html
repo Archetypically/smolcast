@@ -202,7 +202,7 @@
               <li>
                 Otherwise it keeps its own: 100 items by default, encrypted so only your Windows account can read them.
                 <code>clipboard_persist = false</code> keeps it in memory; <code>clipboard_capture = false</code> keeps
-                nothing.
+                nothing; <code>clipboard_max_age_days</code> forgets items after that many days.
               </li>
               <li>
                 Skips anything an app marks as private, the flag password managers can set on what they copy. It can’t

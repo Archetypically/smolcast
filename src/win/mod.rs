@@ -26,6 +26,8 @@ pub mod update;
 
 use std::os::windows::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
+use std::thread::JoinHandle;
+use std::time::{Duration, Instant};
 
 use windows::Win32::Foundation::ERROR_SUCCESS;
 use windows::Win32::System::Com::CoTaskMemFree;
@@ -76,6 +78,23 @@ pub(crate) fn known_folder(id: &GUID) -> Option<PathBuf> {
 /// file of the same name could be waiting. Falls back to the bare name.
 pub(crate) fn windows_program(folder: &GUID, name: &str) -> PathBuf {
     known_folder(folder).map_or_else(|| PathBuf::from(name), |dir| dir.join(name))
+}
+
+/// Join `join`, or with a `deadline` wait only until then: a thread still
+/// busy is left to end with the process, so a hung call cannot hang Quit
+/// (plan §1.5).
+pub(crate) fn join_by(join: JoinHandle<()>, deadline: Option<Instant>) {
+    let Some(deadline) = deadline else {
+        let _ = join.join();
+        return;
+    };
+    while !join.is_finished() {
+        if Instant::now() >= deadline {
+            return;
+        }
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    let _ = join.join();
 }
 
 /// `RegGetValueW` for one value under `root`; `Some` when it succeeded and
