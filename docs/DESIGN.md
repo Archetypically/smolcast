@@ -59,7 +59,8 @@ From top to bottom, all sections span the full window width:
    of the window. Left: where you are ("smolcast" or the view title), plus the
    summon key as a key cap at the root. Right: the main action with its key
    caps (`Open Application Enter`, `Paste Enter`, `Save Ctrl S`,
-   `Delete Enter` while confirming a snippet delete), then
+   `Delete Enter` while confirming a snippet delete, `Run Enter` and
+   `Untrack Enter` in Manage Scripts), then
    `Back Esc` in sub-views. While that action runs ("Launching…",
    "Pasting…"), a spinner and the label replace its key caps.
 

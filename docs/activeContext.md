@@ -35,6 +35,19 @@ the fallback section (022), self-update (§13, 019; unsigned, user: plumbing
 first) and icon-font glyphs (023). New imports winhttp, powrprof, propsys
 (all system DLLs). Checks are under Pending Windows checks.
 
+## Tracked scripts (2026-10-23), branch `script-editor`, unverified
+
+Decision 032, plan §10.2–10.3: scripts are tracked files (`path`, saved
+`args`, hotkey) resolved by extension at index time; Manage Scripts runs,
+runs with typed arguments (Tab), edits and untracks; Track Script File
+uses the Open dialog. Unit tests for `core::script_file` parsing only (the
+user's one-time exception). Linted for the GNU target. Windows check: the
+dialog stays in front and the palette does not dismiss while it is up;
+focus returns to the form; `.ps1`, `.cmd` and `.py` with spaces and
+Unicode in the path run in the file's folder; a `.cmd` given `a&b` gets
+it as one argument; a recorded hotkey registers on save; Enter on a row
+hides the palette after the spawn.
+
 ## App icon and file properties (2026-10-22), on main, unverified
 
 Decision 026: "s." logo (`assets/smolcast.svg` → `scripts/generate_icon.py`
@@ -75,8 +88,8 @@ create the Pages project and DNS, deploy, then point `Cargo.toml`
 
 ## Full-repo review (2026-10-23), on main, unverified
 
-Fixes are in `git log` (PR #17). Deferred, user's call: delete `.clip` files only on definite bad data, not
-any DPAPI failure (§7.2); bounded joins on quit (§1.5); WinRT history
+Fixes are in `git log` (PR #17). Deferred, user's call: delete `.clip`
+files only on definite bad data, not any DPAPI failure (§7.2); bounded joins on quit (§1.5); WinRT history
 conversion blocks the clipboard thread; `%VAR%` quicklinks are URLs (§10.7);
 path quicklinks take `..` in `{query}`; `SEE_MASK_FLAG_NO_UI` may hide the
 Mark-of-the-Web prompt for File Search opens (check on Windows); DLL search

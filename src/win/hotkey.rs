@@ -108,6 +108,15 @@ pub fn check(key: &str) -> Result<(), String> {
     HotKey::from_str(key).map(|_| ()).map_err(|e| e.to_string())
 }
 
+/// Whether two hotkey strings name the same chord however they are spelled
+/// (`ctrl+alt+d` and `control+alt+KeyD`). Unparsable strings never match.
+pub fn same_chord(a: &str, b: &str) -> bool {
+    match (HotKey::from_str(a), HotKey::from_str(b)) {
+        (Ok(a), Ok(b)) => a.id() == b.id(),
+        _ => false,
+    }
+}
+
 /// Owns the `GlobalHotKeyManager` and current summon key. Lives on the main
 /// thread for the life of the app (§1.1).
 pub struct HotkeyManager {

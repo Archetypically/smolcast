@@ -176,6 +176,10 @@ pub enum Command {
     Snippets,
     /// Opens the snippet view straight into a new-snippet form (§10.6).
     CreateSnippet,
+    /// Lists tracked scripts to run, edit or untrack (§10.3).
+    Scripts,
+    /// Picks a script file on disk to track (§10.3).
+    TrackScript,
     Settings,
     /// The version and credits.
     About,
@@ -186,11 +190,13 @@ pub enum Command {
 }
 
 impl Command {
-    pub const ALL: [Command; 8] = [
+    pub const ALL: [Command; 10] = [
         Command::ClipboardHistory,
         Command::Emoji,
         Command::Snippets,
         Command::CreateSnippet,
+        Command::Scripts,
+        Command::TrackScript,
         Command::Settings,
         Command::About,
         Command::SearchFiles,
@@ -203,6 +209,8 @@ impl Command {
             Command::Emoji => "Search Emoji",
             Command::Snippets => "Search Snippets",
             Command::CreateSnippet => "Create Snippet",
+            Command::Scripts => "Manage Scripts",
+            Command::TrackScript => "Track Script File",
             Command::Settings => "smolcast settings",
             Command::About => "About smolcast",
             Command::SearchFiles => "Search Files",
@@ -213,6 +221,8 @@ impl Command {
     /// Other names a command is found by.
     pub fn aliases(self) -> &'static [&'static str] {
         match self {
+            Command::Scripts => &["Scripts", "Edit Scripts"],
+            Command::TrackScript => &["Add Script", "New Script", "Import Script"],
             Command::About => &["Credits"],
             Command::SearchFiles => &["Find Files", "Documents"],
             Command::CheckForUpdates => &["Update smolcast"],
@@ -227,6 +237,8 @@ impl Command {
             Command::Emoji => "emoji",
             Command::Snippets => "snippets",
             Command::CreateSnippet => "create-snippet",
+            Command::Scripts => "scripts",
+            Command::TrackScript => "track-script",
             Command::Settings => "settings",
             Command::About => "about",
             Command::SearchFiles => "search-files",
