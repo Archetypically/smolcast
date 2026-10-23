@@ -163,14 +163,14 @@ impl SettingsView {
             ui.end_row();
 
             ui.label("Web search");
-            egui::ComboBox::from_id_salt("search_engine")
-                .width(COMBO_WIDTH)
-                .selected_text(draft.search_engine.name())
-                .show_ui(ui, |ui| {
-                    for engine in SearchEngine::ALL {
-                        ui.selectable_value(&mut draft.search_engine, engine, engine.name());
-                    }
-                });
+            choice(
+                ui,
+                "search_engine",
+                COMBO_WIDTH,
+                &mut draft.search_engine,
+                SearchEngine::ALL,
+                SearchEngine::name,
+            );
             ui.end_row();
 
             if draft.search_engine == SearchEngine::Custom {
@@ -191,47 +191,39 @@ impl SettingsView {
         form(ui, "palette", |ui| {
             ui.label("Window size");
             ui.horizontal(|ui| {
-                egui::ComboBox::from_id_salt("palette_size")
-                    .width(SIZE_COMBO_WIDTH)
-                    .selected_text(palette_size_label(draft.palette_size))
-                    .show_ui(ui, |ui| {
-                        for size in PaletteSize::ALL {
-                            ui.selectable_value(
-                                &mut draft.palette_size,
-                                size,
-                                palette_size_label(size),
-                            );
-                        }
-                    });
+                choice(
+                    ui,
+                    "palette_size",
+                    SIZE_COMBO_WIDTH,
+                    &mut draft.palette_size,
+                    PaletteSize::ALL,
+                    palette_size_label,
+                );
                 hint(ui, "larger shows more results");
             });
             ui.end_row();
 
             ui.label("Text size");
-            egui::ComboBox::from_id_salt("text_size")
-                .width(SIZE_COMBO_WIDTH)
-                .selected_text(text_size_label(draft.text_size))
-                .show_ui(ui, |ui| {
-                    for size in TextSize::ALL {
-                        ui.selectable_value(&mut draft.text_size, size, text_size_label(size));
-                    }
-                });
+            choice(
+                ui,
+                "text_size",
+                SIZE_COMBO_WIDTH,
+                &mut draft.text_size,
+                TextSize::ALL,
+                text_size_label,
+            );
             ui.end_row();
 
             ui.label("Reduce motion");
             ui.horizontal(|ui| {
-                egui::ComboBox::from_id_salt("reduce_motion")
-                    .width(SIZE_COMBO_WIDTH)
-                    .selected_text(reduce_motion_label(draft.reduce_motion))
-                    .show_ui(ui, |ui| {
-                        for value in ReduceMotion::ALL {
-                            ui.selectable_value(
-                                &mut draft.reduce_motion,
-                                value,
-                                reduce_motion_label(value),
-                            );
-                        }
-                    });
+                choice(
+                    ui,
+                    "reduce_motion",
+                    SIZE_COMBO_WIDTH,
+                    &mut draft.reduce_motion,
+                    ReduceMotion::ALL,
+                    reduce_motion_label,
+                );
                 hint(ui, "fades only, no sliding or zooming");
             });
             ui.end_row();
@@ -256,22 +248,18 @@ impl SettingsView {
             ui.end_row();
 
             ui.label("Source");
-            egui::ComboBox::from_id_salt("clipboard_source")
-                .width(COMBO_WIDTH)
-                .selected_text(source_label(draft.clipboard_source))
-                .show_ui(ui, |ui| {
-                    for source in [
-                        ClipboardSource::Auto,
-                        ClipboardSource::Windows,
-                        ClipboardSource::Smolcast,
-                    ] {
-                        ui.selectable_value(
-                            &mut draft.clipboard_source,
-                            source,
-                            source_label(source),
-                        );
-                    }
-                });
+            choice(
+                ui,
+                "clipboard_source",
+                COMBO_WIDTH,
+                &mut draft.clipboard_source,
+                [
+                    ClipboardSource::Auto,
+                    ClipboardSource::Windows,
+                    ClipboardSource::Smolcast,
+                ],
+                source_label,
+            );
             ui.end_row();
 
             ui.label("Persistence");
@@ -382,6 +370,25 @@ fn section_gap(ui: &mut egui::Ui) {
 /// A gray note beside a setting; styled like a section label.
 fn hint(ui: &mut egui::Ui, text: &str) {
     theme::section_label(ui, text);
+}
+
+/// A drop-down over `options`, showing `label` of the current value.
+fn choice<T: Copy + PartialEq>(
+    ui: &mut egui::Ui,
+    id: &str,
+    width: f32,
+    value: &mut T,
+    options: impl IntoIterator<Item = T>,
+    label: fn(T) -> &'static str,
+) {
+    egui::ComboBox::from_id_salt(id)
+        .width(width)
+        .selected_text(label(*value))
+        .show_ui(ui, |ui| {
+            for option in options {
+                ui.selectable_value(&mut *value, option, label(option));
+            }
+        });
 }
 
 fn source_label(source: ClipboardSource) -> &'static str {

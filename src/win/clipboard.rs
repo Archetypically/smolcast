@@ -174,11 +174,11 @@ const WINDOWS_THUMBNAIL_EDGE: u32 = 256;
 /// 100 ns intervals between 1601-01-01 and 1970-01-01.
 const FILETIME_UNIX_EPOCH: i64 = 116_444_736_000_000_000;
 
+const CF_UNICODETEXT: u32 = 13;
 const CF_DIB: u32 = 8;
+const CF_DIBV5: u32 = 17;
 /// Allowance over the item cap for a raw DIB's metadata.
 const DIB_METADATA_SLACK: usize = 2048;
-const CF_UNICODETEXT: u32 = 13;
-const CF_DIBV5: u32 = 17;
 
 thread_local! {
     /// Set by the window procedure; consumed by the loop after each dispatch.
@@ -420,6 +420,8 @@ unsafe extern "system" fn clipboard_wnd_proc(
 struct Formats {
     self_write: u32,
     exclude_monitor: u32,
+    /// The legacy opt-out some password managers still set.
+    viewer_ignore: u32,
     history_allowed: u32,
 }
 
@@ -430,6 +432,7 @@ impl Formats {
         Self {
             self_write: register("smolcast.self-write.v1"),
             exclude_monitor: register("ExcludeClipboardContentFromMonitorProcessing"),
+            viewer_ignore: register("Clipboard Viewer Ignore"),
             history_allowed: register("CanIncludeInClipboardHistory"),
         }
     }
@@ -479,6 +482,16 @@ struct Worker {
 enum Attempt {
     Done,
     Busy,
+}
+
+/// Outcome of [`Worker::open`].
+enum Open {
+    /// The clipboard is open until the guard drops.
+    Held(ClipboardOpen),
+    /// Busy: a retry timer is armed, and its `WM_TIMER` resumes the work.
+    Retry,
+    /// Busy with no retries left, or the retry timer could not be armed.
+    Failed,
 }
 
 impl Worker {
@@ -550,29 +563,25 @@ impl Worker {
         if self.timer_armed {
             return; // a retry is scheduled; its WM_TIMER resumes the work
         }
-        loop {
-            if let Some(write) = self.writes.pop_front() {
-                if let Attempt::Busy = self.try_write(&write) {
-                    self.writes.push_front(write);
-                    return;
-                }
-                self.attempts = 0;
-                continue;
+        while let Some(write) = self.writes.pop_front() {
+            if let Attempt::Busy = self.try_write(&write) {
+                self.writes.push_front(write);
+                return;
             }
-            if self.pending_capture {
-                if !self.should_capture() {
-                    self.pending_capture = false;
-                    // The Windows history view refreshes on this signal.
-                    self.wake.send(AppEvent::ClipboardChanged);
-                    return;
-                }
-                if let Attempt::Busy = self.try_capture() {
-                    return;
-                }
+            self.attempts = 0;
+        }
+        if self.pending_capture {
+            if !self.should_capture() {
                 self.pending_capture = false;
-                self.attempts = 0;
+                // The Windows history view refreshes on this signal.
+                self.wake.send(AppEvent::ClipboardChanged);
+                return;
             }
-            return;
+            if let Attempt::Busy = self.try_capture() {
+                return;
+            }
+            self.pending_capture = false;
+            self.attempts = 0;
         }
     }
 
@@ -671,22 +680,22 @@ impl Worker {
         self.finish_write(request_id, result);
     }
 
-    /// Open the clipboard or schedule a retry. `None` means give up.
-    fn open(&mut self) -> Option<Result<ClipboardOpen, ()>> {
+    /// Open the clipboard, or arm a retry timer while it is busy.
+    fn open(&mut self) -> Open {
         match unsafe { OpenClipboard(Some(self.hwnd)) } {
-            Ok(()) => Some(Ok(ClipboardOpen)),
+            Ok(()) => Open::Held(ClipboardOpen),
             Err(_) if self.attempts < RETRY_DELAYS_MS.len() => {
                 let delay = RETRY_DELAYS_MS[self.attempts];
                 self.attempts += 1;
                 // Without a timer no retry would ever arrive and the queue
                 // would stall; fail this operation instead.
                 if unsafe { SetTimer(Some(self.hwnd), RETRY_TIMER, delay, None) } == 0 {
-                    return Some(Err(()));
+                    return Open::Failed;
                 }
                 self.timer_armed = true;
-                None
+                Open::Retry
             }
-            Err(_) => Some(Err(())),
+            Err(_) => Open::Failed,
         }
     }
 
@@ -695,9 +704,9 @@ impl Worker {
     fn try_write(&mut self, write: &Write) -> Attempt {
         let request_id = write.request_id();
         let guard = match self.open() {
-            None => return Attempt::Busy,
-            Some(Ok(guard)) => guard,
-            Some(Err(())) => {
+            Open::Retry => return Attempt::Busy,
+            Open::Held(guard) => guard,
+            Open::Failed => {
                 self.finish_write(
                     request_id,
                     Err(ClipboardError::new(
@@ -752,19 +761,24 @@ impl Worker {
         {
             return Attempt::Done;
         }
-        if self.format_present(self.formats.self_write)
-            || self.format_present(self.formats.exclude_monitor)
-        {
+        if self.excluded() {
             self.last_captured_sequence = Some(sequence);
             return Attempt::Done;
         }
         let guard = match self.open() {
-            None => return Attempt::Busy,
-            Some(Ok(guard)) => guard,
+            Open::Retry => return Attempt::Busy,
+            Open::Held(guard) => guard,
             // Terminal contention: this sequence is skipped (§7.1).
-            Some(Err(())) => return Attempt::Done,
+            Open::Failed => return Attempt::Done,
         };
-        let raw = self.read_open();
+        // The clipboard may have changed since the checks above; check again
+        // while it is held, so they describe the content read (§7.2).
+        let sequence = unsafe { GetClipboardSequenceNumber() };
+        let raw = if Some(sequence) == self.self_write_sequence || self.excluded() {
+            None
+        } else {
+            self.read_open()
+        };
         drop(guard); // decode only after the clipboard is closed (§7.4)
         self.last_captured_sequence = Some(sequence);
 
@@ -805,6 +819,13 @@ impl Worker {
             ),
         )));
         Attempt::Done
+    }
+
+    /// A smolcast write, or content its source asked monitors to skip (§7.2).
+    fn excluded(&self) -> bool {
+        self.format_present(self.formats.self_write)
+            || self.format_present(self.formats.exclude_monitor)
+            || self.format_present(self.formats.viewer_ignore)
     }
 
     fn format_present(&self, format: u32) -> bool {

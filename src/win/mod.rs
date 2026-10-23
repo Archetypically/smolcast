@@ -23,7 +23,11 @@ pub mod tray;
 pub mod update;
 
 use std::os::windows::ffi::OsStrExt;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+
+use windows::Win32::System::Com::CoTaskMemFree;
+use windows::Win32::UI::Shell::{KF_FLAG_DEFAULT, SHGetKnownFolderPath};
+use windows::core::{GUID, PWSTR};
 
 /// UTF-16 with a trailing NUL, for `PCWSTR` arguments.
 pub fn wide(s: &str) -> Vec<u16> {
@@ -44,4 +48,28 @@ pub(crate) fn from_wide_nul(buf: &[u16]) -> String {
 /// The message and code of a Windows error.
 pub(crate) fn win_error_parts(e: &windows::core::Error) -> (String, u32) {
     (e.message(), e.code().0 as u32)
+}
+
+/// Take ownership of a COM-allocated string.
+pub(crate) fn take_pwstr(p: PWSTR) -> String {
+    if p.is_null() {
+        return String::new();
+    }
+    let s = unsafe { p.to_string() }.unwrap_or_default();
+    unsafe { CoTaskMemFree(Some(p.0 as *const _)) };
+    s
+}
+
+/// A known folder's current path (`%APPDATA%`, `%LOCALAPPDATA%`).
+pub(crate) fn known_folder(id: &GUID) -> Option<PathBuf> {
+    let raw = unsafe { SHGetKnownFolderPath(id, KF_FLAG_DEFAULT, None) }.ok()?;
+    let path = PathBuf::from(take_pwstr(raw));
+    path.is_absolute().then_some(path)
+}
+
+/// A Windows program by its full path in known folder `folder`. A bare name
+/// would make `Command` look beside smolcast.exe first, where a downloaded
+/// file of the same name could be waiting. Falls back to the bare name.
+pub(crate) fn windows_program(folder: &GUID, name: &str) -> PathBuf {
+    known_folder(folder).map_or_else(|| PathBuf::from(name), |dir| dir.join(name))
 }

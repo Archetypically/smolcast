@@ -78,6 +78,10 @@ fn i32_at(b: &[u8], at: usize) -> i32 {
     u32_at(b, at) as i32
 }
 
+fn push_u32(out: &mut Vec<u8>, v: u32) {
+    out.extend_from_slice(&v.to_le_bytes());
+}
+
 /// Validate a `CF_DIB`/`CF_DIBV5` block and decode it. `item_cap` bounds the
 /// decoded RGBA size (§7.5); the caller has already bounded the raw copy.
 pub fn decode_dib(bytes: &[u8], item_cap: usize) -> Result<ImagePayload, DibError> {
@@ -131,12 +135,9 @@ pub fn decode_dib(bytes: &[u8], item_cap: usize) -> Result<ImagePayload, DibErro
     } else {
         0
     };
-    let palette_entries = if bit_count <= 8 {
-        if clr_used == 0 {
-            1 << bit_count
-        } else {
-            clr_used
-        }
+    // An indexed image that declares no palette size has one entry per index.
+    let palette_entries = if bit_count <= 8 && clr_used == 0 {
+        1 << bit_count
     } else {
         clr_used
     };
@@ -209,7 +210,6 @@ pub fn encode_dib24(image: &ImagePayload) -> Vec<u8> {
     let (w, h) = (image.width as usize, image.height as usize);
     let stride = (w * 3).div_ceil(4) * 4;
     let mut out = Vec::with_capacity(40 + stride * h);
-    let push_u32 = |out: &mut Vec<u8>, v: u32| out.extend_from_slice(&v.to_le_bytes());
     push_u32(&mut out, 40);
     push_u32(&mut out, image.width);
     push_u32(&mut out, image.height); // positive: bottom-up
@@ -248,7 +248,6 @@ fn has_trailing_masks(bytes: &[u8], header: usize, needed: u64) -> bool {
 pub fn encode_dibv5(image: &ImagePayload) -> Vec<u8> {
     let pixel_bytes = image.rgba.len();
     let mut out = Vec::with_capacity(V5_HEADER + pixel_bytes);
-    let push_u32 = |out: &mut Vec<u8>, v: u32| out.extend_from_slice(&v.to_le_bytes());
 
     push_u32(&mut out, V5_HEADER as u32);
     push_u32(&mut out, image.width);

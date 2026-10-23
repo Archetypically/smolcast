@@ -551,7 +551,7 @@ fn validate_id(path: &Path, kind: &str, id: &str) -> Result<(), ConfigError> {
     }
 }
 
-fn validation(path: &Path, message: String) -> ConfigError {
+pub(crate) fn validation(path: &Path, message: String) -> ConfigError {
     ConfigError::Validation {
         path: path.to_owned(),
         message,
@@ -607,6 +607,10 @@ pub fn key_names(chord: &str) -> Vec<String> {
         .collect()
 }
 
+/// A valid config with settings only; tests append their own tables.
+#[cfg(test)]
+pub(crate) const BASE_SETTINGS: &str = "schema_version = 1\n[settings]\nsummon_hotkey = \"control+alt+Space\"\nclipboard_capture = true\nclipboard_max_entries = 100\nclipboard_max_item_bytes = 8388608\nclipboard_max_total_bytes = 67108864\n";
+
 /// The canonical config sample from the plan's §10.2, used by tests.
 #[cfg(test)]
 pub(crate) const SAMPLE_TOML: &str = r#"
@@ -637,18 +641,9 @@ Me"""
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::Path;
-
-    /// A valid config with settings only; tests append their own tables.
-    const BASE_SETTINGS: &str = "schema_version = 1\n[settings]\nsummon_hotkey = \"control+alt+Space\"\nclipboard_capture = true\nclipboard_max_entries = 100\nclipboard_max_item_bytes = 8388608\nclipboard_max_total_bytes = 67108864\n";
 
     fn parse(text: &str) -> Result<ConfigFile, ConfigError> {
-        let cfg = toml::from_str::<ConfigFile>(text).map_err(|e| ConfigError::Parse {
-            path: PathBuf::from("test.toml"),
-            message: e.to_string(),
-        })?;
-        cfg.validate(Path::new("test.toml"))?;
-        Ok(cfg)
+        parse_str(text, Path::new("test.toml"))
     }
 
     fn err_contains(e: &ConfigError, needle: &str) -> bool {
@@ -701,10 +696,8 @@ mod tests {
 
     #[test]
     fn schema_version_mismatch_rejected() {
-        let e = parse(
-            "schema_version = 2\n[settings]\nsummon_hotkey = \"control+alt+Space\"\nclipboard_capture = true\nclipboard_max_entries = 100\nclipboard_max_item_bytes = 8388608\nclipboard_max_total_bytes = 67108864\n",
-        )
-        .unwrap_err();
+        let e =
+            parse(&BASE_SETTINGS.replace("schema_version = 1", "schema_version = 2")).unwrap_err();
         assert!(err_contains(&e, "schema_version"));
     }
 

@@ -230,17 +230,17 @@ pub fn decode_unicode_text(bytes: &[u8], item_cap: usize) -> Result<String, Text
     if bytes.len() > limit {
         return Err(TextError::TooLarge);
     }
-    let units: Vec<u16> = bytes
-        .as_chunks::<2>()
-        .0
-        .iter()
-        .map(|pair| u16::from_le_bytes(*pair))
-        .collect();
+    // Find the terminator and decode from the bytes directly, so the UTF-16
+    // units are never copied into a Vec first.
+    let units = bytes.as_chunks::<2>().0;
     let end = units
         .iter()
-        .position(|&u| u == 0)
+        .position(|pair| *pair == [0, 0])
         .ok_or(TextError::Unterminated)?;
-    let text = String::from_utf16(&units[..end]).map_err(|_| TextError::InvalidUtf16)?;
+    let text: String =
+        char::decode_utf16(units[..end].iter().map(|pair| u16::from_le_bytes(*pair)))
+            .collect::<Result<_, _>>()
+            .map_err(|_| TextError::InvalidUtf16)?;
     if text.is_empty() {
         return Err(TextError::Empty);
     }

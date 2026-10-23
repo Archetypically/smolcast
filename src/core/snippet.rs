@@ -20,8 +20,10 @@ pub struct Snippet {
     pub name: String,
     pub keyword: Option<String>,
     pub text: String,
-    /// `text` lowercased once for search.
+    /// `text`, `name` and `keyword` lowercased once for search.
     text_lower: String,
+    name_lower: String,
+    keyword_lower: Option<String>,
     /// Unicode scalar values in `text`, for the preview.
     pub chars: usize,
 }
@@ -30,6 +32,8 @@ impl Snippet {
     fn new(id: String, name: String, keyword: Option<String>, text: String) -> Self {
         Self {
             text_lower: text.to_lowercase(),
+            name_lower: name.to_lowercase(),
+            keyword_lower: keyword.as_deref().map(str::to_lowercase),
             chars: text.chars().count(),
             id,
             name,
@@ -96,7 +100,7 @@ pub fn draft_problem(
     snippets
         .iter()
         .filter(|s| Some(s.id.as_str()) != editing)
-        .find(|s| s.keyword.as_deref().map(str::to_lowercase).as_deref() == Some(&keyword))
+        .find(|s| s.keyword_lower.as_deref() == Some(keyword.as_str()))
         .map(|s| format!("keyword is already used by \"{}\"", s.name))
 }
 
@@ -120,7 +124,7 @@ pub fn search(query: &str, snippets: &[Snippet]) -> Vec<usize> {
     let needle = query.to_lowercase();
     let matcher = SkimMatcherV2::default();
 
-    let mut hits: Vec<(Tier, i64, String, usize)> = snippets
+    let mut hits: Vec<(Tier, i64, &str, usize)> = snippets
         .iter()
         .enumerate()
         .filter_map(|(index, s)| {
@@ -129,13 +133,13 @@ pub fn search(query: &str, snippets: &[Snippet]) -> Vec<usize> {
             } else {
                 classify(s, query, &needle, &matcher)?
             };
-            Some((tier, score, s.name.to_lowercase(), index))
+            Some((tier, score, s.name_lower.as_str(), index))
         })
         .collect();
     hits.sort_by(|a, b| {
         a.0.cmp(&b.0)
             .then(b.1.cmp(&a.1))
-            .then_with(|| a.2.cmp(&b.2))
+            .then_with(|| a.2.cmp(b.2))
             .then_with(|| snippets[a.3].id.cmp(&snippets[b.3].id))
     });
     hits.into_iter().map(|(.., index)| index).collect()
@@ -147,9 +151,8 @@ fn classify(
     needle: &str,
     matcher: &SkimMatcherV2,
 ) -> Option<(Tier, i64)> {
-    let keyword = s.keyword.as_deref().map(str::to_lowercase);
-    if let Some(keyword) = &keyword {
-        if *keyword == needle {
+    if let Some(keyword) = s.keyword_lower.as_deref() {
+        if keyword == needle {
             return Some((Tier::KeywordExact, 0));
         }
         if keyword.starts_with(needle) {

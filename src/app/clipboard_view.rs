@@ -8,7 +8,7 @@
 use std::collections::HashMap;
 use std::time::Instant;
 
-use egui::{Key, Modifiers, RichText, TextureHandle, TextureOptions, Vec2};
+use egui::{Key, Modifiers, RichText, TextureHandle, TextureOptions};
 use fuzzy_matcher::FuzzyMatcher;
 use fuzzy_matcher::skim::SkimMatcherV2;
 
@@ -33,7 +33,6 @@ const SEARCH_CHARS: usize = 512;
 const ROW_CHARS: usize = 60;
 /// Bytes at the start of an item that a row's preview line is taken from.
 const PREVIEW_SCAN_BYTES: usize = 4096;
-const LIST_WIDTH: f32 = 300.0;
 
 /// Which history the view is showing.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -241,6 +240,9 @@ pub struct ClipboardView {
     /// When the newest Windows refresh was requested, while it is in flight.
     windows_refreshing: Option<Instant>,
     thumbnails: Thumbnails,
+    /// Character count of the previewed text item: counting an 8 MiB item
+    /// on every repaint stalls the UI thread.
+    preview_chars: Option<(RowKey, usize)>,
     /// Rows shown at once, from the palette size.
     rows: usize,
     /// Row keys matching `filtered_for`, newest first.
@@ -278,6 +280,7 @@ impl ClipboardView {
             windows_generation: 0,
             windows_refreshing: None,
             thumbnails: Thumbnails::default(),
+            preview_chars: None,
             rows: MEDIUM_ROWS,
             filtered: Vec::new(),
             filtered_for: None,
@@ -597,19 +600,15 @@ impl ClipboardView {
     pub fn ui(&mut self, ui: &mut egui::Ui, query: &str, paste_enabled: bool) {
         let query = query.trim();
         if self.filtered_for.as_deref() != Some(query) {
-            let query_changed = self
-                .filtered_for
-                .as_deref()
-                .is_some_and(|previous| previous != query);
-            self.refilter(query);
-            if query_changed {
+            // A changed query starts the list over; the first has nothing to reset.
+            if self.filtered_for.is_some() {
                 self.cursor.reset();
             }
+            self.refilter(query);
         }
         self.cursor.clamp_selected(self.filtered.len());
-        let visible = self.rows;
-        let list_height = visible as f32 * theme::ROW_STRIDE;
-        let shown = list::scroll(ui, &mut self.cursor, self.filtered.len(), visible);
+        let list_height = self.rows as f32 * theme::ROW_STRIDE;
+        let shown = list::scroll(ui, &mut self.cursor, self.filtered.len(), self.rows);
 
         theme::inset(ui, |ui| self.source_line(ui));
         if self.setting == ClipboardSource::Windows
@@ -628,18 +627,13 @@ impl ClipboardView {
         let rows = collect_rows(self.active, &self.history, &self.windows);
         let by_key: HashMap<&RowKey, &Row> = rows.iter().map(|row| (&row.key, row)).collect();
         let thumbnails = &mut self.thumbnails;
+        let preview_chars = &mut self.preview_chars;
         let (filtered, selected) = (&self.filtered, self.cursor.selected);
         let mut clicked = None;
-        ui.horizontal_top(|ui| {
-            // Rows stack top-down inside the horizontal list | preview split,
-            // and the list has a fixed height so the action row stays visible.
-            // The cap also stops the separator taking all remaining height,
-            // which grew the window every frame.
-            ui.set_max_height(list_height);
-            let size = Vec2::new(LIST_WIDTH, list_height);
-            ui.allocate_ui_with_layout(size, egui::Layout::top_down(egui::Align::Min), |ui| {
-                ui.set_min_size(size);
-                ui.set_width(LIST_WIDTH);
+        list::split(
+            ui,
+            list_height,
+            |ui| {
                 if filtered.is_empty() {
                     let text = match self.active {
                         None => None,
@@ -662,15 +656,15 @@ impl ClipboardView {
                         clicked = Some(index);
                     }
                 }
-            });
-            ui.separator();
-            ui.vertical(|ui| {
-                ui.set_max_height(list_height);
+            },
+            |ui| {
                 if let Some(row) = filtered.get(selected).and_then(|k| by_key.get(k)) {
-                    theme::inset(ui, |ui| preview_ui(ui, row, thumbnails, list_height));
+                    theme::inset(ui, |ui| {
+                        preview_ui(ui, row, thumbnails, preview_chars, list_height);
+                    });
                 }
-            });
-        });
+            },
+        );
         if let Some(index) = clicked {
             self.cursor.selected = index;
             if paste_enabled {
@@ -760,16 +754,24 @@ impl ClipboardView {
     }
 }
 
-fn preview_ui(ui: &mut egui::Ui, row: &Row<'_>, thumbnails: &mut Thumbnails, list_height: f32) {
+fn preview_ui(
+    ui: &mut egui::Ui,
+    row: &Row<'_>,
+    thumbnails: &mut Thumbnails,
+    preview_chars: &mut Option<(RowKey, usize)>,
+    list_height: f32,
+) {
     match &row.content {
         RowContent::Text(text) => {
-            let shown: String = text.chars().take(2000).collect();
-            ui.add(egui::Label::new(RichText::new(shown).monospace().small()).wrap());
-            ui.label(
-                RichText::new(format!("{} characters", text.chars().count()))
-                    .weak()
-                    .small(),
-            );
+            let chars = match preview_chars {
+                Some((key, chars)) if *key == row.key => *chars,
+                _ => {
+                    let chars = text.chars().count();
+                    *preview_chars = Some((row.key.clone(), chars));
+                    chars
+                }
+            };
+            list::text_preview(ui, text, chars);
         }
         RowContent::Image {
             width,

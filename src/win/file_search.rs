@@ -21,8 +21,8 @@ use windows::core::{GUID, IUnknown, Interface, PCWSTR};
 
 use crate::app::model::{AppEvent, Wake};
 use crate::core::file_search::{self, FileHit};
-use crate::win::shell::{ComApartment, take_pwstr};
-use crate::win::wide;
+use crate::win::shell::ComApartment;
+use crate::win::{take_pwstr, wide};
 
 /// `CLSID_CollatorDataSource` (searchapi.h): the Windows Search OLE DB
 /// provider.
