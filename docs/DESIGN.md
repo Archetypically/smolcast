@@ -266,6 +266,56 @@ palette is idle.
   tokens and `app::motion` helpers, stays under 200 ms, and has a reduced
   form with no movement.
 
+## Taste: made, not generated
+
+smolcast should feel made by someone who cares, never generated. These
+rules bind the app and the website. The website's floor follows
+[Hallmark](https://github.com/nutlope/hallmark), whose linter
+(`sloplint.mjs`) is how to audit a page (techContext, Website).
+
+**Delight comes from responsiveness, not decoration.** The joy is a palette
+that answers before you finish typing, a key cap that presses with your
+key, a pip that slides to the row you chose. Motion:
+
+- answers something the person did, or marks one moment once (the
+  underline drawing in, the heart beat). Nothing loops or pulses to ask
+  for attention.
+- is short: interactions under 200 ms, an entrance under 350 ms, ease-out,
+  no bounce, overshoot or spring.
+- moves only `transform` and `opacity` (and color for hover tints), never
+  width, height, top, left or padding, and never `transition: all`.
+- never makes anyone wait: input acts on final positions, content is
+  readable with scripts off, and hidden-until-script states are scoped
+  under `.js`.
+- has a reduced-motion form with no movement.
+- is spent on one signature per screen. A page that has a reveal has one,
+  and documents have none.
+
+**Never ship these tells:**
+
+- An eyebrow label over a heading, or labels in tracked capitals. The
+  heading says it.
+- Middle-dot meta strings ("Windows 11 · x64 · 7 MB") or arrows glued to
+  link text ("Compare →"). Use pills, line breaks, or a verb as the label.
+- Decorative status dots, emoji as icons, a card inside a card, a
+  purple-to-blue gradient, a hand-drawn browser window.
+- Fade-up-on-every-scroll, parallax, typewriter headlines, counting
+  numbers, shimmer, tilt or magnetic hovers, confetti, cursor trails.
+- An invented number, quote, logo or testimonial. Comparisons cite a
+  source, a version and a date, bold the better pick whoever has it, and
+  leave a row plain when the other side does not publish the fact.
+- Literal colors past the token block. Every color is a token
+  (`tokens.css` from `theme.rs`, or the web-only block in `styles.css`).
+
+**Copy is short and casual for a skimmer.** One idea per screen, a lead of
+one or two short sentences, typographic quotes (’ “ ”), and facts in pills,
+badges and tables rather than paragraphs. Fullness comes from scale and
+real product states (palette states, never stock art), not more words.
+
+**Craft floor on the web:** `overflow-x: clip` on `html` and `body`; grid
+tracks as `minmax(0, 1fr)`; an instant `:focus-visible` ring on everything
+interactive; nothing scrolls sideways at 360 px.
+
 ## Website
 
 The website (`website/`, decision 030) speaks the same language on the web:
@@ -278,14 +328,31 @@ The website (`website/`, decision 030) speaks the same language on the web:
 - **Feature tiles are palette states**, not screenshots or icons: each shows
   the query and rows that feature produces.
 - **Other pages** (privacy, comparisons) share the home page's top bar,
-  footer, type and tokens. They are one readable column (760 wide) with a
-  breadcrumb, the section label, a short headline, a lead that answers the
-  page's question first, and a dated "checked against" line. Facts go in
-  tables, where smolcast's column carries the selection pip, and links to
-  other pages are drawn as palette rows. Ctrl+K opens the palette over the
-  page, on a blurred scrim, and Esc or a click outside dismisses it. The
-  copy is plain and fair: comparisons say where the other tool is the
+  footer, type and tokens, in a 1040-wide column. Each opens with a hero
+  (breadcrumb, short headline, a lead that answers the page's question in
+  casual words, an "Updated" pill), then puts facts in
+  components a skimmer can read at a glance: **cards** (smolcast's carries
+  the selection pip), **pills** (`.tag`) for short facts, **status badges**
+  (`.status`: "Built in" on a green tint with a check, "Pro", "Plugin" or
+  "Optional" on an amber tint, a plain gray "No"; the word carries the
+  meaning), big
+  **figures**, a feature **matrix** grouped into The basics, Features and
+  Under the hood, where the better pick on a row is bold (a ringed badge),
+  whoever has it, and only when both sides publish the fact. Each
+  competitor card links out to the tool itself ("Get Raycast for
+  Windows", tagged `?ref=smolcast`). Then
+  "Coming from" mapping cards, a download card, links to other pages
+  drawn as palette rows, and **footnotes** with each source, its version
+  and the date checked. Comparisons say where the other tool is the
   better pick.
+- **Backdrop**: the film's stipple of s. marks (`public/stipple.svg`, a
+  mask colored by `--stipple`) on a fixed layer behind every page, full in
+  the side margins and fading out as it nears the content column, so never
+  behind text and faint or absent on phones. It does not move on the site.
+- **Elsewhere**, Ctrl+K opens the palette over the page on a blurred scrim;
+  Esc or a click outside dismisses it. Before its script runs (and for
+  crawlers), the home palette is a list of every section and page as
+  plain links drawn like its rows.
 - **Type**: the system UI stack led by Segoe UI Variable, Cascadia Code for
   code; no web fonts. Headlines are tight (−0.035 em) and short.
 - **Accent**: as in the app. The red marks the caret, the selection pip,
@@ -296,8 +363,11 @@ The website (`website/`, decision 030) speaks the same language on the web:
   (`.smol`) that draws in once on the hero. Words stay in the text color:
   red text fails contrast on the light theme.
 - **Motion**: the selection glides, rows enter with a 12 ms stagger when a
-  view opens, key caps press with the visitor's keys, sections fade up once,
-  the heart beats lub-dub once. Every animation has a reduced-motion form.
+  view opens, key caps press with the visitor's keys (on every page), the
+  home page's sections fade up once (6 px, 320 ms; its one reveal), the
+  heart beats lub-dub once, cards and matrix rows tint under the pointer.
+  Document pages have no reveal: facts are there at once. Every animation
+  has a reduced-motion form. See Taste for what never ships.
 - **Touch**: the palette stays the hero on phones (six rows, no trailing
   types). The list scrolls natively with row snapping and hands the swipe
   to the page at its ends; key caps and key hints are hidden on coarse

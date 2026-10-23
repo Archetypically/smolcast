@@ -17,20 +17,20 @@
     <link rel="stylesheet" href="/styles.css" />
     <script src="/app.js" defer></script>
     <!-- /partial:head -->
-    <title>Command palettes for Windows, compared · smolcast</title>
+    <title>Windows launchers, compared · smolcast</title>
     <meta
       name="description"
-      content="smolcast, Raycast for Windows, PowerToys Command Palette and Flow Launcher side by side: price, source, extensions, AI, clipboard history, snippets, emoji and file search."
+      content="smolcast, Raycast for Windows, PowerToys Command Palette and Flow Launcher side by side: price, source, extensions, AI, clipboard history, snippets, emoji, file search and size."
     />
     <link rel="canonical" href="https://smolcast.evanlee.engineer/compare/" />
     <meta name="robots" content="index, follow, max-snippet:-1" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="smolcast" />
     <meta property="og:url" content="https://smolcast.evanlee.engineer/compare/" />
-    <meta property="og:title" content="Command palettes for Windows, compared" />
+    <meta property="og:title" content="Windows launchers, compared" />
     <meta
       property="og:description"
-      content="smolcast, Raycast for Windows, PowerToys Command Palette and Flow Launcher side by side: price, source, extensions, AI, clipboard history, snippets, emoji and file search."
+      content="smolcast, Raycast for Windows, PowerToys Command Palette and Flow Launcher side by side: price, source, extensions, AI, clipboard history, snippets, emoji, file search and size."
     />
     <meta property="og:image" content="https://smolcast.evanlee.engineer/og.png" />
     <meta name="twitter:card" content="summary_large_image" />
@@ -43,8 +43,8 @@
             "@type": "CollectionPage",
             "@id": "https://smolcast.evanlee.engineer/compare/",
             "url": "https://smolcast.evanlee.engineer/compare/",
-            "name": "Command palettes for Windows, compared",
-            "description": "smolcast, Raycast for Windows, PowerToys Command Palette and Flow Launcher side by side: price, source, extensions, AI, clipboard history, snippets, emoji and file search.",
+            "name": "Windows launchers, compared",
+            "description": "smolcast, Raycast for Windows, PowerToys Command Palette and Flow Launcher side by side: price, source, extensions, AI, clipboard history, snippets, emoji, file search and size.",
             "datePublished": "2026-10-23",
             "dateModified": "2026-10-23",
             "isPartOf": {
@@ -127,183 +127,388 @@
     <!-- /partial:topbar -->
 
     <main class="doc" id="content" tabindex="-1">
-      <ol class="crumbs">
-        <li><a href="/">smolcast</a></li>
-        <li aria-current="page">Compare</li>
-      </ol>
+      <header class="doc-hero">
+        <ol class="crumbs">
+          <li><a href="/">smolcast</a></li>
+          <li aria-current="page">Compare</li>
+        </ol>
+        <h1>Windows launchers, compared</h1>
+        <p class="lead">Four keyboard launchers for Windows, from tiny to full platform. Each is great at something.</p>
+        <p class="stamp">
+          <span class="tag">Updated <time datetime="2026-10-23">23 Oct 2026</time></span> Checked against each project’s
+          own site. smolcast is ours, so the <a href="#sources">sources</a> are below.
+        </p>
+      </header>
 
-      <p class="label">Compare</p>
-      <h1>Command palettes for Windows, compared.</h1>
-      <p class="lead">
-        Four keyboard launchers for Windows, from a single small executable to a full extension platform. Each is good
-        at something different; this page lays out what each one does, so you can pick by what you need.
-      </p>
-      <p class="stamp">
-        Checked against each project's own site and documentation on <time datetime="2026-10-23">23 October 2026</time>.
-        smolcast is our project; corrections are welcome as
-        <a href="https://github.com/Archetypically/smolcast/issues">issues</a>.
-      </p>
-
-      <h2 id="table">At a glance</h2>
-      <div class="table-wrap">
-        <table class="compare wide">
-          <thead>
-            <tr>
-              <td></td>
-              <th scope="col" class="us">smolcast</th>
-              <th scope="col">Raycast for Windows</th>
-              <th scope="col">PowerToys Command Palette</th>
-              <th scope="col">Flow Launcher</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <th scope="row">Price</th>
-              <td>Free</td>
-              <td>Free. Pro is $10 a month and adds AI, Cloud Sync and more</td>
-              <td>Free</td>
-              <td>Free</td>
-            </tr>
-            <tr>
-              <th scope="row">Source</th>
-              <td>Open source, MIT</td>
-              <td>Closed source; the extensions are open source</td>
-              <td>Open source, MIT</td>
-              <td>Open source, MIT</td>
-            </tr>
-            <tr>
-              <th scope="row">Account</th>
-              <td>None</td>
-              <td>Sign in for Pro, AI and Cloud Sync</td>
-              <td>None</td>
-              <td>None</td>
-            </tr>
-            <tr>
-              <th scope="row">Extensions</th>
-              <td>None. Scripts, snippets and quicklinks live in one TOML file</td>
-              <td>The Raycast Store. Extensions without native code run on both Windows and macOS</td>
-              <td>An Extension Gallery in its settings, and a WinRT-based API</td>
-              <td>A plugin store, with plugins written in C#, F#, Python, JavaScript or TypeScript</td>
-            </tr>
-            <tr>
-              <th scope="row">AI</th>
-              <td>None</td>
-              <td>Quick AI and AI Chat, with Pro</td>
-              <td>None among its built-in commands</td>
-              <td>Not built in</td>
-            </tr>
-            <tr>
-              <th scope="row">Clipboard history</th>
-              <td>
-                Text and images, pasted back into your app. Uses Windows clipboard history when it is on, otherwise its
-                own, encrypted
-              </td>
-              <td>Yes, pasted into the active app</td>
-              <td>Yes, browse and paste recent entries</td>
-              <td>Through community plugins</td>
-            </tr>
-            <tr>
-              <th scope="row">Snippets</th>
-              <td>Found by name or keyword, edited in the palette. No automatic expansion</td>
-              <td>Yes, inserted with keywords</td>
-              <td>Not built in. Bookmarks open files, URLs and commands, with <code>{query}</code> placeholders</td>
-              <td>Not built in</td>
-            </tr>
-            <tr>
-              <th scope="row">Emoji picker</th>
-              <td>Every Unicode 17.0 emoji, in color</td>
-              <td>Yes</td>
-              <td>Not built in (Windows has its own panel on <kbd class="cap">Win</kbd><kbd class="cap">.</kbd>)</td>
-              <td>Not built in</td>
-            </tr>
-            <tr>
-              <th scope="row">File search</th>
-              <td>By name, through the Windows Search index</td>
-              <td>Yes</td>
-              <td>Yes</td>
-              <td>Names and contents, through Everything or Windows Search</td>
-            </tr>
-            <tr>
-              <th scope="row">Calculator</th>
-              <td>Math and unit conversions, offline. Enter pastes the answer</td>
-              <td>Yes</td>
-              <td>Math expressions and functions</td>
-              <td>Yes; copies the result</td>
-            </tr>
-            <tr>
-              <th scope="row">Default hotkey</th>
-              <td><kbd class="cap">Ctrl</kbd><kbd class="cap">Alt</kbd><kbd class="cap">Space</kbd></td>
-              <td>Configurable</td>
-              <td><kbd class="cap">Win</kbd><kbd class="cap">Alt</kbd><kbd class="cap">Space</kbd></td>
-              <td><kbd class="cap">Alt</kbd><kbd class="cap">Space</kbd></td>
-            </tr>
-          </tbody>
-        </table>
+      <div class="cards">
+        <article class="card us">
+          <h2><img src="/favicon.svg" alt="" width="24" height="24" />smolcast</h2>
+          <p class="by">Evan Lee</p>
+          <ul class="tags">
+            <li class="tag">Free</li>
+            <li class="tag">Open source</li>
+            <li class="tag">7 MB</li>
+            <li class="tag">No account</li>
+          </ul>
+          <p class="best"><b>Best for</b> the essentials, small and private</p>
+        </article>
+        <article class="card">
+          <h2>Raycast for Windows</h2>
+          <p class="by">Raycast</p>
+          <ul class="tags">
+            <li class="tag">Free + Pro $10/mo</li>
+            <li class="tag">Closed source</li>
+            <li class="tag">Extensions</li>
+            <li class="tag">AI</li>
+          </ul>
+          <p class="best"><b>Best for</b> extensions, AI and a Mac + PC setup</p>
+          <p class="links">
+            <a href="/compare/raycast">Read the comparison</a
+            ><a href="https://www.raycast.com/windows?ref=smolcast">Get Raycast for Windows</a>
+          </p>
+        </article>
+        <article class="card">
+          <h2>PowerToys Command Palette</h2>
+          <p class="by">Microsoft</p>
+          <ul class="tags">
+            <li class="tag">Free</li>
+            <li class="tag">Open source</li>
+            <li class="tag">Part of PowerToys</li>
+            <li class="tag">Extensions</li>
+          </ul>
+          <p class="best"><b>Best for</b> Windows admin and extensions</p>
+          <p class="links">
+            <a href="/compare/powertoys-command-palette">Read the comparison</a
+            ><a href="https://learn.microsoft.com/windows/powertoys/install?ref=smolcast"
+              >Get PowerToys Command Palette</a
+            >
+          </p>
+        </article>
+        <article class="card">
+          <h2>Flow Launcher</h2>
+          <p class="by">Open-source community</p>
+          <ul class="tags">
+            <li class="tag">Free</li>
+            <li class="tag">Open source</li>
+            <li class="tag">Plugins</li>
+            <li class="tag">Everything search</li>
+          </ul>
+          <p class="best"><b>Best for</b> plugins and deep file search</p>
+          <p class="links">
+            <a href="/compare/flow-launcher">Read the comparison</a
+            ><a href="https://www.flowlauncher.com/?ref=smolcast">Get Flow Launcher</a>
+          </p>
+        </article>
       </div>
 
-      <h2 id="short">In short</h2>
-      <ul>
-        <li>
-          <strong>smolcast</strong> is the small one: the everyday core in a 7&nbsp;MB executable for Windows 11, with
-          no account, extensions, AI or telemetry.
-        </li>
-        <li>
-          <strong>Raycast for Windows</strong> is the full platform: extensions, AI, window management and sync with the
-          Mac app, with a paid Pro plan.
-        </li>
-        <li>
-          <strong>PowerToys Command Palette</strong> is Microsoft's, and the deepest into Windows itself: WinGet,
-          services, the registry and Settings, with extensions.
-        </li>
-        <li>
-          <strong>Flow Launcher</strong> is the community favorite for plugins and file search, including file contents
-          through Everything.
-        </li>
-      </ul>
-      <p>
-        On a Mac, <a href="/compare/tinycast">Tinycast</a> is the free, open-source counterpart to Raycast; smolcast is
-        the closest thing to it on Windows.
-      </p>
-      <div class="cta">
+      <section class="doc-section" aria-labelledby="table-title">
+        <h2 id="table-title">Feature by feature</h2>
+        <p>Bold marks the best on a row. Ties and unpublished numbers stay plain.</p>
+        <div class="table-wrap">
+          <table class="compare wide">
+            <thead>
+              <tr>
+                <td></td>
+                <th scope="col" class="us">smolcast</th>
+                <th scope="col">Raycast for Windows</th>
+                <th scope="col">PowerToys Command Palette</th>
+                <th scope="col">Flow Launcher</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="group">
+                <th scope="rowgroup" colspan="5">The basics</th>
+              </tr>
+              <tr>
+                <th scope="row">Price</th>
+                <td>Free</td>
+                <td>Free; Pro $10/mo</td>
+                <td>Free</td>
+                <td>Free</td>
+              </tr>
+              <tr>
+                <th scope="row">Source</th>
+                <td>Open source (MIT)</td>
+                <td>Closed source<span class="note">Extensions are open</span></td>
+                <td>Open source (MIT)</td>
+                <td>Open source (MIT)</td>
+              </tr>
+              <tr>
+                <th scope="row">Runs on</th>
+                <td>Windows 11</td>
+                <td class="win">
+                  <strong>Windows 10 and 11, plus macOS</strong><span class="sr-only"> (the better pick)</span>
+                </td>
+                <td>Windows 10 and 11</td>
+                <td>Windows 10 and 11</td>
+              </tr>
+              <tr>
+                <th scope="row">Account</th>
+                <td>None</td>
+                <td>Needed for Pro, AI and sync</td>
+                <td>None</td>
+                <td>None</td>
+              </tr>
+              <tr class="group">
+                <th scope="rowgroup" colspan="5">Features</th>
+              </tr>
+              <tr>
+                <th scope="row">Clipboard history</th>
+                <td>
+                  <span class="status yes"
+                    ><svg aria-hidden="true"><use href="/icons.svg#check" /></svg>Built in</span
+                  ><span class="note">Text and images. Encrypted on disk</span>
+                </td>
+                <td>
+                  <span class="status yes"
+                    ><svg aria-hidden="true"><use href="/icons.svg#check" /></svg>Built in</span
+                  >
+                </td>
+                <td>
+                  <span class="status yes"
+                    ><svg aria-hidden="true"><use href="/icons.svg#check" /></svg>Built in</span
+                  ><span class="note">Recent entries</span>
+                </td>
+                <td><span class="status part">Plugin</span></td>
+              </tr>
+              <tr>
+                <th scope="row">Snippets</th>
+                <td>
+                  <span class="status yes"
+                    ><svg aria-hidden="true"><use href="/icons.svg#check" /></svg>Built in</span
+                  ><span class="note">Find by name or keyword. No auto-expand</span>
+                </td>
+                <td class="win">
+                  <strong
+                    ><span class="status yes"
+                      ><svg aria-hidden="true"><use href="/icons.svg#check" /></svg>Built in</span
+                    ><span class="note">Expands by keyword</span></strong
+                  ><span class="sr-only"> (the better pick)</span>
+                </td>
+                <td><span class="status no">No</span><span class="note">Bookmarks with {query} instead</span></td>
+                <td><span class="status no">No</span></td>
+              </tr>
+              <tr>
+                <th scope="row">Emoji picker</th>
+                <td>
+                  <span class="status yes"
+                    ><svg aria-hidden="true"><use href="/icons.svg#check" /></svg>Built in</span
+                  ><span class="note">Every emoji, in color</span>
+                </td>
+                <td>
+                  <span class="status yes"
+                    ><svg aria-hidden="true"><use href="/icons.svg#check" /></svg>Built in</span
+                  >
+                </td>
+                <td>
+                  <span class="status no">No</span
+                  ><span class="note"
+                    >Windows has <kbd class="cap" data-key="Meta">Win</kbd><kbd class="cap" data-key=".">.</kbd></span
+                  >
+                </td>
+                <td><span class="status no">No</span></td>
+              </tr>
+              <tr>
+                <th scope="row">File search</th>
+                <td>
+                  <span class="status yes"
+                    ><svg aria-hidden="true"><use href="/icons.svg#check" /></svg>Built in</span
+                  ><span class="note">Through Windows Search</span>
+                </td>
+                <td>
+                  <span class="status yes"
+                    ><svg aria-hidden="true"><use href="/icons.svg#check" /></svg>Built in</span
+                  >
+                </td>
+                <td>
+                  <span class="status yes"
+                    ><svg aria-hidden="true"><use href="/icons.svg#check" /></svg>Built in</span
+                  >
+                </td>
+                <td class="win">
+                  <strong
+                    ><span class="status yes"
+                      ><svg aria-hidden="true"><use href="/icons.svg#check" /></svg>Built in</span
+                    ><span class="note">Names and contents, via Everything</span></strong
+                  ><span class="sr-only"> (the better pick)</span>
+                </td>
+              </tr>
+              <tr>
+                <th scope="row">Calculator</th>
+                <td>
+                  <span class="status yes"
+                    ><svg aria-hidden="true"><use href="/icons.svg#check" /></svg>Built in</span
+                  ><span class="note">Units too. Enter pastes</span>
+                </td>
+                <td>
+                  <span class="status yes"
+                    ><svg aria-hidden="true"><use href="/icons.svg#check" /></svg>Built in</span
+                  >
+                </td>
+                <td>
+                  <span class="status yes"
+                    ><svg aria-hidden="true"><use href="/icons.svg#check" /></svg>Built in</span
+                  ><span class="note">Math and functions</span>
+                </td>
+                <td>
+                  <span class="status yes"
+                    ><svg aria-hidden="true"><use href="/icons.svg#check" /></svg>Built in</span
+                  ><span class="note">Copies the result</span>
+                </td>
+              </tr>
+              <tr>
+                <th scope="row">Extensions</th>
+                <td><span class="status no">No</span><span class="note">Scripts and quicklinks instead</span></td>
+                <td>
+                  <span class="status yes"
+                    ><svg aria-hidden="true"><use href="/icons.svg#check" /></svg>Raycast Store</span
+                  ><span class="note">Shared with the Mac app</span>
+                </td>
+                <td>
+                  <span class="status yes"
+                    ><svg aria-hidden="true"><use href="/icons.svg#check" /></svg>Extension Gallery</span
+                  >
+                </td>
+                <td>
+                  <span class="status yes"
+                    ><svg aria-hidden="true"><use href="/icons.svg#check" /></svg>Plugin store</span
+                  ><span class="note">C#, Python, JS and more</span>
+                </td>
+              </tr>
+              <tr>
+                <th scope="row">AI</th>
+                <td><span class="status no">No</span></td>
+                <td class="win">
+                  <strong><span class="status part">Pro</span><span class="note">Quick AI and AI Chat</span></strong
+                  ><span class="sr-only"> (the better pick)</span>
+                </td>
+                <td><span class="status no">No</span></td>
+                <td><span class="status no">No</span></td>
+              </tr>
+              <tr>
+                <th scope="row">Window management</th>
+                <td><span class="status no">No</span></td>
+                <td class="win">
+                  <strong
+                    ><span class="status yes"
+                      ><svg aria-hidden="true"><use href="/icons.svg#check" /></svg>Built in</span
+                    ></strong
+                  ><span class="sr-only"> (the better pick)</span>
+                </td>
+                <td><span class="status part">Window switching</span></td>
+                <td><span class="status no">No</span></td>
+              </tr>
+              <tr class="group">
+                <th scope="rowgroup" colspan="5">Under the hood</th>
+              </tr>
+              <tr>
+                <th scope="row">Download</th>
+                <td class="win">
+                  <strong>7 MB, one .exe<span class="note">No installer</span></strong
+                  ><span class="sr-only"> (the better pick)</span>
+                </td>
+                <td>Microsoft Store or WinGet<span class="note">Size not published</span></td>
+                <td>309 MB installer<span class="note">The whole PowerToys suite</span></td>
+                <td>97 MB installer</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="doc-section" aria-labelledby="mac-title">
+        <h2 id="mac-title">Tinycast is the Mac cousin</h2>
+        <p>
+          Free, open source and Mac only. smolcast is the closest thing on Windows.
+          <a href="/compare/tinycast">See how they line up</a>.
+        </p>
+      </section>
+
+      <section class="cta" aria-labelledby="get-title">
+        <img src="/favicon.svg" alt="" width="56" height="56" />
+        <div>
+          <h2 id="get-title">Try smolcast</h2>
+          <ul class="tags">
+            <li class="tag">Windows 11, x64</li>
+            <li class="tag">7 MB</li>
+            <li class="tag">Free and open source</li>
+          </ul>
+        </div>
         <a class="button" href="https://github.com/Archetypically/smolcast/releases/latest"
-          ><svg aria-hidden="true"><use href="/icons.svg#download" /></svg>Download smolcast</a
+          ><svg aria-hidden="true"><use href="/icons.svg#download" /></svg>Download</a
         >
-        <span class="meta">Windows 11 · x64 · about 7&nbsp;MB · free and open source</span>
-      </div>
+      </section>
 
-      <h2 id="pages">Each comparison</h2>
-      <ul class="rows">
-        <li>
-          <a href="/compare/raycast"
-            ><svg aria-hidden="true"><use href="/icons.svg#doc" /></svg><span class="name">smolcast vs Raycast</span
-            ><span class="trail">Compare</span></a
-          >
-        </li>
-        <li>
-          <a href="/compare/powertoys-command-palette"
-            ><svg aria-hidden="true"><use href="/icons.svg#doc" /></svg
-            ><span class="name">smolcast vs PowerToys Command Palette</span><span class="trail">Compare</span></a
-          >
-        </li>
-        <li>
-          <a href="/compare/flow-launcher"
-            ><svg aria-hidden="true"><use href="/icons.svg#doc" /></svg
-            ><span class="name">smolcast vs Flow Launcher</span><span class="trail">Compare</span></a
-          >
-        </li>
-        <li>
-          <a href="/compare/tinycast"
-            ><svg aria-hidden="true"><use href="/icons.svg#doc" /></svg><span class="name">smolcast vs Tinycast</span
-            ><span class="trail">Compare</span></a
-          >
-        </li>
-        <li>
-          <a href="/"
-            ><svg aria-hidden="true"><use href="/icons.svg#doc" /></svg><span class="name">smolcast features</span
-            ><span class="trail">Home</span></a
-          >
-        </li>
-      </ul>
+      <section class="doc-section" aria-labelledby="more-title">
+        <h2 id="more-title">One-on-one comparisons</h2>
+        <ul class="rows">
+          <li>
+            <a href="/compare/raycast"
+              ><svg aria-hidden="true"><use href="/icons.svg#doc" /></svg
+              ><span class="name">smolcast vs Raycast for Windows</span><span class="trail">Compare</span></a
+            >
+          </li>
+          <li>
+            <a href="/compare/powertoys-command-palette"
+              ><svg aria-hidden="true"><use href="/icons.svg#doc" /></svg
+              ><span class="name">smolcast vs PowerToys Command Palette</span><span class="trail">Compare</span></a
+            >
+          </li>
+          <li>
+            <a href="/compare/flow-launcher"
+              ><svg aria-hidden="true"><use href="/icons.svg#doc" /></svg
+              ><span class="name">smolcast vs Flow Launcher</span><span class="trail">Compare</span></a
+            >
+          </li>
+          <li>
+            <a href="/compare/tinycast"
+              ><svg aria-hidden="true"><use href="/icons.svg#doc" /></svg><span class="name">smolcast vs Tinycast</span
+              ><span class="trail">Compare</span></a
+            >
+          </li>
+          <li>
+            <a href="/privacy"
+              ><svg aria-hidden="true"><use href="/icons.svg#doc" /></svg
+              ><span class="name">What smolcast keeps (nothing)</span><span class="trail">Privacy</span></a
+            >
+          </li>
+        </ul>
+      </section>
+
+      <footer class="footnotes" id="sources" aria-labelledby="sources-title">
+        <h2 id="sources-title">Sources</h2>
+        <ol>
+          <li>
+            smolcast, main branch:
+            <a href="https://github.com/Archetypically/smolcast">github.com/Archetypically/smolcast</a>
+          </li>
+          <li>Raycast for Windows 2.9: <a href="https://www.raycast.com/windows">raycast.com/windows</a></li>
+          <li>Raycast pricing: <a href="https://www.raycast.com/pricing">raycast.com/pricing</a></li>
+          <li>
+            PowerToys Command Palette overview, updated October 2026:
+            <a href="https://learn.microsoft.com/windows/powertoys/command-palette/overview">learn.microsoft.com</a>
+          </li>
+          <li>
+            PowerToys 0.102.2933.0 release (installer size):
+            <a href="https://github.com/microsoft/PowerToys/releases/tag/v0.102.2933.0"
+              >github.com/microsoft/PowerToys</a
+            >
+          </li>
+          <li>
+            Flow Launcher README: <a href="https://github.com/Flow-Launcher/Flow.Launcher">github.com/Flow-Launcher</a>
+          </li>
+          <li>
+            Flow Launcher 2.1.4 release (installer size):
+            <a href="https://github.com/Flow-Launcher/Flow.Launcher/releases/tag/v2.1.4">github.com/Flow-Launcher</a>
+          </li>
+          <li>Tinycast 0.12.1: <a href="https://tinycast.dev">tinycast.dev</a></li>
+        </ol>
+        <p>
+          Checked against these versions on <time datetime="2026-10-23">23 Oct 2026</time>, which is also when this page
+          was last updated. Things move fast; if something here is stale,
+          <a href="https://github.com/Archetypically/smolcast/issues">open an issue</a> and we’ll fix it.
+        </p>
+      </footer>
     </main>
 
     <!-- partial:footer -->

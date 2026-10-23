@@ -80,7 +80,8 @@ the desktop smoke test (`tests/smoke.rs`, decision 029): the release exe on
 the runner's desktop, driven with real keystrokes and clicks, with Mesa's
 software OpenGL beside the exe (the runner has no GPU); a failure uploads a
 desktop screenshot. It only runs with `--ignored` and
-`SMOLCAST_SMOKE_DESKTOP=disposable`, never on a maintainer's desktop. New
+`SMOLCAST_SMOKE_DESKTOP=disposable`, never on a maintainer's desktop (if it
+grows slow, make it a release `example`). New
 tests default to this level, not unit tests. CI passing is not runtime
 acceptance: each milestone's Windows smoke gate (§12) is.
 
@@ -118,6 +119,14 @@ page, and `public/tokens.css` is generated from `src/app/theme.rs`, both by
 `task web:sync`. A new page: copy a page's skeleton with its markers, add it
 to `sitemap.xml` and `llms.txt`, and run the sync. Comparison pages carry the
 date they were checked; recheck them when the other products change.
+
+Design audit: the site follows Hallmark's floor (DESIGN.md, Taste). The
+first lines of `styles.css` are its stamp (`redesign: polish`, the locked
+system) and any waivers. To audit, clone github.com/nutlope/hallmark
+outside the repo and run `node <hallmark>/skills/hallmark/scripts/sloplint.mjs
+<pages> --genre modern-minimal`. Its static pass resolves `href="/styles.css"`
+against the filesystem root, so lint a copy with relative stylesheet links,
+or every page falsely reports missing `:focus-visible` and `overflow-x`.
 
 Discovery: each page has a canonical URL, a description, Open Graph tags and
 JSON-LD (`SoftwareApplication` on home; `WebPage` or `CollectionPage` plus
