@@ -117,7 +117,7 @@ jobs:
         run: npx eslint .
       - name: Validate HTML
         run: npx html-validate "public/**/*.html" "media/*.html"
-      - name: Check shared chrome, tokens, sitemap and llms.txt
+      - name: Check shared chrome, tokens, markdown twins, sitemap and llms.txt
         run: node scripts/sync.mjs --check
 
   linux-gnu:

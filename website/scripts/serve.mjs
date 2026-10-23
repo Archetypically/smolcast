@@ -21,6 +21,7 @@ const types = {
   ".jpg": "image/jpeg",
   ".ico": "image/x-icon",
   ".txt": "text/plain; charset=utf-8",
+  ".md": "text/markdown; charset=utf-8",
   ".xml": "application/xml",
   ".webmanifest": "application/manifest+json",
   ".mp4": "video/mp4",
