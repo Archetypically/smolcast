@@ -4,10 +4,12 @@
 
 use egui::emath::GuiRounding as _;
 use egui::{
-    Align, Color32, Layout, Pos2, Rect, RichText, Sense, Shape, TextureHandle, UiBuilder, Vec2,
+    Align, Color32, Layout, Pos2, Rect, RichText, Sense, Shape, TextureHandle, TextureOptions,
+    UiBuilder, Vec2,
 };
 
 use crate::core::list_cursor::ListCursor;
+use crate::win::icon::IconRgba;
 
 use super::{motion, theme};
 
@@ -92,6 +94,16 @@ pub fn icon(ui: &mut egui::Ui, texture: &TextureHandle, edge: f32) {
     );
 }
 
+/// Upload a rasterized icon as a texture named `name`. `icon` draws it on whole
+/// device pixels, so it is never resampled.
+pub fn icon_texture(ctx: &egui::Context, name: &str, icon: &IconRgba) -> TextureHandle {
+    let image = egui::ColorImage::from_rgba_premultiplied(
+        [icon.width as usize, icon.height as usize],
+        &icon.rgba_premultiplied,
+    );
+    ctx.load_texture(name, image, TextureOptions::LINEAR)
+}
+
 /// One clickable result row: `leading` (an icon or glyph), then a truncating
 /// `name`, then `trailing` right-aligned. The trailing column is laid out first
 /// so the name only takes the remaining width. Selection is a soft rounded
@@ -162,4 +174,43 @@ fn row_contents(
     };
     ui.painter().set(fill, shape);
     response
+}
+
+/// Columns of a list beside a preview pane, in points.
+const LIST_WIDTH: f32 = 300.0;
+
+/// A list `height` points tall, beside a preview pane. The list has a fixed
+/// size, so the action row below stays visible. The separator is capped too:
+/// uncapped, it takes all remaining height and grows the window every frame.
+pub fn split(
+    ui: &mut egui::Ui,
+    height: f32,
+    list: impl FnOnce(&mut egui::Ui),
+    preview: impl FnOnce(&mut egui::Ui),
+) {
+    ui.horizontal_top(|ui| {
+        ui.set_max_height(height);
+        let size = Vec2::new(LIST_WIDTH, height);
+        ui.allocate_ui_with_layout(size, Layout::top_down(Align::Min), |ui| {
+            ui.set_min_size(size);
+            ui.set_width(LIST_WIDTH);
+            list(ui);
+        });
+        ui.separator();
+        ui.vertical(|ui| {
+            ui.set_max_height(height);
+            preview(ui);
+        });
+    });
+}
+
+/// Characters of a text item that a preview shows.
+const PREVIEW_CHARS: usize = 2000;
+
+/// A text item's preview: its start in monospace, then its length in
+/// characters, `chars`.
+pub fn text_preview(ui: &mut egui::Ui, text: &str, chars: usize) {
+    let shown: String = text.chars().take(PREVIEW_CHARS).collect();
+    ui.add(egui::Label::new(RichText::new(shown).monospace().small()).wrap());
+    ui.label(RichText::new(format!("{chars} characters")).weak().small());
 }

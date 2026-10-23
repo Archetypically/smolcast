@@ -8,7 +8,7 @@
 
 use std::collections::BTreeMap;
 
-use egui::{Key, Modifiers, RichText, Vec2};
+use egui::{Key, Modifiers, RichText};
 
 use crate::core::app_index::Command;
 use crate::core::config::{PaletteSize, SnippetConfig};
@@ -20,9 +20,6 @@ use super::{list, theme};
 
 /// Rows shown at once in a medium palette; the clipboard view matches.
 const MEDIUM_ROWS: usize = 6;
-const LIST_WIDTH: f32 = 300.0;
-/// Characters of the selected snippet shown in the preview pane.
-const PREVIEW_CHARS: usize = 2000;
 
 enum Mode {
     List,
@@ -394,14 +391,10 @@ impl SnippetView {
         let visible = list::scroll(ui, &mut self.cursor, self.results.len(), self.rows);
 
         let mut clicked = None;
-        let list_height = self.list_height();
-        ui.horizontal_top(|ui| {
-            // A separator in a row takes all remaining height unless capped.
-            ui.set_max_height(list_height);
-            let size = Vec2::new(LIST_WIDTH, list_height);
-            ui.allocate_ui_with_layout(size, egui::Layout::top_down(egui::Align::Min), |ui| {
-                ui.set_min_size(size);
-                ui.set_width(LIST_WIDTH);
+        list::split(
+            ui,
+            self.list_height(),
+            |ui| {
                 if self.results.is_empty() {
                     theme::inset(ui, |ui| ui.label(RichText::new("No matches.").weak()));
                 }
@@ -413,15 +406,13 @@ impl SnippetView {
                         clicked = Some(row);
                     }
                 }
-            });
-            ui.separator();
-            ui.vertical(|ui| {
-                ui.set_max_height(list_height);
+            },
+            |ui| {
                 if let Some(snippet) = self.selected_snippet() {
                     theme::inset(ui, |ui| preview_ui(ui, snippet));
                 }
-            });
-        });
+            },
+        );
         if let Some(row) = clicked {
             self.cursor.selected = row;
             if paste_enabled && !self.is_editing() {
@@ -621,13 +612,7 @@ fn capitalize(text: &str) -> String {
 }
 
 fn preview_ui(ui: &mut egui::Ui, snippet: &Snippet) {
-    let shown: String = snippet.text.chars().take(PREVIEW_CHARS).collect();
-    ui.add(egui::Label::new(RichText::new(shown).monospace().small()).wrap());
-    ui.label(
-        RichText::new(format!("{} characters", snippet.chars))
-            .weak()
-            .small(),
-    );
+    list::text_preview(ui, &snippet.text, snippet.chars);
 }
 
 fn row_ui(ui: &mut egui::Ui, snippet: &Snippet, state: list::RowState) -> egui::Response {

@@ -10,7 +10,7 @@
 
 use std::time::{Duration, Instant};
 
-use egui::{Key, Modifiers, RichText, TextureHandle, TextureOptions};
+use egui::{Key, Modifiers, RichText, TextureHandle};
 
 use crate::core::config::PaletteSize;
 use crate::core::file_search::{FileHit, MAX_RESULTS};
@@ -134,11 +134,7 @@ impl FileView {
         }
         match result {
             Ok(icon) => {
-                let image = egui::ColorImage::from_rgba_premultiplied(
-                    [icon.width as usize, icon.height as usize],
-                    &icon.rgba_premultiplied,
-                );
-                let texture = ctx.load_texture("file-icon", image, TextureOptions::LINEAR);
+                let texture = list::icon_texture(ctx, "file-icon", &icon);
                 self.icons.insert(path, texture);
             }
             Err(_) => self.icons.fail(path),
@@ -202,17 +198,17 @@ impl FileView {
     fn schedule(&mut self, ui: &egui::Ui, query: &str) {
         let query = query.trim();
         let now = Instant::now();
-        match &self.typed {
-            Some((typed, _)) if typed == query => {}
-            _ => self.typed = Some((query.to_owned(), now)),
-        }
-        let Some((typed, since)) = &self.typed else {
-            return;
+        let since = match &self.typed {
+            Some((typed, since)) if typed == query => *since,
+            _ => {
+                self.typed = Some((query.to_owned(), now));
+                now
+            }
         };
-        if self.sent.as_deref() == Some(typed.as_str()) {
+        if self.sent.as_deref() == Some(query) {
             return;
         }
-        if typed.is_empty() {
+        if query.is_empty() {
             // Nothing to ask for: clear at once. Only a query in flight
             // needs its answer dropped; idle frames leave the generation be.
             if self.sent.is_some() {
@@ -223,14 +219,14 @@ impl FileView {
             self.error = None;
             return;
         }
-        let waited = now.duration_since(*since);
+        let waited = now.duration_since(since);
         if waited < DEBOUNCE {
             ui.ctx().request_repaint_after(DEBOUNCE - waited);
             return;
         }
         self.generation += 1;
-        self.sent = Some(typed.clone());
-        self.request = Some((self.generation, typed.clone()));
+        self.sent = Some(query.to_owned());
+        self.request = Some((self.generation, query.to_owned()));
     }
 
     pub fn ui(&mut self, ui: &mut egui::Ui, query: &str) {
