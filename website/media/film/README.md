@@ -9,3 +9,5 @@ Stand-ins for what Windows draws, used only to render the demo film
   Icons glyphs smolcast draws (MIT, `icons/LICENSE`).
 - `emoji/`: Fluent Emoji (Color), the designs behind Windows 11's Segoe UI
   Emoji (MIT, `emoji/LICENSE`). Named by code point.
+- `stipple.svg`: the film's backdrop tile, a stipple of the app's own "s."
+  mark from `public/favicon.svg`.

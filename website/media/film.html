@@ -8,19 +8,26 @@
     <script src="/_media/film.js" defer></script>
   </head>
   <!-- The demo film, recorded by scripts/film.mjs. A simulation drawn to the
-       app's own measurements, labels and behavior; see film.js. -->
+       app's own measurements, labels and behavior; see film.js. The stage is
+       the desktop; the backdrop, captions, key caps and title card frame it
+       for the viewer. ?format=wide|square|vertical picks the frame. -->
   <body>
-    <div class="wallpaper"></div>
-    <div class="notes inactive" id="notes">
-      <div class="notes-title"><span>notes.txt</span><i>—</i><i>▢</i><i>✕</i></div>
-      <div class="notes-body" id="notes-body"></div>
+    <div class="backdrop" id="backdrop"></div>
+    <div class="stage" id="stage">
+      <div class="camera" id="camera">
+        <div class="notes inactive" id="notes">
+          <div class="notes-title"><span>notes.txt</span><i>—</i><i>▢</i><i>✕</i></div>
+          <div class="notes-body" id="notes-body"></div>
+        </div>
+        <div class="palette" id="palette"><div class="content" id="content"></div></div>
+      </div>
     </div>
-    <div class="palette" id="palette"><div class="content" id="content"></div></div>
+    <div class="caption" id="caption"></div>
     <div class="keys" id="keys"></div>
     <div class="end" id="end">
       <img src="/favicon.svg" alt="" width="96" height="96" />
       <h1>smolcast</h1>
-      <p>The <span class="smol">smol</span> command palette for Windows<span class="dot">.</span></p>
+      <p class="line">The <span class="smol">smol</span> command palette for Windows<span class="dot">.</span></p>
       <p class="url">smolcast.evanlee.engineer</p>
     </div>
   </body>

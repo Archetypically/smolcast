@@ -88,13 +88,16 @@ Decision 029; see techContext CI. If slow, make it a release `example`.
 
 ## Website (2026-10-22), branch, not deployed
 
-Decision 030: `website/`, a static one-pager for Cloudflare Pages
-(`task web:*`), whose hero is a working recreation of the palette. Domain
+Decision 030: `website/`, a static one-pager for Cloudflare Pages (`task
+web:*`), whose hero is a working recreation of the palette. Domain
 `smolcast.evanlee.engineer` is hard-coded in `public/` (canonical, OG,
-JSON-LD, sitemap, robots, llms.txt): grep and replace it on a move. The
-demo film is a faithful simulation (decision 031, `task web:film`); keep it
-in step with the app. To do: check touch scrolling on a real
-phone; create the Pages project and DNS, deploy, then point `Cargo.toml`
+JSON-LD, sitemap, robots, llms.txt): grep and replace it on a move. The demo
+film is a faithful simulation (decision 031, `task web:film`); keep it in step
+with the app. It now carries restrained motion graphics (backdrop stippled
+with s. marks, drifting; chapter captions, camera lean, title card) and loops
+seamlessly at 36 s in three cuts: wide for the page, square and vertical in
+`media/out/` for social posts. To do: check touch scrolling on a real phone;
+create the Pages project and DNS, deploy, then point `Cargo.toml`
 `homepage` and the README at it.
 
 ## Pending Windows checks
@@ -163,6 +166,14 @@ phone; create the Pages project and DNS, deploy, then point `Cargo.toml`
 
 ## Open questions and parked ideas
 
+- **Website pages** (user, 2026-10-22): comparison pages for SEO
+  ("smolcast vs Tinycast", "smolcast vs Raycast" and similar), and a
+  separate Privacy page: the app (local data, the GitHub update check and
+  its switch, clipboard encryption and exclusions), the site (no cookies,
+  analytics or third-party requests; Cloudflare's request logs), a contact
+  and a date, linked from the footer and the Privacy section, listed in
+  `sitemap.xml` and `llms.txt`. Store and winget listings want its URL.
+  Open: the contact to list.
 - **Dictionary**: tabled by the user (2026-10-21). Windows has no definitions
   API (only ISpellChecker). Options if revived: "define <word>" via web
   search, bundled WordNet (+10–30 MB), or an online API.
