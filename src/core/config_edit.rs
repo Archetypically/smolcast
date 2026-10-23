@@ -12,7 +12,9 @@ use std::path::Path;
 
 use toml_edit::{DocumentMut, InlineTable, Item, Table, TableLike, Value};
 
-use super::config::{ConfigError, ConfigFile, SCHEMA_VERSION, Settings, SnippetConfig, parse_str};
+use super::config::{
+    ConfigError, ConfigFile, SCHEMA_VERSION, Settings, SnippetConfig, parse_str, validation,
+};
 
 /// One form save.
 #[derive(Clone, Debug, PartialEq)]
@@ -49,20 +51,13 @@ pub fn apply(
     }
 }
 
-fn invalid(path: &Path, message: String) -> ConfigError {
-    ConfigError::Validation {
-        path: path.to_owned(),
-        message,
-    }
-}
-
 /// The document for an absent file: the schema version and every settings key.
 fn new_document(settings: &Settings, path: &Path) -> Result<DocumentMut, ConfigError> {
     // Serializing the struct keeps its declaration order.
-    let body = toml::to_string(settings).map_err(|e| invalid(path, e.to_string()))?;
+    let body = toml::to_string(settings).map_err(|e| validation(path, e.to_string()))?;
     format!("schema_version = {SCHEMA_VERSION}\n\n[settings]\n{body}")
         .parse::<DocumentMut>()
-        .map_err(|e| invalid(path, e.to_string()))
+        .map_err(|e| validation(path, e.to_string()))
 }
 
 /// Parse existing text for editing. Refuses malformed and newer-schema files
@@ -71,7 +66,7 @@ fn open_document(text: &str, path: &Path) -> Result<(DocumentMut, ConfigFile), C
     let current = parse_str(text, path)?;
     let doc = text
         .parse::<DocumentMut>()
-        .map_err(|e| invalid(path, e.to_string()))?;
+        .map_err(|e| validation(path, e.to_string()))?;
     Ok((doc, current))
 }
 
@@ -82,7 +77,7 @@ pub fn write_settings(
     settings: &Settings,
     path: &Path,
 ) -> Result<String, ConfigError> {
-    let invalid = |message: String| invalid(path, message);
+    let invalid = |message: String| validation(path, message);
     settings.validate(path)?;
 
     let (mut doc, current) = match existing {
@@ -94,13 +89,14 @@ pub fn write_settings(
     };
 
     let new = to_table(settings, path)?;
-    let old = match &current {
-        Some(current) => Some(to_table(current, path)?),
-        None => None,
-    };
+    let old = current
+        .as_ref()
+        .map(|current| to_table(current, path))
+        .transpose()?;
+    // `settings = { … }` is as valid as a `[settings]` header.
     let table = doc["settings"]
-        .as_table_mut()
-        .ok_or_else(|| invalid("[settings] is not a table".into()))?;
+        .as_table_like_mut()
+        .ok_or_else(|| invalid("settings is not a table".into()))?;
     for (key, value) in &new {
         if old.as_ref().and_then(|old| old.get(key)) == Some(value) {
             continue;
@@ -134,7 +130,7 @@ pub fn write_snippet(
             ConfigFile::default(),
         ),
     };
-    let gone = |id: &str| invalid(path, format!("snippet {id:?} is no longer in the file"));
+    let gone = |id: &str| validation(path, format!("snippet {id:?} is no longer in the file"));
 
     match edit {
         SnippetEdit::Put {
@@ -145,7 +141,7 @@ pub fn write_snippet(
             let old = expected.snippets.insert(id.clone(), snippet.clone());
             match (&old, create) {
                 (Some(_), true) => {
-                    return Err(invalid(path, format!("snippet {id:?} already exists")));
+                    return Err(validation(path, format!("snippet {id:?} already exists")));
                 }
                 (None, false) => return Err(gone(id)),
                 _ => {}
@@ -156,7 +152,7 @@ pub fn write_snippet(
             if let Some(item) = snippets.get_mut(id) {
                 let table = item
                     .as_table_like_mut()
-                    .ok_or_else(|| invalid(path, format!("snippet {id:?} is not a table")))?;
+                    .ok_or_else(|| validation(path, format!("snippet {id:?} is not a table")))?;
                 set_fields(table, snippet, old.as_ref());
             } else if inline {
                 let mut table = InlineTable::new();
@@ -178,7 +174,7 @@ pub fn write_snippet(
 
     let text = doc.to_string();
     if parse_str(&text, path)? != expected {
-        return Err(invalid(path, "edited file did not round-trip".into()));
+        return Err(validation(path, "edited file did not round-trip".into()));
     }
     Ok(text)
 }
@@ -197,7 +193,7 @@ fn snippets_table<'a>(
     let inline = item.is_inline_table();
     let table = item
         .as_table_like_mut()
-        .ok_or_else(|| invalid(path, "snippets is not a table".into()))?;
+        .ok_or_else(|| validation(path, "snippets is not a table".into()))?;
     Ok((table, inline))
 }
 
@@ -250,16 +246,13 @@ fn text_value(text: &str) -> Value {
 }
 
 fn to_table(settings: &Settings, path: &Path) -> Result<toml::Table, ConfigError> {
-    toml::Table::try_from(settings).map_err(|e| ConfigError::Validation {
-        path: path.to_owned(),
-        message: e.to_string(),
-    })
+    toml::Table::try_from(settings).map_err(|e| validation(path, e.to_string()))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::config::{ClipboardSource, PaletteSize};
+    use crate::core::config::{BASE_SETTINGS, ClipboardSource, PaletteSize};
 
     const PATH: &str = "config.toml";
 
@@ -427,8 +420,13 @@ Me'''
 
     #[test]
     fn first_snippet_gets_no_bare_header_and_absent_file_is_created() {
-        let base = "schema_version = 1\n[settings]\nsummon_hotkey = \"control+alt+Space\"\nclipboard_capture = true\nclipboard_max_entries = 100\nclipboard_max_item_bytes = 8388608\nclipboard_max_total_bytes = 67108864\n";
-        let text = put(Some(base), "a", snip("A", Some(";a"), "one line"), true).unwrap();
+        let text = put(
+            Some(BASE_SETTINGS),
+            "a",
+            snip("A", Some(";a"), "one line"),
+            true,
+        )
+        .unwrap();
         assert!(!text.contains("[snippets]\n"), "{text}");
         assert!(
             text.contains("[snippets.a]\nname = \"A\"\nkeyword = \";a\"\ntext = \"one line\"\n"),

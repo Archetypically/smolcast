@@ -749,13 +749,19 @@ Register these format names once on the clipboard thread:
 
 - `smolcast.self-write.v1`;
 - `ExcludeClipboardContentFromMonitorProcessing`;
+- `Clipboard Viewer Ignore`;
 - `CanIncludeInClipboardHistory`.
 
 Skip capture when:
 
 - `smolcast.self-write.v1` is present;
-- `ExcludeClipboardContentFromMonitorProcessing` is present; or
+- `ExcludeClipboardContentFromMonitorProcessing` or `Clipboard Viewer Ignore` is
+  present; or
 - `CanIncludeInClipboardHistory` is present with DWORD value 0.
+
+Check these while the clipboard is open, with the sequence number read under the
+same open, so a change between the check and the read cannot slip through. A
+check before opening is only a fast path.
 
 `CanUploadToCloudClipboard = 0` alone does not prohibit local history capture.
 

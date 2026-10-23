@@ -8,9 +8,7 @@ use std::collections::HashSet;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
-use egui::{
-    Color32, Key, Modifiers, Pos2, Rect, RichText, Sense, TextureHandle, TextureOptions, Vec2,
-};
+use egui::{Color32, Key, Modifiers, Pos2, Rect, RichText, Sense, TextureHandle, Vec2};
 
 use std::collections::BTreeMap;
 
@@ -221,7 +219,10 @@ impl Launcher {
     }
 
     /// Summon rescans only a stale index; no periodic hidden wake exists (§1.4).
+    /// A launch still pending from the last summon no longer blocks Enter, and
+    /// its late result does not hide this one.
     pub fn on_summon(&mut self) {
+        self.launch_pending = None;
         if !self.scan_active
             && self
                 .last_scan_finished
@@ -308,36 +309,34 @@ impl Launcher {
         }
         match result {
             Ok(icon) => {
-                let image = egui::ColorImage::from_rgba_premultiplied(
-                    [icon.width as usize, icon.height as usize],
-                    &icon.rgba_premultiplied,
-                );
-                let texture = ctx.load_texture("app-icon", image, TextureOptions::LINEAR);
+                let texture = list::icon_texture(ctx, "app-icon", &icon);
                 self.icons.insert(app_id, texture);
             }
             Err(_) => self.icons.fail(app_id),
         }
     }
 
-    /// Returns true when the launch succeeded and the palette should hide.
+    /// Returns true when the palette should hide: a launch it started
+    /// succeeded. A script hotkey's launch, or one from before this summon,
+    /// leaves the palette as it is.
     pub fn on_launch_finished(
         &mut self,
         app_id: AppId,
         result: Result<(), LaunchError>,
         notices: &mut NoticeStore,
     ) -> bool {
-        if self
+        let pending = self
             .launch_pending
             .as_ref()
-            .is_some_and(|(id, _)| *id == app_id)
-        {
+            .is_some_and(|(id, _)| *id == app_id);
+        if pending {
             self.launch_pending = None;
         }
         match result {
             Ok(()) => {
                 // Usage increments only after the shell accepted the launch (§6.3).
                 self.record_usage(&app_id);
-                true
+                pending
             }
             Err(e) => {
                 let name = self
@@ -519,12 +518,19 @@ impl Launcher {
     /// The broken-shortcut offer under the root list: what is broken, and
     /// buttons to move those shortcuts to the Recycle Bin or ignore them.
     pub fn broken_shortcuts_ui(&mut self, ui: &mut egui::Ui) {
-        let paths: Vec<PathBuf> = self.broken.iter().map(|b| b.path.clone()).collect();
-        if paths.is_empty() || paths == self.ignored_broken {
+        // Compared in place: this runs every frame, and paths are cloned only
+        // when a button takes them.
+        if self.broken.is_empty()
+            || self
+                .broken
+                .iter()
+                .map(|b| &b.path)
+                .eq(self.ignored_broken.iter())
+        {
             return;
         }
         ui.separator();
-        let count = paths.len();
+        let count = self.broken.len();
         let shown = self
             .broken
             .iter()
@@ -542,9 +548,10 @@ impl Launcher {
         } else {
             format!("{count} Start Menu shortcuts point to apps that are no longer installed")
         };
-        let detail = paths
+        let detail = self
+            .broken
             .iter()
-            .map(|p| p.display().to_string())
+            .map(|b| b.path.display().to_string())
             .collect::<Vec<_>>()
             .join("\n");
         ui.label(
@@ -564,10 +571,10 @@ impl Launcher {
                 .clicked()
             {
                 self.recycling = true;
-                self.recycle_request = Some(paths.clone());
+                self.recycle_request = Some(self.broken.iter().map(|b| b.path.clone()).collect());
             }
             if ui.button("Ignore").clicked() {
-                self.ignored_broken = paths.clone();
+                self.ignored_broken = self.broken.iter().map(|b| b.path.clone()).collect();
             }
         });
     }

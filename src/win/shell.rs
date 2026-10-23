@@ -17,20 +17,20 @@ use windows::Win32::Foundation::{PROPERTYKEY, SIZE};
 use windows::Win32::Storage::FileSystem::SearchPathW;
 use windows::Win32::System::Com::{
     CLSCTX_ALL, CLSCTX_INPROC_SERVER, CLSCTX_LOCAL_SERVER, COINIT_APARTMENTTHREADED,
-    COINIT_DISABLE_OLE1DDE, CoCreateInstance, CoInitializeEx, CoTaskMemFree, CoUninitialize,
-    IPersistFile, STGM_READ,
+    COINIT_DISABLE_OLE1DDE, CoCreateInstance, CoInitializeEx, CoUninitialize, IPersistFile,
+    STGM_READ,
 };
 use windows::Win32::UI::Shell::{
     AO_NONE, ApplicationActivationManager, BHID_EnumItems, FOF_ALLOWUNDO, FOF_NOCONFIRMATION,
     FOFX_RECYCLEONDELETE, FOLDERID_AppsFolder, FOLDERID_CommonPrograms, FOLDERID_Programs,
-    FileOperation, IApplicationActivationManager, IEnumShellItems, IFileOperation, IShellItem,
-    IShellItem2, IShellItemImageFactory, IShellLinkW, KF_FLAG_DEFAULT, SEE_MASK_FLAG_NO_UI,
-    SEE_MASK_NOASYNC, SHCreateItemFromParsingName, SHELLEXECUTEINFOW, SHGetKnownFolderItem,
-    SHGetKnownFolderPath, SIGDN_NORMALDISPLAY, SIIGBF_BIGGERSIZEOK, SIIGBF_ICONONLY,
-    ShellExecuteExW, ShellLink,
+    FOLDERID_System, FOLDERID_Windows, FileOperation, IApplicationActivationManager,
+    IEnumShellItems, IFileOperation, IShellItem, IShellItem2, IShellItemImageFactory, IShellLinkW,
+    KF_FLAG_DEFAULT, SEE_MASK_FLAG_NO_UI, SEE_MASK_NOASYNC, SHCreateItemFromParsingName,
+    SHELLEXECUTEINFOW, SHGetKnownFolderItem, SHGetKnownFolderPath, SIGDN_NORMALDISPLAY,
+    SIIGBF_BIGGERSIZEOK, SIIGBF_ICONONLY, ShellExecuteExW, ShellLink,
 };
 use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
-use windows::core::{GUID, Interface, PCWSTR, PWSTR, w};
+use windows::core::{GUID, Interface, PCWSTR, w};
 
 use crate::app::model::{AppEvent, Wake};
 use crate::core::app_index::{
@@ -41,7 +41,7 @@ use crate::core::icon_scale;
 use crate::core::installed_programs::installed_entries;
 use crate::win::icon::{IconRgba, OwnedBitmap, bitmap_to_rgba};
 use crate::win::installed::{existing_long_path, uninstall_entries};
-use crate::win::{from_wide_nul, wide, wide_path, win_error_parts};
+use crate::win::{from_wide_nul, take_pwstr, wide, wide_path, win_error_parts, windows_program};
 
 /// `System.AppUserModel.ID` ({9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3}, 5).
 const PKEY_APP_USER_MODEL_ID: PROPERTYKEY = PROPERTYKEY {
@@ -133,16 +133,6 @@ fn shell_execute_in(file: &[u16], dir: Option<&[u16]>) -> windows::core::Result<
         ..Default::default()
     };
     unsafe { ShellExecuteExW(&mut info) }
-}
-
-/// Take ownership of a COM-allocated string.
-pub(crate) fn take_pwstr(p: PWSTR) -> String {
-    if p.is_null() {
-        return String::new();
-    }
-    let s = unsafe { p.to_string() }.unwrap_or_default();
-    unsafe { CoTaskMemFree(Some(p.0 as *const _)) };
-    s
 }
 
 // ---- scan ---------------------------------------------------------------------
@@ -305,8 +295,6 @@ fn enumerate_apps_folder(cancel: &AtomicBool) -> Result<Vec<(String, String)>, L
     Ok(out)
 }
 
-/// Resolve one shortcut without triggering link tracking or search. `None`
-/// means skip: unreadable, or its filesystem target no longer exists.
 /// Why a shortcut was left out of the index.
 enum Skip {
     /// The file does not load, or its local target is gone: safe to offer
@@ -317,6 +305,18 @@ enum Skip {
     Other,
 }
 
+/// Run one `IShellLinkW` string getter into a cleared buffer. Empty when the
+/// getter fails.
+fn link_string(
+    buf: &mut [u16],
+    get: impl FnOnce(&mut [u16]) -> windows::core::Result<()>,
+) -> String {
+    buf.fill(0);
+    get(buf).map(|()| from_wide_nul(buf)).unwrap_or_default()
+}
+
+/// Resolve one shortcut without triggering link tracking or search. An error
+/// means skip; [`Skip`] says whether it counts as broken.
 fn read_shortcut(
     lnk: &Path,
     source: AppSource,
@@ -337,17 +337,11 @@ fn read_shortcut(
     })?;
 
     let mut buf = vec![0u16; LINK_BUF];
-    let target = unsafe { link.GetPath(&mut buf, std::ptr::null_mut(), 0) }
-        .map(|()| from_wide_nul(&buf))
-        .unwrap_or_default();
-    buf.fill(0);
-    let arguments = unsafe { link.GetArguments(&mut buf) }
-        .map(|()| from_wide_nul(&buf))
-        .unwrap_or_default();
-    buf.fill(0);
-    let working_dir = unsafe { link.GetWorkingDirectory(&mut buf) }
-        .map(|()| from_wide_nul(&buf))
-        .unwrap_or_default();
+    let target = link_string(&mut buf, |out| unsafe {
+        link.GetPath(out, std::ptr::null_mut(), 0)
+    });
+    let arguments = link_string(&mut buf, |out| unsafe { link.GetArguments(out) });
+    let working_dir = link_string(&mut buf, |out| unsafe { link.GetWorkingDirectory(out) });
 
     // A local absolute target that is gone is a broken shortcut (§6.4). UNC
     // targets are not probed: a sleeping share must not stall the scan. Bare
@@ -654,9 +648,16 @@ pub fn reveal(path: String) {
     use std::os::windows::process::CommandExt;
     // Explorer parses its own command line: the path is quoted as one
     // `/select,` argument, and paths cannot contain quotes.
-    let _ = std::process::Command::new("explorer.exe")
+    let explorer = windows_program(&FOLDERID_Windows, "explorer.exe");
+    let _ = std::process::Command::new(explorer)
         .raw_arg(format!("/select,\"{path}\""))
         .spawn();
+}
+
+/// Open a file in Notepad.
+pub fn open_in_notepad(path: &Path) {
+    let notepad = windows_program(&FOLDERID_System, "notepad.exe");
+    let _ = std::process::Command::new(notepad).arg(path).spawn();
 }
 
 /// Open a URI (`ms-settings:clipboard`, or a web search in the default

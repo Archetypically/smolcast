@@ -100,6 +100,22 @@ seamlessly at 36 s in three cuts: wide for the page, square and vertical in
 create the Pages project and DNS, deploy, then point `Cargo.toml`
 `homepage` and the README at it.
 
+## Full-repo review (2026-10-23), branch `full-repo-review`, unverified
+
+Code, simplify and security passes over all Rust. Fixed: a script hotkey's
+launch no longer hides an open palette; a summon clears a stuck pending
+launch; inline `settings = {…}` saves; the clipboard preview counts chars
+once per selection; capture re-checks exclusions (now with `Clipboard Viewer
+Ignore`) under the open (§7.2); Explorer and Notepad run by full path.
+Deferred, user's call: delete `.clip` files only on definite bad data, not
+any DPAPI failure (§7.2); bounded joins on quit (§1.5); WinRT history
+conversion blocks the clipboard thread; `%VAR%` quicklinks are URLs (§10.7);
+path quicklinks take `..` in `{query}`; `SEE_MASK_FLAG_NO_UI` may hide the
+Mark-of-the-Web prompt for File Search opens (check on Windows); DLL search
+hardening (CI's Mesa `opengl32.dll` relies on the app folder); clipboard
+history TTL. Windows check: script hotkey with the palette open, paste from
+a password manager is not captured, Reveal and Edit Config still open.
+
 ## Pending Windows checks
 
 - Installed programs: Overwatch and Battle.net appear with icons and launch

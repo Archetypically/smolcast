@@ -5,6 +5,8 @@
 //! one of the major engines, or a custom URL template. The default browser
 //! opens the result.
 
+use std::fmt::Write;
+
 use serde::{Deserialize, Serialize};
 
 /// The `search_engine` setting.
@@ -115,7 +117,8 @@ pub(crate) fn encode(text: &str) -> String {
         if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b'~') {
             out.push(byte as char);
         } else {
-            out.push_str(&format!("%{byte:02X}"));
+            // Writing into a String cannot fail.
+            let _ = write!(out, "%{byte:02X}");
         }
     }
     out

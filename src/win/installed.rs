@@ -162,7 +162,7 @@ pub fn existing_long_path(path: &Path) -> Option<PathBuf> {
             return None;
         }
         if len < buf.len() {
-            let long = PathBuf::from(String::from_utf16_lossy(&buf[..len]));
+            let long = PathBuf::from(from_wide_nul(&buf));
             return long.is_file().then_some(long);
         }
         buf.resize(len, 0);
