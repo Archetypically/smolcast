@@ -302,8 +302,8 @@ key, a pip that slides to the row you chose. Motion:
 - Fade-up-on-every-scroll, parallax, typewriter headlines, counting
   numbers, shimmer, tilt or magnetic hovers, confetti, cursor trails.
 - An invented number, quote, logo or testimonial. Comparisons cite a
-  source, a version and a date, bold the better pick whoever has it, and
-  leave a row plain when the other side does not publish the fact.
+  source, a version and a date, bold only where smolcast comes out ahead,
+  and leave a row plain when the other side does not publish the fact.
 - Literal colors past the token block. Every color is a token
   (`tokens.css` from `theme.rs`, or the web-only block in `styles.css`).
 
@@ -337,8 +337,10 @@ The website (`website/`, decision 030) speaks the same language on the web:
   "Optional" on an amber tint, a plain gray "No"; the word carries the
   meaning), big
   **figures**, a feature **matrix** grouped into The basics, Features and
-  Under the hood, where the better pick on a row is bold (a ringed badge),
-  whoever has it, and only when both sides publish the fact. Each
+  Under the hood, where only smolcast's wins are bold (a ringed badge),
+  and only when the other side publishes the fact; the other tool's
+  strengths are told in its card and its "Go with" list, which sits second,
+  after smolcast's. Each
   competitor card links out to the tool itself ("Get Raycast for
   Windows", tagged `?ref=smolcast`). Then
   "Coming from" mapping cards, a download card, links to other pages
