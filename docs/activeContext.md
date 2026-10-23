@@ -128,6 +128,15 @@ a downloaded `.exe` opened from Search Files shows the security warning;
 `%USERPROFILE%\Downloads\{query}` opens a folder; Esc twice in Settings;
 an age limit drops old entries and their files.
 
+## Palette on a manual start (2026-10-23), unverified
+
+Decision 037, plan §2.1: a start by the user opens the palette instead of
+flashing a blank frame; the Run entry now passes `--login` and stays in the
+tray, as does an updater relaunch. Older flagless Run entries are rewritten
+on the next start. Windows check: starting from the Start menu opens the
+palette and Esc dismisses it; with `start_at_login` on, the Run value ends
+in `--login` and signing in shows nothing; an update relaunch stays hidden.
+
 ## Pending Windows checks
 
 - Installed programs (decision 027, linted for GNU only): Overwatch and
