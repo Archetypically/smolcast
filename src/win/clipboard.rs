@@ -420,6 +420,8 @@ unsafe extern "system" fn clipboard_wnd_proc(
 struct Formats {
     self_write: u32,
     exclude_monitor: u32,
+    /// The legacy opt-out some password managers still set.
+    viewer_ignore: u32,
     history_allowed: u32,
 }
 
@@ -430,6 +432,7 @@ impl Formats {
         Self {
             self_write: register("smolcast.self-write.v1"),
             exclude_monitor: register("ExcludeClipboardContentFromMonitorProcessing"),
+            viewer_ignore: register("Clipboard Viewer Ignore"),
             history_allowed: register("CanIncludeInClipboardHistory"),
         }
     }
@@ -758,9 +761,7 @@ impl Worker {
         {
             return Attempt::Done;
         }
-        if self.format_present(self.formats.self_write)
-            || self.format_present(self.formats.exclude_monitor)
-        {
+        if self.excluded() {
             self.last_captured_sequence = Some(sequence);
             return Attempt::Done;
         }
@@ -770,7 +771,14 @@ impl Worker {
             // Terminal contention: this sequence is skipped (§7.1).
             Open::Failed => return Attempt::Done,
         };
-        let raw = self.read_open();
+        // The clipboard may have changed since the checks above; check again
+        // while it is held, so they describe the content read (§7.2).
+        let sequence = unsafe { GetClipboardSequenceNumber() };
+        let raw = if Some(sequence) == self.self_write_sequence || self.excluded() {
+            None
+        } else {
+            self.read_open()
+        };
         drop(guard); // decode only after the clipboard is closed (§7.4)
         self.last_captured_sequence = Some(sequence);
 
@@ -811,6 +819,13 @@ impl Worker {
             ),
         )));
         Attempt::Done
+    }
+
+    /// A smolcast write, or content its source asked monitors to skip (§7.2).
+    fn excluded(&self) -> bool {
+        self.format_present(self.formats.self_write)
+            || self.format_present(self.formats.exclude_monitor)
+            || self.format_present(self.formats.viewer_ignore)
     }
 
     fn format_present(&self, format: u32) -> bool {

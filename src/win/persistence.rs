@@ -21,17 +21,15 @@ use windows::Win32::Security::Cryptography::{
 use windows::Win32::Storage::FileSystem::{
     MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH, MoveFileExW,
 };
-use windows::Win32::UI::Shell::{
-    FOLDERID_LocalAppData, FOLDERID_RoamingAppData, KF_FLAG_DEFAULT, SHGetKnownFolderPath,
-};
-use windows::core::{GUID, PCWSTR};
+use windows::Win32::UI::Shell::{FOLDERID_LocalAppData, FOLDERID_RoamingAppData};
+use windows::core::PCWSTR;
 
 use crate::app::model::{AppEvent, Wake};
 use crate::app::notice::{Notice, Severity, op};
 use crate::core::favorites::Favorites;
 use crate::core::history::{Payload, decode_record};
 use crate::core::usage::Usage;
-use crate::win::{take_pwstr, wide_path};
+use crate::win::{known_folder, wide_path};
 
 /// Temp files older than this are leftovers from a crashed write (§10.5).
 const STALE_TEMP_AGE: Duration = Duration::from_secs(24 * 60 * 60);
@@ -68,13 +66,6 @@ impl StatePaths {
             update_state: local.join("update.json"),
         })
     }
-}
-
-/// A known folder's current path (`%APPDATA%`, `%LOCALAPPDATA%`).
-fn known_folder(id: &GUID) -> Option<PathBuf> {
-    let raw = unsafe { SHGetKnownFolderPath(id, KF_FLAG_DEFAULT, None) }.ok()?;
-    let path = PathBuf::from(take_pwstr(raw));
-    path.is_absolute().then_some(path)
 }
 
 /// A persistence failure. Carries the operation and path, never file content.
