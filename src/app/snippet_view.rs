@@ -16,7 +16,10 @@ use crate::core::config_edit::SnippetEdit;
 use crate::core::list_cursor::{self, ListCursor};
 use crate::core::snippet::{self, Snippet};
 
-use super::{list, theme};
+use super::{
+    form::{self, Status},
+    list, theme,
+};
 
 /// Rows shown at once in a medium palette; the clipboard view matches.
 const MEDIUM_ROWS: usize = 6;
@@ -63,13 +66,6 @@ impl Editor {
     fn problem(&self, snippets: &[Snippet]) -> Option<String> {
         snippet::draft_problem(&self.snippet(), self.id.as_deref(), snippets)
     }
-}
-
-enum Status {
-    Idle,
-    Saving,
-    Done(&'static str),
-    Failed(String),
 }
 
 pub struct SnippetView {
@@ -381,9 +377,11 @@ impl SnippetView {
                     if ui.button("New snippet").on_hover_text("Ctrl+N").clicked() {
                         self.start_new();
                     }
-                    self.config_link(ui);
+                    if form::config_link(ui, "Snippets are stored in config.toml") {
+                        self.open_file = true;
+                    }
                 });
-                self.status_ui(ui, None);
+                form::status_ui(ui, &self.status, None);
             });
             return;
         }
@@ -468,11 +466,13 @@ impl SnippetView {
                     self.ask_delete();
                 }
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    self.config_link(ui);
+                    if form::config_link(ui, "Snippets are stored in config.toml") {
+                        self.open_file = true;
+                    }
                 });
             });
         }
-        self.status_ui(ui, None);
+        form::status_ui(ui, &self.status, None);
     }
 
     fn refresh_results(&mut self, query: &str) {
@@ -541,7 +541,7 @@ impl SnippetView {
             });
         if editor.dirty() {
             // Any new edit withdraws a pending discard confirmation.
-            editor.confirm_discard &= ui.input(|i| !i.events.iter().any(is_text_event));
+            editor.confirm_discard &= ui.input(|i| !i.events.iter().any(form::is_text_event));
         }
 
         let dirty = editor.dirty();
@@ -572,43 +572,12 @@ impl SnippetView {
             }
         });
         let hint = confirm_discard.then_some("Unsaved changes. Press Esc again to discard.");
-        self.status_ui(ui, problem.as_deref().map(capitalize).as_deref().or(hint));
+        form::status_ui(
+            ui,
+            &self.status,
+            problem.as_deref().map(form::capitalize).as_deref().or(hint),
+        );
     }
-
-    /// One status line: a form problem or hint wins over the save status.
-    fn status_ui(&self, ui: &mut egui::Ui, problem: Option<&str>) {
-        let weak = ui.visuals().weak_text_color();
-        let (text, color) = match (problem, &self.status) {
-            (Some(problem), _) => (problem.to_owned(), theme::ERROR),
-            (None, Status::Saving) => ("Saving…".to_owned(), weak),
-            (None, Status::Failed(e)) => (e.clone(), theme::ERROR),
-            (None, Status::Done(done)) => ((*done).to_owned(), weak),
-            (None, Status::Idle) => return,
-        };
-        ui.label(RichText::new(text).color(color).small());
-    }
-
-    fn config_link(&mut self, ui: &mut egui::Ui) {
-        if ui
-            .small_button("Edit config file…")
-            .on_hover_text("Snippets are stored in config.toml")
-            .clicked()
-        {
-            self.open_file = true;
-        }
-    }
-}
-
-fn is_text_event(event: &egui::Event) -> bool {
-    matches!(event, egui::Event::Text(_) | egui::Event::Paste(_))
-}
-
-fn capitalize(text: &str) -> String {
-    let mut chars = text.chars();
-    chars
-        .next()
-        .map(|c| c.to_uppercase().chain(chars).collect())
-        .unwrap_or_default()
 }
 
 fn preview_ui(ui: &mut egui::Ui, snippet: &Snippet) {

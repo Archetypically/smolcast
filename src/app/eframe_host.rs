@@ -30,7 +30,7 @@ use crate::win::placement::PaletteWindow;
 use crate::win::shell::{self, IconTarget, IconWorker};
 use crate::win::tray::{self, TrayHandle};
 use crate::win::update::{self, UpdateWorker};
-use crate::win::{appearance, autostart};
+use crate::win::{appearance, autostart, file_dialog};
 
 /// Startup facts decided before the window exists.
 pub struct Startup {
@@ -440,6 +440,14 @@ impl EframeApp {
                 Effect::SaveConfig(edit) => self.queued_save = Some(edit),
                 Effect::RefreshConfig => refresh = true,
                 Effect::OpenConfigFile => open_config_file(&self.paths.config),
+                Effect::PickScriptFile => {
+                    let owner = self.palette_window.as_ref().map(PaletteWindow::raw);
+                    if let Err(e) = file_dialog::spawn_pick_script(owner, self.wake()) {
+                        self.model.script_file_picked(Err(format!(
+                            "Could not open the file dialog: {e}"
+                        )));
+                    }
+                }
                 Effect::ApplyConfig(cfg) => config = Some(cfg),
                 Effect::TrialHotkey(key) => trial = Some(key),
             }

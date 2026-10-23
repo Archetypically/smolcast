@@ -417,22 +417,42 @@ impl Launcher {
         self.ranked_for = None;
     }
 
-    /// A script hotkey fired: run it without opening the palette (§10.3).
-    pub fn run_script(&mut self, id: &str, notices: &mut NoticeStore) {
+    /// Run a script by id (§10.3): from its hotkey, without opening the
+    /// palette, or from the script view (`from_palette`), whose palette hides
+    /// once the spawn succeeds.
+    /// `extra` are arguments typed for this run, appended as their own
+    /// elements after the configured ones.
+    pub fn run_script(
+        &mut self,
+        id: &str,
+        notices: &mut NoticeStore,
+        from_palette: bool,
+        extra: Vec<String>,
+    ) {
         let app_id = AppId::Script { id: id.to_owned() };
         match self.scripts.iter().find(|s| s.id == app_id) {
             // One request slot: replacing a launch the host has not taken yet
-            // would drop it and leave `launch_pending` set for good.
-            Some(_) if self.launch_request.is_some() => notices.push(Notice::new(
-                Severity::Info,
-                op::LAUNCHER,
-                format!("Script \"{id}\" did not run: another launch was starting. Try again."),
-            )),
+            // would drop it and leave `launch_pending` set for good. A palette
+            // run also never replaces another launch's pending state.
+            Some(_)
+                if self.launch_request.is_some()
+                    || (from_palette && self.launch_pending.is_some()) =>
+            {
+                notices.push(Notice::new(
+                    Severity::Info,
+                    op::LAUNCHER,
+                    format!("Script \"{id}\" did not run: another launch was starting. Try again."),
+                ));
+            }
             Some(script) => {
-                self.launch_request = Some(LaunchRequest {
-                    app_id,
-                    spec: script.launch.clone(),
-                });
+                if from_palette {
+                    self.launch_pending = Some((app_id.clone(), Instant::now()));
+                }
+                let mut spec = script.launch.clone();
+                if let LaunchSpec::Script(spec) = &mut spec {
+                    spec.args.extend(extra);
+                }
+                self.launch_request = Some(LaunchRequest { app_id, spec });
             }
             None => notices.push(Notice::new(
                 Severity::Warning,
@@ -1288,6 +1308,8 @@ fn command_glyph(command: Command) -> Glyph {
         Command::Emoji => Glyph::new('\u{E76E}', "😀"),            // Emoji2
         Command::Snippets => Glyph::new('\u{E70B}', "📝"),         // QuickNote
         Command::CreateSnippet => Glyph::new('\u{E70F}', "✏"),     // Edit
+        Command::Scripts => Glyph::new('\u{E756}', "⌨"),           // CommandPrompt
+        Command::TrackScript => Glyph::new('\u{E8E5}', "📂"),      // OpenFile
         Command::Settings => Glyph::new('\u{E713}', "⚙"),          // Settings
         Command::About => Glyph::new('\u{E946}', "ℹ"),             // Info
         Command::SearchFiles => GLYPH_SEARCH,

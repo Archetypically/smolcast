@@ -40,7 +40,7 @@ those natively, in one small executable that is idle when hidden.
 | Updates | Once a day smolcast asks GitHub whether a newer release exists; if so, a line under the root list offers Install and Restart, What's New, or Skip. "Check for Updates" asks now. |
 | Clipboard History | Text and images, searchable, with a preview; Enter pastes into the app you came from. Windows clipboard history when it is on, otherwise smolcast's own, encrypted and optionally persisted. |
 | Emoji | Searchable grid with color glyphs; pastes the exact sequence. |
-| Scripts | Named commands from `config.toml`, run from the palette or their own hotkey. |
+| Scripts | Quick access to script files on disk. "Track Script File" picks a file (with optional saved arguments and a hotkey); its type picks the program. "Manage Scripts" runs (Enter), runs with extra typed arguments (Tab), edits and untracks them; tracked scripts also appear in the root search. Stored in `config.toml`, comments preserved; untracking never touches the file. |
 | Snippets | Saved text searched by name or keyword and pasted; created and edited in the palette. |
 | Settings | "smolcast settings" edits hotkey, startup, update checks, window and text size, reduced motion, keep-state time, web search engine, and clipboard options, preserving hand-written comments in `config.toml`. |
 | About | "About smolcast" (also found as "Credits") shows the version, the author, and what smolcast is built with. |
