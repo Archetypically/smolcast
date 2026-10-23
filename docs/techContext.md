@@ -116,7 +116,7 @@ pages (the social card, the demo film), served at `/_media/` by
 | `task web:fmt` / `task web:fmt-check` | Prettier over HTML, CSS, JS and config |
 | `task web:lint` | ESLint and html-validate |
 | `task web:render` | Regenerate `og.png` and the PNG icons with Playwright (`-- og` or `icons` to pick) |
-| `task web:film` | Record the demo film from `media/film.html` (needs ffmpeg; about 4 minutes) |
+| `task web:film` | Record the demo film from `media/film.html` in all three cuts (needs ffmpeg; about 12 minutes; `-- wide`, `square` or `vertical` to pick) |
 | `task web:deploy` | `wrangler pages deploy public` (run `npx wrangler login` once) |
 
 Tools are pinned in `website/package.json` and its lockfile; Playwright's
@@ -130,14 +130,19 @@ The demo film (`public/media/smolcast-demo.{mp4,webm,jpg}`, also the page's
 measurements, labels and results, using open Microsoft stand-ins for
 Windows' fonts, icons and emoji (`media/film/`, licenses inside). The emoji
 results in `media/film/emoji-search.json` come from `core::emoji::search`.
-`scripts/film.mjs` records it with Chrome's screencast, which manages about
-30 fps and ignores the device scale factor: the page is CSS-zoomed to 1080p
-and runs 4× slower (timers via `media/slowmo.js`, animations via CDP
+`scripts/film.mjs` records it with Chrome's screencast, which manages about 30
+fps and ignores the device scale factor: the page is CSS-zoomed to 1080p and
+runs 4× slower (timers via `media/slowmo.js`, animations via CDP
 `Animation.setPlaybackRate`), and the frames are re-timed and encoded at 60
 fps with the original music from `scripts/music.mjs` (synthesized,
-deterministic, no third-party audio). It writes the page's files and a
-square cut in the ignored `media/out/`. Re-record after visible changes to
-the app.
+deterministic, no third-party audio). `?format=` lays the same film out wide,
+square or vertical; it writes the page's files and the square and vertical
+social cuts in the ignored `media/out/`. Every cut loops: it opens and closes
+on the same title-card frame, the page holds that card until the film is whole
+12 s phrases (`PHRASE`), the backdrop drifts one tile repeat per phrase, and
+the music's tail is folded onto its start, at a fixed gain (no loudnorm, which
+would ride the level at the seam). After adding a chapter, update the JSON-LD
+`duration` in `index.html`. Re-record after visible changes to the app.
 
 Touch gestures cannot be synthesized in headless Chromium here, so the
 palette's native touch scrolling is checked on a real phone.

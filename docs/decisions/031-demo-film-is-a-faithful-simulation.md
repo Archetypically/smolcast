@@ -60,3 +60,13 @@ whenever the app changes.
   `media/film/emoji-search.json` come from `core::emoji::search`.
 - Music is synthesized by `website/scripts/music.mjs`, so no third-party
   audio license applies.
+- Motion graphics frame the simulation and never enter it: a backdrop
+  stippled with small s. marks drifting behind the desktop, a caption per
+  chapter, the key caps, a slow camera lean while the palette is open, and
+  a title card. The app's windows, copy and timings stay as above. Mica
+  over that plain backdrop is drawn as a near-opaque tint, as Windows'
+  blur would leave it.
+- Each cut (wide for the page, square and vertical for social posts) starts
+  and ends on the same title-card frame, and lasts whole 12 s music phrases
+  with the music's tail folded onto its start, so it loops seamlessly. The
+  page holds the card until the phrase ends; keep the script under that.

@@ -43,10 +43,10 @@ tasks:
       - node scripts/render.mjs {{.CLI_ARGS}}
 
   film:
-    desc: Record the demo film from media/film.html (needs ffmpeg and Playwright's Chromium)
+    desc: Record the demo film from media/film.html, wide, square and vertical (needs ffmpeg and Playwright's Chromium)
     deps: [install]
     cmds:
-      - node scripts/film.mjs
+      - node scripts/film.mjs {{.CLI_ARGS}}
 
   deploy:
     desc: Upload public/ to the Cloudflare Pages project (needs `npx wrangler login` once)
