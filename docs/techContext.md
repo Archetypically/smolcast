@@ -103,26 +103,44 @@ The app icon is generated from `assets/smolcast.svg`:
 
 ## Website
 
-`website/` is the public one-pager (decision 030), self-contained so it can
+`website/` is the public site (decisions 030, 033), self-contained so it can
 move hosts. `website/public/` is deployed to Cloudflare Pages as-is: no build
-step, no framework, no third-party requests. `_headers` sets the CSP and
+step, no framework, no third-party requests. Pages: home (`index.html`),
+`privacy.html`, and `compare/` (a hub and one page per launcher), served at
+pretty URLs (`/privacy`, `/compare/raycast`). `_headers` sets the CSP and
 caching; `404.html` is Pages' not-found page. `media/` holds render-only
 pages (the social card, the demo film), served at `/_media/` by
 `scripts/serve.mjs` and never deployed.
+
+Shared parts have one source (decision 033): `partials/` (head links, top
+bar, footer) are stamped between `<!-- partial:NAME -->` markers in every
+page, and `public/tokens.css` is generated from `src/app/theme.rs`, both by
+`task web:sync`. A new page: copy a page's skeleton with its markers, add it
+to `sitemap.xml` and `llms.txt`, and run the sync. Comparison pages carry the
+date they were checked; recheck them when the other products change.
+
+Discovery: each page has a canonical URL, a description, Open Graph tags and
+JSON-LD (`SoftwareApplication` on home; `WebPage` or `CollectionPage` plus
+`BreadcrumbList` elsewhere), and `llms.txt` summarizes every page. When the
+Pages project is created, check that Cloudflare's AI-crawler blocking and
+managed `robots.txt` are off for the domain, or AI search will not see the
+site.
 
 | Command | Does |
 | --- | --- |
 | `task web:dev` | Serve the site at http://127.0.0.1:8788 |
 | `task web:fmt` / `task web:fmt-check` | Prettier over HTML, CSS, JS and config |
-| `task web:lint` | ESLint and html-validate |
+| `task web:lint` | ESLint, html-validate, and `sync --check` |
+| `task web:sync` | Stamp `partials/` into every page and regenerate `tokens.css` from `theme.rs` |
 | `task web:render` | Regenerate `og.png` and the PNG icons with Playwright (`-- og` or `icons` to pick) |
 | `task web:film` | Record the demo film from `media/film.html` in all three cuts (needs ffmpeg; about 12 minutes; `-- wide`, `square` or `vertical` to pick) |
 | `task web:deploy` | `wrangler pages deploy public` (run `npx wrangler login` once) |
 
 Tools are pinned in `website/package.json` and its lockfile; Playwright's
 version must match an installed Chromium (`npx playwright install chromium`).
-CI runs the format check, ESLint and html-validate on Ubuntu. The palette's
-tokens copy `src/app/theme.rs`; change both together.
+CI runs the format check, ESLint, html-validate and the sync check on Ubuntu.
+After changing a color in `src/app/theme.rs`, run `task web:sync` (CI fails
+until you do).
 
 The demo film (`public/media/smolcast-demo.{mp4,webm,jpg}`, also the page's
 `og:video`) is a faithful simulation (decision 031): `media/film.html`,

@@ -1,19 +1,12 @@
-/* smolcast.site: the app's own tokens (docs/DESIGN.md, src/app/theme.rs),
-   carried over to the web. One accent, used sparingly; neutral surfaces;
-   hairlines that dissolve at their ends. */
+/* smolcast.site: the app's own tokens (docs/DESIGN.md), carried over to the
+   web. One accent, used sparingly; neutral surfaces; hairlines that dissolve
+   at their ends. The app's colors (--accent, --surface, --text, --weak,
+   --sel, --hover, --control, --divider, --warning) come from tokens.css,
+   generated from src/app/theme.rs; the tokens here are the web's own. */
 
 :root {
-  --accent: #ff6363;
-  --warning: #e6b43c;
   --page: #f0f0f2;
-  --surface: #fafafa;
-  --text: #1c1c1e;
   --muted: #55555a;
-  --weak: #6e6e73;
-  --sel: rgb(0 0 0 / 8%);
-  --hover: rgb(0 0 0 / 4%);
-  --control: rgb(0 0 0 / 5%);
-  --divider: rgb(0 0 0 / 8%);
   --rim: rgb(0 0 0 / 10%);
   --lip: rgb(0 0 0 / 18%);
   --cap-down: rgb(0 0 0 / 14%);
@@ -41,14 +34,7 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --page: #101012;
-    --surface: #1c1c1e;
-    --text: #ededed;
     --muted: #a5a5aa;
-    --weak: #8e8e93;
-    --sel: rgb(255 255 255 / 10%);
-    --hover: rgb(255 255 255 / 5%);
-    --control: rgb(255 255 255 / 7%);
-    --divider: rgb(255 255 255 / 10%);
     --rim: rgb(255 255 255 / 10%);
     --lip: rgb(0 0 0 / 45%);
     --cap-down: rgb(255 255 255 / 18%);
@@ -62,14 +48,7 @@
 
 :root[data-theme="dark"] {
   --page: #101012;
-  --surface: #1c1c1e;
-  --text: #ededed;
   --muted: #a5a5aa;
-  --weak: #8e8e93;
-  --sel: rgb(255 255 255 / 10%);
-  --hover: rgb(255 255 255 / 5%);
-  --control: rgb(255 255 255 / 7%);
-  --divider: rgb(255 255 255 / 10%);
   --rim: rgb(255 255 255 / 10%);
   --lip: rgb(0 0 0 / 45%);
   --cap-down: rgb(255 255 255 / 18%);
@@ -113,7 +92,7 @@ body {
 }
 
 ::selection {
-  background: rgb(255 99 99 / 35%);
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
 }
 
 a {
@@ -1675,6 +1654,288 @@ h2 {
   margin-top: -7px;
   border-radius: 2px;
   background: var(--accent);
+}
+
+/* Pages other than home: the palette opens over the page, the way smolcast
+   opens over your work. */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 14vh var(--page-gutter) 0;
+  background: color-mix(in srgb, var(--page) 55%, transparent);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.overlay[hidden] {
+  display: none;
+}
+
+.overlay .stage {
+  margin-top: 0;
+}
+
+.topbar.paged .summon-pill {
+  opacity: 1;
+  pointer-events: auto;
+  transform: none;
+}
+
+/* Documents: the privacy policy and the comparisons. One readable column,
+   the home page's type and hairlines, tables for facts. */
+.doc {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 48px var(--page-gutter) 0;
+}
+
+.crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 28px;
+  padding: 0;
+  list-style: none;
+  color: var(--weak);
+  font-size: 13px;
+}
+
+.crumbs li + li::before {
+  content: "/";
+  margin-right: 6px;
+  opacity: 0.6;
+}
+
+.crumbs a {
+  color: inherit;
+}
+
+.doc h1 {
+  max-width: none;
+  font-size: clamp(32px, 5vw, 46px);
+  line-height: 1.08;
+}
+
+.doc p.lead {
+  margin: 20px 0 0;
+}
+
+.doc p.stamp {
+  margin: 18px 0 0;
+  color: var(--weak);
+  font-size: 13px;
+}
+
+.doc h2 {
+  margin: 56px 0 12px;
+  font-size: clamp(22px, 2.6vw, 27px);
+  line-height: 1.2;
+}
+
+.doc h3 {
+  margin: 28px 0 6px;
+  font-size: 17px;
+  font-weight: 650;
+}
+
+.doc p,
+.doc li,
+.doc dd {
+  color: var(--muted);
+  text-wrap: pretty;
+}
+
+.doc p {
+  margin: 0 0 14px;
+}
+
+.doc li {
+  margin-bottom: 6px;
+}
+
+.doc ul {
+  margin: 0 0 14px;
+  padding-left: 1.2em;
+}
+
+.doc strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.files {
+  margin: 0 0 14px;
+}
+
+.files dt {
+  margin-top: 12px;
+}
+
+.files dd {
+  margin: 2px 0 0;
+}
+
+.table-wrap {
+  margin: 24px 0;
+  overflow-x: auto;
+}
+
+.compare {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 15px;
+}
+
+.compare th,
+.compare td {
+  padding: 10px 12px 10px 0;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--divider);
+}
+
+.compare td {
+  color: var(--muted);
+}
+
+/* Four tools side by side scroll inside their frame on a phone. */
+.compare.wide {
+  min-width: 640px;
+}
+
+.compare thead th {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.compare th[scope="row"] {
+  width: 24%;
+  color: var(--weak);
+  font-weight: 500;
+}
+
+/* smolcast's column carries the selection pip, as its row would. */
+.compare .us {
+  position: relative;
+  padding-left: 11px;
+}
+
+.compare .us::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 13px;
+  width: 3px;
+  height: 14px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
+.choose {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin: 24px 0;
+}
+
+.choose > div {
+  padding: 4px 20px 8px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface) 60%, var(--page));
+  box-shadow:
+    var(--tile-shadow),
+    0 0 0 1px var(--divider);
+}
+
+/* Links to other pages, drawn as palette rows. */
+.rows {
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rows a {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: var(--row);
+  margin-bottom: 4px;
+  padding: 0 8px;
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 15px;
+  text-decoration: none;
+}
+
+.rows a:hover,
+.rows a:focus-visible {
+  background: var(--sel);
+  outline: none;
+}
+
+.rows a:hover::before,
+.rows a:focus-visible::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 50%;
+  width: 3px;
+  height: 14px;
+  margin-top: -7px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
+.rows svg {
+  width: 17px;
+  height: 17px;
+  margin: 0 3px;
+  color: var(--weak);
+}
+
+.rows .name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.rows .trail {
+  color: var(--weak);
+  font-size: 13px;
+}
+
+.cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 20px;
+  margin: 40px 0 0;
+}
+
+.cta .meta {
+  color: var(--weak);
+  font-size: 14px;
+}
+
+@media (max-width: 560px) {
+  .choose {
+    grid-template-columns: 1fr;
+  }
+
+  .compare {
+    font-size: 14px;
+  }
+
+  .rows .trail {
+    display: none;
+  }
 }
 
 /* Reveal on scroll, once. */

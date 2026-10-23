@@ -74,8 +74,15 @@ Decision 029; see techContext CI. If slow, make it a release `example`.
 
 ## Website (2026-10-22), branch, not deployed
 
-Decision 030: `website/`, a static one-pager for Cloudflare Pages (`task
-web:*`), whose hero is a working recreation of the palette. Domain
+Decision 030: `website/`, a static site for Cloudflare Pages (`task
+web:*`), whose hero is a working recreation of the palette. Since
+2026-10-23 (branch `website-pages`, decision 033) it also has `/privacy`
+and `/compare/` (hub, Raycast, PowerToys Command Palette, Flow Launcher,
+Tinycast). Their chrome is stamped from `partials/`, and the colors are
+generated from `theme.rs` (`task web:sync`; CI checks both). Comparison
+facts were checked 2026-10-23; recheck when those products ship. The
+privacy contact is GitHub issues plus evanlee.engineer until the user
+names an email. Domain
 `smolcast.evanlee.engineer` is hard-coded in `public/` (canonical, OG,
 JSON-LD, sitemap, robots, llms.txt): grep and replace it on a move. The demo
 film is a faithful simulation (decision 031, `task web:film`); keep it in step
@@ -83,7 +90,8 @@ with the app. It now carries restrained motion graphics (backdrop stippled
 with s. marks, drifting; chapter captions, camera lean, title card) and loops
 seamlessly at 36 s in three cuts: wide for the page, square and vertical in
 `media/out/` for social posts. To do: check touch scrolling on a real phone;
-create the Pages project and DNS, deploy, then point `Cargo.toml`
+create the Pages project and DNS (turn off Cloudflare's AI-crawler
+blocking and managed robots.txt), deploy, then point `Cargo.toml`
 `homepage` and the README at it.
 
 ## Full-repo review (2026-10-23), on main, unverified
@@ -104,7 +112,6 @@ a password manager is not captured, Reveal and Edit Config still open.
   duplicates.
 - App icon: Explorer icon at every view size, Properties > Details fields,
   taskbar/Alt+Tab where shown, tray icon sharp at 100/150/200%.
-
 - Effect outbox: paste-back from clipboard, emoji and snippets (pastes, and
   the failure notices still appear); launch, recycle, rescan from the tray;
   icons, glyphs, thumbnails and file icons load; usage and favorites persist
@@ -163,14 +170,8 @@ a password manager is not captured, Reveal and Edit Config still open.
 
 ## Open questions and parked ideas
 
-- **Website pages** (user, 2026-10-22): comparison pages for SEO
-  ("smolcast vs Tinycast", "smolcast vs Raycast" and similar), and a
-  separate Privacy page: the app (local data, the GitHub update check and
-  its switch, clipboard encryption and exclusions), the site (no cookies,
-  analytics or third-party requests; Cloudflare's request logs), a contact
-  and a date, linked from the footer and the Privacy section, listed in
-  `sitemap.xml` and `llms.txt`. Store and winget listings want its URL.
-  Open: the contact to list.
+- **Privacy contact**: the page lists GitHub issues and evanlee.engineer.
+  Store and winget listings may want an email; ask the user.
 - **Dictionary**: tabled by the user (2026-10-21). Windows has no definitions
   API (only ISpellChecker). Options if revived: "define <word>" via web
   search, bundled WordNet (+10–30 MB), or an online API.

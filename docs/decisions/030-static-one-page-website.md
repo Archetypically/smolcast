@@ -4,7 +4,7 @@ slug: static-one-page-website
 author: archetypically
 status: resolved
 created: 2026-10-22
-updated: 2026-10-22
+updated: 2026-10-23
 tags: [website, design, hosting]
 ---
 
@@ -50,9 +50,12 @@ the page small, fast and portable between hosts.
 
 ## Consequences
 
-- Visual changes to the app's tokens should be mirrored in
-  `website/public/styles.css` (techContext, Website).
+- The app's colors reach the site through the generated
+  `website/public/tokens.css` (decision 033); run `task web:sync` after
+  changing `src/app/theme.rs`.
 - The domain appears literally in `website/public/`; moving domains is a
   search and replace.
 - The social card and the demo film are rendered from HTML in
   `website/media/` with Playwright (`task web:render`).
+- The site has since grown more pages, still with no build step; their
+  shared chrome and the app's colors are kept in step by decision 033.
