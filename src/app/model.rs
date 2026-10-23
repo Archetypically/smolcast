@@ -323,8 +323,8 @@ pub struct AppModel {
 }
 
 impl AppModel {
-    /// `startup_notice` and `force_visible` let a fatal startup/config error
-    /// force the palette into view before the first frame (§2.1, §5.3).
+    /// `force_visible` shows the palette on the first frame: for a start by
+    /// the user, or a fatal startup/config error (§2.1, §5.3, decision 037).
     pub fn new(
         receiver: Receiver<AppEvent>,
         config: ConfigFile,

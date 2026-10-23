@@ -3,10 +3,11 @@
 //!
 //! `start_at_login` in the config is the source of truth. Startup (with a valid
 //! config) and every accepted reload reconcile the key to it: enabled writes the
-//! quoted path of the running executable when the value is missing or differs,
-//! so a moved exe re-registers itself; disabled deletes the value. Both are
-//! idempotent, and quitting never touches the key. The Task Manager
-//! enable/disable state (`StartupApproved\Run`) is the user's and is left alone.
+//! quoted path of the running executable plus `LOGIN_FLAG` when the value is
+//! missing or differs, so a moved exe (or an entry from before the flag)
+//! re-registers itself; disabled deletes the value. Both are idempotent, and
+//! quitting never touches the key. The Task Manager enable/disable state
+//! (`StartupApproved\Run`) is the user's and is left alone.
 
 use windows::Win32::Foundation::{
     ERROR_FILE_NOT_FOUND, ERROR_SUCCESS, ERROR_UNSUPPORTED_TYPE, WIN32_ERROR,
@@ -21,6 +22,10 @@ use crate::win::{from_wide_nul, wide};
 
 const RUN_KEY: PCWSTR = w!("Software\\Microsoft\\Windows\\CurrentVersion\\Run");
 const VALUE_NAME: PCWSTR = w!("smolcast");
+
+/// The command-line flag the Run entry passes, so a start at sign-in stays in
+/// the tray while a start by the user opens the palette (decision 037).
+pub const LOGIN_FLAG: &str = "--login";
 
 /// A failed registry or path operation. Content-free: names the step only.
 #[derive(Debug)]
@@ -59,7 +64,7 @@ pub fn reconcile(enabled: bool) -> Result<bool, AutostartError> {
         operation: "locate the executable for",
         code: e.raw_os_error().map(|c| c as u32),
     })?;
-    let command = format!("\"{}\"", exe.display());
+    let command = format!("\"{}\" {LOGIN_FLAG}", exe.display());
     if current.as_deref() == Some(command.as_str()) {
         return Ok(false);
     }
