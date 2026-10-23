@@ -19,6 +19,7 @@ pub mod motion;
 pub mod placement;
 pub mod quicklink;
 pub mod request_cache;
+pub mod script_file;
 pub mod snippet;
 pub mod update;
 pub mod usage;

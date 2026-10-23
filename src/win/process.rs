@@ -12,6 +12,10 @@ use std::path::Path;
 use std::process::{Command, Stdio};
 
 use windows::Win32::System::Threading::CREATE_NO_WINDOW;
+use windows::Win32::UI::Shell::FOLDERID_System;
+
+use crate::core::script_file::WINDOWS_POWERSHELL;
+use crate::win::windows_program;
 
 use crate::core::app_index::ScriptSpec;
 use crate::win::shell::LaunchError;
@@ -36,7 +40,19 @@ pub fn spawn_script(spec: &ScriptSpec) -> Result<(), LaunchError> {
             None,
         ));
     }
-    let spawned = Command::new(&spec.interpreter)
+    if let Some(file) = &spec.file
+        && !Path::new(file).is_file()
+    {
+        return Err(fail(format!("script file not found: {file}"), None));
+    }
+    // A tracked .ps1 names Windows PowerShell by its bare name; run the one
+    // in System32, never one found first on PATH.
+    let program = if spec.interpreter == WINDOWS_POWERSHELL {
+        windows_program(&FOLDERID_System, r"WindowsPowerShell\v1.0\powershell.exe")
+    } else {
+        spec.interpreter.clone().into()
+    };
+    let spawned = Command::new(program)
         .args(&spec.args)
         .current_dir(cwd)
         .creation_flags(CREATE_NO_WINDOW.0)
