@@ -80,7 +80,8 @@ the desktop smoke test (`tests/smoke.rs`, decision 029): the release exe on
 the runner's desktop, driven with real keystrokes and clicks, with Mesa's
 software OpenGL beside the exe (the runner has no GPU); a failure uploads a
 desktop screenshot. It only runs with `--ignored` and
-`SMOLCAST_SMOKE_DESKTOP=disposable`, never on a maintainer's desktop. New
+`SMOLCAST_SMOKE_DESKTOP=disposable`, never on a maintainer's desktop (if it
+grows slow, make it a release `example`). New
 tests default to this level, not unit tests. CI passing is not runtime
 acceptance: each milestone's Windows smoke gate (§12) is.
 
@@ -103,26 +104,55 @@ The app icon is generated from `assets/smolcast.svg`:
 
 ## Website
 
-`website/` is the public one-pager (decision 030), self-contained so it can
+`website/` is the public site (decisions 030, 033), self-contained so it can
 move hosts. `website/public/` is deployed to Cloudflare Pages as-is: no build
-step, no framework, no third-party requests. `_headers` sets the CSP and
+step, no framework, no third-party requests. Pages: home (`index.html`),
+`privacy.html`, and `compare/` (a hub and one page per launcher), served at
+pretty URLs (`/privacy`, `/compare/raycast`). `_headers` sets the CSP and
 caching; `404.html` is Pages' not-found page. `media/` holds render-only
 pages (the social card, the demo film), served at `/_media/` by
 `scripts/serve.mjs` and never deployed.
+
+Shared parts have one source (decision 033): `partials/` (head links, top
+bar, footer) are stamped between `<!-- partial:NAME -->` markers in every
+page, and `public/tokens.css` is generated from `src/app/theme.rs`, both by
+`task web:sync`. A new page: copy a page's skeleton with its markers, add it
+to `sitemap.xml` and `llms.txt`, and run the sync. The comparison pages are
+generated: their facts, sources and copy live in `scripts/compare.py` (one
+dict per tool, ten tools); edit there and run `task web:compare`, never the
+HTML. Each page carries the date its facts were checked; recheck them when
+the other products change. Facts a project does not publish read "Not
+listed" or "Not published", never "No".
+
+Design audit: the site follows Hallmark's floor (DESIGN.md, Taste), vendored
+in `.agents/skills/hallmark/` (linked from `.claude/skills/`). The first
+lines of `styles.css` are its stamp (`redesign: polish`, the locked system)
+and any waivers. Its `VENDOR.md` says how to run `sloplint.mjs` and the
+relative-stylesheet workaround the static pass needs.
+
+Discovery: each page has a canonical URL, a description, Open Graph tags and
+JSON-LD (`SoftwareApplication` on home; `WebPage` or `CollectionPage` plus
+`BreadcrumbList` elsewhere), and `llms.txt` summarizes every page. When the
+Pages project is created, check that Cloudflare's AI-crawler blocking and
+managed `robots.txt` are off for the domain, or AI search will not see the
+site.
 
 | Command | Does |
 | --- | --- |
 | `task web:dev` | Serve the site at http://127.0.0.1:8788 |
 | `task web:fmt` / `task web:fmt-check` | Prettier over HTML, CSS, JS and config |
-| `task web:lint` | ESLint and html-validate |
-| `task web:render` | Regenerate `og.png` and the PNG icons with Playwright (`-- og` or `icons` to pick) |
+| `task web:lint` | ESLint, html-validate, and `sync --check` |
+| `task web:compare` | Regenerate the comparison pages from the facts in `scripts/compare.py` (Python 3), then stamp and format them |
+| `task web:sync` | Stamp `partials/` into every page and regenerate `tokens.css` from `theme.rs` |
+| `task web:render` | Regenerate the PNG icons, `og.png` and every page's card in `public/og/` with Playwright (`-- icons`, `og` or `pages` to pick) |
 | `task web:film` | Record the demo film from `media/film.html` in all three cuts (needs ffmpeg; about 12 minutes; `-- wide`, `square` or `vertical` to pick) |
 | `task web:deploy` | `wrangler pages deploy public` (run `npx wrangler login` once) |
 
 Tools are pinned in `website/package.json` and its lockfile; Playwright's
 version must match an installed Chromium (`npx playwright install chromium`).
-CI runs the format check, ESLint and html-validate on Ubuntu. The palette's
-tokens copy `src/app/theme.rs`; change both together.
+CI runs the format check, ESLint, html-validate and the sync check on Ubuntu.
+After changing a color in `src/app/theme.rs`, run `task web:sync` (CI fails
+until you do).
 
 The demo film (`public/media/smolcast-demo.{mp4,webm,jpg}`, also the page's
 `og:video`) is a faithful simulation (decision 031): `media/film.html`,

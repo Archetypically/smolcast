@@ -2,13 +2,13 @@
 
 > smolcast is a small, fully native command palette for Windows 11: one hotkey (Ctrl+Alt+Space by default) for your apps, files, clipboard, emoji, scripts and snippets, in a single executable of about 7 MB. It is written in Rust with egui and the Windows APIs, has no Electron, WebView or Node runtime, no extensions, no AI features and no telemetry, and uses no CPU while hidden. Free and open source under the MIT license.
 
-smolcast is a Windows take on the core features of Tinycast and Raycast (both macOS launchers). It is not affiliated with either. It runs on Windows 11 x64 only, as a normal user, with no installer, admin rights or runtime.
+smolcast is a Windows take on the core features of Tinycast (a macOS launcher) and Raycast (macOS and Windows). It is not affiliated with either. It runs on Windows 11 x64 only, as a normal user, with no installer, admin rights or runtime.
 
 ## Features
 
 - App launcher: fuzzy search across Start Menu shortcuts, Store apps and installed programs that add no shortcut, ranked by frequency and recency, with each program's real icon. Up to 5 pinned favorites (Ctrl+Shift+F).
 - Calculator and conversions: `2^10`, `40cm to in`, `100f to c`, `3 GiB as MB`; the answer appears inline and Enter pastes it. Length, weight, volume, temperature, time, data, area, speed and angles, offline.
-- Web search fallback: every search ends with a row for Google, Bing, DuckDuckGo, Brave, Ecosia, Startpage, Kagi or a custom URL.
+- Web search fallback: every search ends with a row for the engine you pick: Google, Bing, DuckDuckGo, Brave, Ecosia, Startpage, Kagi or a custom URL.
 - File search: by name through the Windows Search index; Enter opens, Ctrl+Enter shows the item in Explorer.
 - System commands: Lock Screen, Sleep, Restart, Shut Down, Sign Out, Empty Recycle Bin, Toggle Dark Mode, Toggle Mute, Turn Off Display. Destructive ones ask for a second Enter.
 - Quicklinks: open a URL, file or folder by name, or type a query after its keyword (`gh rust egui`).
@@ -32,7 +32,25 @@ Settings are in the palette ("smolcast settings") or in `%APPDATA%\smolcast\conf
 
 ## Privacy
 
-Data stays on the computer. The only request smolcast makes on its own is a daily check of its GitHub releases (turn off with `check_for_updates = false`), which sends nothing beyond smolcast's version in the user agent.
+Data stays on the computer. The only request smolcast makes on its own is a daily check of its GitHub releases (turn off with `check_for_updates = false`), which sends nothing beyond smolcast's version in the user agent. There is no account, telemetry, crash reporting or log file. The website sets no cookies, runs no analytics and loads nothing from other sites.
+
+- [Privacy policy](https://smolcast.evanlee.engineer/privacy): the files smolcast keeps and where, the update check, clipboard encryption and exclusions, and what the website records.
+
+## Comparisons
+
+Checked against each project's own site on 2026-10-23.
+
+- [Windows launchers compared](https://smolcast.evanlee.engineer/compare/): smolcast, Raycast for Windows, PowerToys Command Palette and Flow Launcher side by side.
+- [smolcast vs Raycast for Windows](https://smolcast.evanlee.engineer/compare/raycast): Raycast has extensions, AI, window management and Cloud Sync, with a $10/month Pro plan; smolcast covers the core features with no account, AI or telemetry.
+- [smolcast vs PowerToys Command Palette and PowerToys Run](https://smolcast.evanlee.engineer/compare/powertoys-command-palette): Microsoft's extensible launcher, strong on Windows administration (WinGet, services, registry, Settings); smolcast adds emoji, snippets and unit conversions in one small app.
+- [smolcast vs Flow Launcher](https://smolcast.evanlee.engineer/compare/flow-launcher): a plugin-driven .NET launcher with Everything file search; smolcast builds in clipboard history, emoji and snippets instead of plugins.
+- [smolcast vs Tinycast](https://smolcast.evanlee.engineer/compare/tinycast): Tinycast is a free, open-source launcher for macOS only; smolcast is the closest equivalent on Windows, with a smaller feature set and its own code.
+- [smolcast vs Fluent Search](https://smolcast.evanlee.engineer/compare/fluent-search): Fluent Search searches apps, files, tabs, windows and on-screen text with its own indexer and C# plugins; smolcast builds in clipboard history, emoji and snippets.
+- [smolcast vs Listary](https://smolcast.evanlee.engineer/compare/listary): Listary is file search first, with Quick Switch for Open and Save dialogs and a $19.95 Pro; smolcast is a launcher with clipboard, emoji and snippets built in.
+- [smolcast vs Wox](https://smolcast.evanlee.engineer/compare/wox): Wox is an open-source launcher for Windows, macOS and Linux with built-in plugins, a plugin store and AI chat; smolcast is Windows only, smaller, and has no AI.
+- [smolcast vs Alfred](https://smolcast.evanlee.engineer/compare/alfred): Alfred is Mac only, with clipboard history and snippets in its paid Powerpack; smolcast has them free on Windows 11.
+- [smolcast vs Keypirinha](https://smolcast.evanlee.engineer/compare/keypirinha): Keypirinha is a portable freeware launcher with Python plugins whose last release was November 2020; smolcast is actively developed.
+- [smolcast vs Ueli](https://smolcast.evanlee.engineer/compare/ueli): Ueli is an open-source Electron launcher for every OS with a 177 MB Windows installer; smolcast is native and 7 MB.
 
 ## Docs
 

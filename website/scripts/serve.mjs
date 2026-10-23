@@ -1,6 +1,7 @@
 // A small static server for local previews and rendering: public/ at /,
 // and the render-only pages in media/ at /_media/. Cloudflare Pages serves
-// public/ the same way (index.html for /, 404.html for misses).
+// public/ the same way (index.html for a folder, page.html for /page,
+// 404.html for misses).
 import { createServer } from "node:http";
 import { readFile, stat } from "node:fs/promises";
 import { extname, join, resolve, sep } from "node:path";
@@ -43,7 +44,13 @@ async function resolveFile(pathname) {
       }
       return file;
     } catch {
-      return null;
+      // Pretty URLs: /privacy is privacy.html.
+      try {
+        await stat(`${file}.html`);
+        return `${file}.html`;
+      } catch {
+        return null;
+      }
     }
   }
   return null;

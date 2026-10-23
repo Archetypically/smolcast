@@ -44,7 +44,7 @@ Update the bank when:
 
 Rules:
 
-- `docs/activeContext.md` stays under **250 lines**. When an update would
+- `docs/activeContext.md` stays under **500 lines**. When an update would
   exceed it, delete shipped history (git log keeps it) and keep standing
   rules, pending checks, Next, open questions and traps.
 - A contract change edits the relevant `docs/systemPatterns.md` section in the
