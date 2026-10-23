@@ -139,7 +139,7 @@ site.
 | `task web:fmt` / `task web:fmt-check` | Prettier over HTML, CSS, JS and config |
 | `task web:lint` | ESLint, html-validate, and `sync --check` |
 | `task web:sync` | Stamp `partials/` into every page and regenerate `tokens.css` from `theme.rs` |
-| `task web:render` | Regenerate `og.png` and the PNG icons with Playwright (`-- og` or `icons` to pick) |
+| `task web:render` | Regenerate the PNG icons, `og.png` and every page's card in `public/og/` with Playwright (`-- icons`, `og` or `pages` to pick) |
 | `task web:film` | Record the demo film from `media/film.html` in all three cuts (needs ffmpeg; about 12 minutes; `-- wide`, `square` or `vertical` to pick) |
 | `task web:deploy` | `wrangler pages deploy public` (run `npx wrangler login` once) |
 

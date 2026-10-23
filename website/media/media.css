@@ -1,6 +1,6 @@
 /* Render-only layout for the social card (scripts/render.mjs); not deployed. */
 
-body.card {
+body.social {
   display: grid;
   grid-template-columns: 470px 1fr;
   align-items: center;
@@ -25,7 +25,7 @@ body.card {
   border-radius: 10px;
 }
 
-.card h1 {
+.social h1 {
   margin: 0;
   font-size: 54px;
   line-height: 1.04;
@@ -48,4 +48,60 @@ body.card {
   --rows: 2.3;
   width: 640px;
   margin: 0 0 0 48px;
+}
+
+/* Page cards (media/og-page.html): the page's headline and lead on the left,
+   its facts on the right, cloned from the page itself. */
+body.page-card {
+  grid-template-columns: 430px 1fr;
+  gap: 48px;
+  padding: 0 64px;
+}
+
+.page-card h1 {
+  font-size: 50px;
+}
+
+.page-card .card-lead {
+  font-size: 20px;
+}
+
+.card-facts .compare {
+  font-size: 15px;
+  table-layout: auto;
+}
+
+.card-facts .compare.wide {
+  min-width: 0;
+  font-size: 13px;
+}
+
+.card-facts .compare tbody th {
+  width: auto;
+  white-space: nowrap;
+}
+
+.card-facts .compare th,
+.card-facts .compare td {
+  padding: 9px 10px 9px 0;
+}
+
+.card-facts .facts {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  margin: 0;
+}
+
+.card-facts .facts .figure {
+  font-size: 40px;
+}
+
+.card-facts .facts li {
+  flex-direction: row;
+  align-items: center;
+  gap: 20px;
+}
+
+.card-facts .facts .figure {
+  min-width: 36px;
 }

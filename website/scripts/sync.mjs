@@ -9,8 +9,9 @@
 //   src/app/theme.rs, so the site, the film and the app change together.
 //
 // With --check it changes nothing and fails on any drift, and on an
-// indexable page missing from sitemap.xml or llms.txt.
-import { readFile, readdir, writeFile } from "node:fs/promises";
+// indexable page missing from sitemap.xml, llms.txt or home's links, or
+// missing its social card and the tags that describe it.
+import { readFile, readdir, stat, writeFile } from "node:fs/promises";
 import { join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -147,6 +148,14 @@ for (const path of await pages(pub)) {
   if (!sitemap.includes(`<loc>${canonical}</loc>`))
     problems.push(`${name}: ${canonical} is not in sitemap.xml`);
   if (!llms.includes(`(${canonical})`)) problems.push(`${name}: ${canonical} is not linked from llms.txt`);
+  // Its own social card, described, and shared to every network.
+  const image = before.match(/<meta\s+property="og:image"\s+content="([^"]+)"/)?.[1];
+  const card = image && new URL(image).pathname.slice(1);
+  if (!card) problems.push(`${name}: no og:image`);
+  else if (!(await stat(join(pub, card)).catch(() => null)))
+    problems.push(`${name}: ${card} is missing (run \`task web:render -- pages\`)`);
+  for (const tag of ["og:image:alt", "twitter:title", "twitter:image"])
+    if (!new RegExp(`<meta\\s+(?:property|name)="${tag}"`).test(before)) problems.push(`${name}: no ${tag}`);
   const url = new URL(canonical).pathname;
   if (url !== "/" && !home.includes(`href="${url}"`))
     problems.push(`${name}: ${url} is not linked from the home page`);

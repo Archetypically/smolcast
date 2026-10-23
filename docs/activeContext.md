@@ -55,11 +55,6 @@ Decision 026: "s." logo (`assets/smolcast.svg` → `scripts/generate_icon.py`
 evanlee.engineer until smolcast.evanlee.engineer is live. MSVC `rc.exe`
 path untested.
 
-## Installed programs (2026-10-22), on main, unverified
-
-Decision 027, plan §6.1: filtered Uninstall registry rows no Start Menu
-shortcut covers (Overwatch, Battle.net). Linted for the GNU target only.
-
 ## Own visual language (2026-10-22), branch, unverified
 
 Decision 028 (supersedes 010): search glyph on the icon column, red
@@ -88,7 +83,12 @@ seamlessly at 36 s in three cuts: wide for the page, square and vertical in
 `media/out/` for social posts. To do: check touch scrolling on a real phone;
 create the Pages project and DNS (turn off Cloudflare's AI-crawler
 blocking and managed robots.txt), deploy, then point `Cargo.toml`
-`homepage` and the README at it.
+`homepage` and the README at it. Then backlinks (outbound links do not
+build ours): AlternativeTo listings as an alternative to Raycast, PowerToys
+Run / Command Palette, Flow Launcher and Wox; winget and Scoop manifests
+with the homepage; awesome-list PRs (Windows apps, Rust GUI); Show HN,
+r/Windows, r/rust, Product Hunt linking the site; the GitHub repo's website
+field; a link from evanlee.engineer; a note to Tinycast's author.
 
 ## Full-repo review (2026-10-23), on main, unverified
 
@@ -103,7 +103,8 @@ a password manager is not captured, Reveal and Edit Config still open.
 
 ## Pending Windows checks
 
-- Installed programs: Overwatch and Battle.net appear with icons and launch
+- Installed programs (decision 027, linted for GNU only): Overwatch and
+  Battle.net appear with icons and launch
   (Overwatch via Battle.net); no driver/runtime rows; no Edge/SteelSeries
   duplicates.
 - App icon: Explorer icon at every view size, Properties > Details fields,

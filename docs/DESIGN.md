@@ -316,6 +316,40 @@ real product states (palette states, never stock art), not more words.
 tracks as `minmax(0, 1fr)`; an instant `:focus-visible` ring on everything
 interactive; nothing scrolls sideways at 360 px.
 
+## Progressive enhancement and discovery
+
+The website works, and says everything it has to say, before any script
+runs, because that is what search crawlers and AI fetchers read. JavaScript
+only adds behavior on top.
+
+- **HTML first.** Every page is complete, static HTML: the facts, tables
+  and links are in the markup. A script may replace a piece of it (the home
+  palette replaces its plain list of links) or decorate it (the "Runs on"
+  bolding), never supply content that is not already there.
+- **Visible without script.** Nothing is hidden at rest unless the hiding
+  is scoped under `.js`, the class the script sets. Controls that need a
+  script (the search pill) are hidden when it never runs.
+- **No guesses in the markup.** Anything that depends on the visitor (their
+  OS, their theme) is added on the client; the served page is the same for
+  everyone.
+- **Real links, linked from home.** Every page is reachable through plain
+  `<a href>` links with descriptive text, from home and from its neighbors;
+  the sync check fails when an indexable page is not linked from home, the
+  sitemap or `llms.txt`.
+- **Answer first.** A page's title, description and lead state its answer
+  in plain words a reader or a model can quote ("smolcast collects
+  nothing."); facts sit in tables, lists and pills, not buried in prose.
+- **Cite and date.** Claims about other products carry a source, the version
+  checked and a date, in footnotes and as `dateModified`; stale facts are
+  worse for trust than missing ones.
+- **Describe it for machines too.** Each page has a canonical URL, a meta
+  description, Open Graph tags and JSON-LD (`SoftwareApplication` on home;
+  `WebPage` or `CollectionPage` plus `BreadcrumbList` elsewhere), and
+  `llms.txt` summarizes every page in a line.
+- **Never optimize visibly.** No keyword stuffing, hidden text, doorway
+  pages or FAQ filler written for crawlers. A page earns its ranking by
+  being the clearest, most honest answer, and reads as written for people.
+
 ## Website
 
 The website (`website/`, decision 030) speaks the same language on the web:
@@ -340,7 +374,11 @@ The website (`website/`, decision 030) speaks the same language on the web:
   Under the hood, where only smolcast's wins are bold (a ringed badge),
   and only when the other side publishes the fact; the other tool's
   strengths are told in its card and its "Go with" list, which sits second,
-  after smolcast's. Each
+  after smolcast's. The one exception is the "Runs on" row: its cells name
+  their systems (`data-os`), and the script bolds the ones that run on the
+  visitor's computer, with "Runs on your computer" under them (Windows 11
+  versus 10 only where the browser reports it; otherwise any Windows). The
+  served HTML stays plain, so crawlers see no guess. Each
   competitor card links out to the tool itself ("Get Raycast for
   Windows", tagged `?ref=smolcast`). Then
   "Coming from" mapping cards, a download card, links to other pages
@@ -351,6 +389,12 @@ The website (`website/`, decision 030) speaks the same language on the web:
   mask colored by `--stipple`) on a fixed layer behind every page, full in
   the side margins and fading out as it nears the content column, so never
   behind text and faint or absent on phones. It does not move on the site.
+- **Social cards**: every page has its own 1200 × 630 card (`public/og/`),
+  rendered from `media/og-page.html`, which reads the page itself: its
+  headline and lead on the left, its facts on the right (the matrix's
+  glanceable rows, or the privacy figures), on the stippled dark page.
+  Home keeps `og.png`, the palette converting 40 cm to inches. Re-render
+  after changing a page's headline, lead or table.
 - **Elsewhere**, Ctrl+K opens the palette over the page on a blurred scrim;
   Esc or a click outside dismisses it. Before its script runs (and for
   crawlers), the home palette is a list of every section and page as
