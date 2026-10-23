@@ -9,12 +9,17 @@ const REPO = "https://github.com/Archetypically/smolcast";
 const ICONS = "/icons.svg";
 const KEEP_STATE_MS = 30_000;
 // This page's path as the rows name it: "/privacy", "/compare/".
-const HERE = location.pathname.replace(/index\.html$/, "").replace(/\.html$/, "");
+const HERE = location.pathname.replace(/(index)?\.html$/, "");
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
 
 document.documentElement.classList.add("js");
 
 // ---------------------------------------------------------------- rows
+
+// A row that opens another page of the site; a comparison gets the doc icon.
+function pageRow(name, path, words, icon = "doc") {
+  return { name, type: "Page", icon, page: path, words };
+}
 
 const ROWS = [
   {
@@ -85,13 +90,7 @@ const ROWS = [
     words: "size cpu memory native rust electron",
   },
   { name: "Privacy", type: "Section", icon: "shield", jump: "#privacy", words: "data telemetry network" },
-  {
-    name: "Privacy Policy",
-    type: "Page",
-    icon: "shield",
-    page: "/privacy",
-    words: "cookies analytics logs contact",
-  },
+  pageRow("Privacy Policy", "/privacy", "cookies analytics logs contact", "shield"),
   { name: "Configuration", type: "Section", icon: "gear", jump: "#config", words: "settings toml config" },
   {
     name: "Build from Source",
@@ -100,41 +99,21 @@ const ROWS = [
     jump: "#install-source",
     words: "rust cargo task compile",
   },
-  {
-    name: "Compare Windows Launchers",
-    type: "Page",
-    icon: "grid",
-    page: "/compare/",
-    words: "alternatives versus vs",
-  },
-  {
-    name: "smolcast vs Raycast",
-    type: "Page",
-    icon: "doc",
-    page: "/compare/raycast",
-    words: "raycast for windows alternative",
-  },
-  {
-    name: "smolcast vs PowerToys Command Palette",
-    type: "Page",
-    icon: "doc",
-    page: "/compare/powertoys-command-palette",
-    words: "cmdpal powertoys run microsoft",
-  },
-  {
-    name: "smolcast vs Flow Launcher",
-    type: "Page",
-    icon: "doc",
-    page: "/compare/flow-launcher",
-    words: "wox alternative",
-  },
-  {
-    name: "smolcast vs Tinycast",
-    type: "Page",
-    icon: "doc",
-    page: "/compare/tinycast",
-    words: "mac macos for windows",
-  },
+  pageRow("Compare Windows Launchers", "/compare/", "alternatives versus vs", "grid"),
+  pageRow("smolcast vs Raycast", "/compare/raycast", "raycast for windows alternative"),
+  pageRow(
+    "smolcast vs PowerToys Command Palette",
+    "/compare/powertoys-command-palette",
+    "cmdpal powertoys run microsoft alt space",
+  ),
+  pageRow("smolcast vs Flow Launcher", "/compare/flow-launcher", "wox alternative"),
+  pageRow("smolcast vs Tinycast", "/compare/tinycast", "mac macos for windows"),
+  pageRow("smolcast vs Fluent Search", "/compare/fluent-search", "search alternative"),
+  pageRow("smolcast vs Listary", "/compare/listary", "files dialogs alternative"),
+  pageRow("smolcast vs Wox", "/compare/wox", "cross platform ai alternative"),
+  pageRow("smolcast vs Alfred", "/compare/alfred", "mac macos for windows alternative"),
+  pageRow("smolcast vs Keypirinha", "/compare/keypirinha", "portable python alternative"),
+  pageRow("smolcast vs Ueli", "/compare/ueli", "electron cross platform alternative"),
   { name: "Toggle Dark Mode", type: "System", icon: "moon", theme: true, words: "light theme appearance" },
   { name: "View Source on GitHub", type: "Link", icon: "external", href: REPO, words: "code repository" },
   {
@@ -1051,6 +1030,13 @@ function arrive(selector) {
   ];
 }
 
+// Plays the palette's settle-in again; the reflow restarts the animation.
+function replaySettle(node) {
+  node.classList.remove("settle");
+  void node.offsetWidth;
+  node.classList.add("settle");
+}
+
 // The home page: the palette is the hero, and dismissing it leaves a note
 // with a way back.
 function initHero(root) {
@@ -1086,11 +1072,7 @@ function initHero(root) {
     dismissedAt = 0;
     dismissed.hidden = true;
     root.classList.remove("away");
-    if (wasAway) {
-      root.classList.remove("settle");
-      void root.offsetWidth;
-      root.classList.add("settle");
-    }
+    if (wasAway) replaySettle(root);
     if (scroll && stage.getBoundingClientRect().top < 0) {
       window.scrollTo({ top: 0, behavior: reducedMotion.matches ? "auto" : "smooth" });
     }
@@ -1167,9 +1149,13 @@ function initOverlay() {
   let returnTo = null;
   let dismissedAt = 0;
 
+  // While the palette is open, the page behind it is inert, so Tab stays
+  // in the dialog as aria-modal promises.
+  const behind = () => [...document.body.children].filter((n) => n !== scrim);
   const dismiss = () => {
     if (scrim.hidden) return;
     scrim.hidden = true;
+    for (const n of behind()) n.inert = false;
     dismissedAt = Date.now();
     returnTo?.focus?.({ preventScroll: true });
   };
@@ -1187,10 +1173,9 @@ function initOverlay() {
     }
     returnTo = document.activeElement;
     scrim.hidden = false;
+    for (const n of behind()) n.inert = true;
     palette.render();
-    root.classList.remove("settle");
-    void root.offsetWidth;
-    root.classList.add("settle");
+    replaySettle(root);
     palette.input.focus({ preventScroll: true });
     palette.input.select();
   };

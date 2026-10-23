@@ -376,7 +376,7 @@ h1 {
 
 /* On the hero, the underline draws in once the palette has settled. */
 .hero .smol {
-  animation: underline 520ms 520ms var(--ease) both;
+  animation: underline 320ms 520ms var(--ease) both;
 }
 
 @keyframes underline {
@@ -605,7 +605,7 @@ h1 {
 }
 
 .pal-sel.blink::before {
-  animation: pip 360ms var(--ease);
+  animation: pip 200ms var(--ease);
 }
 
 @keyframes pip {
@@ -820,7 +820,7 @@ h1 {
 }
 
 .pal-footer .act.done {
-  animation: done 1.2s var(--ease);
+  animation: done 180ms var(--ease);
 }
 
 .pal-footer .act.done svg {
@@ -835,10 +835,6 @@ h1 {
   from {
     opacity: 0;
     transform: translateY(2px);
-  }
-  15% {
-    opacity: 1;
-    transform: none;
   }
 }
 
@@ -1653,6 +1649,7 @@ h2 {
 /* 404: the palette with nothing to show but the way home. */
 .lost {
   min-height: 100vh;
+  min-height: 100dvh;
   justify-content: center;
 }
 
@@ -1804,17 +1801,21 @@ h2 {
   list-style: none;
 }
 
-.tag {
+.tag,
+.status {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
   height: 24px;
   padding: 0 10px;
   border-radius: 99px;
   background: var(--control);
-  color: var(--muted);
   font-size: 13px;
   white-space: nowrap;
+}
+
+.tag {
+  gap: 6px;
+  color: var(--muted);
 }
 
 .tag svg {
@@ -1825,17 +1826,9 @@ h2 {
 /* Status badges: the word carries the meaning; "Built in" adds a check,
    a partial answer is tinted amber, "No" stays plain. */
 .status {
-  display: inline-flex;
-  align-items: center;
   gap: 5px;
-  height: 24px;
-  padding: 0 10px;
-  border-radius: 99px;
-  font-size: 13px;
-  font-weight: 600;
   color: var(--text);
-  white-space: nowrap;
-  background: var(--control);
+  font-weight: 600;
 }
 
 .status svg {
@@ -1924,10 +1917,7 @@ h2 {
 }
 
 .doc .card h2 {
-  margin: 0 0 4px;
-  font-size: 20px;
   line-height: 1.2;
-  letter-spacing: -0.015em;
 }
 
 /* A card's links: to our comparison, and out to the tool itself. */
@@ -2129,6 +2119,11 @@ h2 {
   transform: rotate(-45deg);
 }
 
+.doc p.related {
+  margin: 20px 0 0;
+  font-size: 15px;
+}
+
 /* "Coming from": their name → smolcast's equivalent. */
 .maps {
   display: grid;
@@ -2178,7 +2173,6 @@ h2 {
 .rows a:hover,
 .rows a:focus-visible {
   background: var(--sel);
-  outline: none;
 }
 
 .rows a:hover::before,
@@ -2254,7 +2248,6 @@ h2 {
 }
 
 .doc .footnotes h2 {
-  margin: 0 0 8px;
   color: var(--weak);
   font: 600 13px/1.4 var(--font);
   letter-spacing: 0;
@@ -2375,7 +2368,7 @@ body::before {
   transform: translateY(6px);
   transition:
     opacity 320ms ease,
-    transform 360ms var(--ease);
+    transform 320ms var(--ease);
 }
 
 .js .reveal.in {

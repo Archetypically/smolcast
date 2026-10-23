@@ -117,8 +117,12 @@ Shared parts have one source (decision 033): `partials/` (head links, top
 bar, footer) are stamped between `<!-- partial:NAME -->` markers in every
 page, and `public/tokens.css` is generated from `src/app/theme.rs`, both by
 `task web:sync`. A new page: copy a page's skeleton with its markers, add it
-to `sitemap.xml` and `llms.txt`, and run the sync. Comparison pages carry the
-date they were checked; recheck them when the other products change.
+to `sitemap.xml` and `llms.txt`, and run the sync. The comparison pages are
+generated: their facts, sources and copy live in `scripts/compare.py` (one
+dict per tool, ten tools); edit there and run `task web:compare`, never the
+HTML. Each page carries the date its facts were checked; recheck them when
+the other products change. Facts a project does not publish read "Not
+listed" or "Not published", never "No".
 
 Design audit: the site follows Hallmark's floor (DESIGN.md, Taste), vendored
 in `.agents/skills/hallmark/` (linked from `.claude/skills/`). The first
@@ -138,6 +142,7 @@ site.
 | `task web:dev` | Serve the site at http://127.0.0.1:8788 |
 | `task web:fmt` / `task web:fmt-check` | Prettier over HTML, CSS, JS and config |
 | `task web:lint` | ESLint, html-validate, and `sync --check` |
+| `task web:compare` | Regenerate the comparison pages from the facts in `scripts/compare.py` (Python 3), then stamp and format them |
 | `task web:sync` | Stamp `partials/` into every page and regenerate `tokens.css` from `theme.rs` |
 | `task web:render` | Regenerate the PNG icons, `og.png` and every page's card in `public/og/` with Playwright (`-- icons`, `og` or `pages` to pick) |
 | `task web:film` | Record the demo film from `media/film.html` in all three cuts (needs ffmpeg; about 12 minutes; `-- wide`, `square` or `vertical` to pick) |

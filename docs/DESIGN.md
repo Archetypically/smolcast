@@ -282,7 +282,8 @@ key, a pip that slides to the row you chose. Motion:
   for attention.
 - is short: interactions under 200 ms, an entrance under 350 ms, ease-out,
   no bounce, overshoot or spring.
-- moves only `transform` and `opacity` (and color for hover tints), never
+- moves only `transform` and `opacity` (and color or shadow for hover
+  tints), never
   width, height, top, left or padding, and never `transition: all`.
 - never makes anyone wait: input acts on final positions, content is
   readable with scripts off, and hidden-until-script states are scoped
