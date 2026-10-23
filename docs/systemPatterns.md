@@ -40,6 +40,10 @@ These rules apply to every milestone:
   or input-injection behavior.
 - Clean cutover only: no obsolete aliases, deprecated paths, placeholder modules,
   fake fallbacks, or compatibility shims remain after a milestone.
+- MSVC builds load the DLLs the exe imports from System32 only
+  (`/DEPENDENTLOADFLAG:0x800`, `build.rs`), so a DLL downloaded next to
+  smolcast.exe is never loaded. The `app-folder-dlls` feature restores the
+  default search for CI's software OpenGL (decision 029) and nothing else.
 
 ---
 
@@ -183,6 +187,11 @@ Shutdown order is fixed:
 3. Unregister all script hotkeys, then the summon hotkey; drop the managers/tray.
 4. Tell clipboard and persistence workers to flush/stop; wake and join them.
 5. Ask scan/icon jobs to cancel between items and join every retained job handle.
+
+Only the state writer is joined without a limit. The clipboard worker gets
+2 s, and every thread in step 5 shares one deadline 2 s after the state
+writer finishes (`win::join_by`); one still running then, such as a launch
+stuck on an unreachable share, is left to end with the process.
 6. Let eframe destroy the viewport and graphics resources.
 7. Return from `run_native`; only then release and close the named mutex.
 
@@ -484,7 +493,9 @@ commands are ranked together, and each row's right-hand column names its type
 with applications. Selecting a command opens its view (Clipboard History in
 milestone 3, Emoji in milestone 4); scripts join the root list in milestone 5
 as the `Script` type. In a sub-view, Escape or Backspace on an empty search
-returns to the root. Escape at the root hides the palette. Every summon opens
+returns to the root. A form with unsaved changes (Settings, the snippet and
+script editors) takes the first Escape and says "Press Esc again to discard";
+the second leaves. Escape at the root hides the palette. Every summon opens
 at the root with an empty search.
 
 System actions (`System`, §6.5) and quicklinks (`Quicklink`, §10.7) join the
@@ -677,7 +688,9 @@ time through `IGetRow::GetRowFromHROW` as `IPropertyStore`
 starting with the whole query move to the front. The worker drains its queue
 and runs only the newest query; the view sends a query only after the text has
 been unchanged for 120 ms and drops answers for older generations
-(`AppEvent::FilesFound`). Enter opens the item with the shell; Ctrl+Enter runs
+(`AppEvent::FilesFound`). Enter opens the item with the shell
+(`shell::open_file`, without `SEE_MASK_FLAG_NO_UI`, so Windows keeps its own
+prompts such as the warning for a downloaded file); Ctrl+Enter runs
 `explorer.exe /select,"<path>"`. Both are completed actions. Visible rows ask
 the icon worker for Explorer's icon by path (`IconTarget::File`, the same
 `IShellItemImageFactory` path as app icons, §6.4); textures are kept only for
@@ -785,10 +798,15 @@ captured, rewritten when a duplicate promotes it (its time changed), and deleted
 when it is evicted, deleted or cleared. At startup the stored entries load in
 the background, oldest first, unless the source is always `windows`; captures
 that arrive before the load finishes are applied after it. The history limits
-are re-applied as entries load. Files that fail to decrypt or decode are
-deleted, for example after a password reset invalidates the DPAPI key. A file
-that cannot be read right now (locked by an indexer) and a record over the
-current item cap are skipped but kept.
+are re-applied as entries load. A file is deleted only when it is definitely
+bad: it decrypts but does not decode, or `CryptUnprotectData` fails with
+`ERROR_INVALID_DATA`, `NTE_BAD_DATA` or `NTE_BAD_KEY_STATE` (a password reset
+invalidated the key). Any other decryption failure may pass (the profile still
+loading), so that file is skipped but kept, as are a file that cannot be read
+right now (locked by an indexer) and a record over the current item cap.
+Writing a history item to the clipboard allocates every format's memory
+before `EmptyClipboard`, so a failed allocation leaves the clipboard as it
+was.
 Exclusion hints still prevent capture, so excluded content never reaches
 disk. Pause was dropped (§7.0). Clear and delete remove the entries from
 memory and disk and drop their preview textures.
@@ -855,6 +873,11 @@ Defaults, configurable within validated limits:
 - 100 entries (`1..=500`);
 - 8 MiB retained payload per item (`64 KiB..=64 MiB`);
 - 64 MiB retained payload total (`item cap..=512 MiB`).
+
+`clipboard_max_age_days` (`0..=365`, default 0 = no age limit) also drops
+smolcast's own entries captured longer ago than that, with their stored files,
+when the history loads, on each capture, when the clipboard view opens and
+when settings change. A promoted duplicate counts from its new capture time.
 
 Newest is front. Payload size is computed once: `text.len()` or `rgba.len()`.
 Struct/string metadata is bounded by entry count and is not included in the payload
@@ -1021,6 +1044,8 @@ Use `directories::BaseDirs`, then join exact product paths:
 - `%LOCALAPPDATA%\\smolcast\\usage.json`.
 
 - `%LOCALAPPDATA%\\smolcast\\clipboard\\` (DPAPI-encrypted history entries, §7.2).
+- `%LOCALAPPDATA%\\smolcast\\crash.log`, `crash.old.log` and the empty
+  `crash.unseen` flag, written only by the panic hook (§14).
 
 There is no `index.json` in v1: scan in the
 background on startup and measure before adding a cache/schema.
@@ -1041,6 +1066,7 @@ start_at_login = false     # optional (§12.7)
 palette_size = "medium"    # optional: window size "small" | "medium" | "large" (§12.7)
 text_size = "medium"       # optional: font sizes "small" | "medium" | "large" (§12.7)
 reduce_motion = "system"   # optional: "system" (Windows Animation effects) | "on" | "off" (§12.7)
+clipboard_max_age_days = 0 # optional: 0..=365; 0 keeps items until the limits evict them (§7.5)
 keep_state_secs = 30       # optional: 0..=3600; 0 always starts fresh (§12.7)
 search_engine = "google"   # optional: google | bing | duckduckgo | brave | ecosia | startpage | kagi | custom
 web_search_url = "https://www.google.com/search?q=%s" # optional; used by "custom"
@@ -1091,6 +1117,7 @@ struct Settings {
     palette_size: PaletteSize,         // #[serde(default)] = Medium (§12.7)
     text_size: TextSize,               // #[serde(default)] = Medium (§12.7)
     reduce_motion: ReduceMotion,       // #[serde(default)] = System (§12.7)
+    clipboard_max_age_days: u32,       // #[serde(default)] = 0, max 365 (§7.5)
     keep_state_secs: u32,              // #[serde(default)] = 30, max 3600 (§12.7)
     search_engine: SearchEngine,       // #[serde(default)] = Google
     web_search_url: String,            // #[serde(default)]; http(s), contains %s
@@ -1172,7 +1199,11 @@ defaults to the file's folder. The path is one verbatim argument, then
 drive or UNC path, never `\\?\` or `\\.\`; the spawn checks the file exists
 (an interpreter given a missing file would exit silently and read as a
 run), and a row on a network share draws no file icon (no SMB lookups on
-indexing).
+indexing). A bare interpreter name (`python.exe`, `node`) is resolved by
+`win/process.rs` in System32, the Windows folder, then each absolute `PATH`
+folder (a name without an extension tries each `PATHEXT` one), never in
+smolcast's own folder, which the standard library would search first; a
+name found nowhere fails the run with "interpreter not found".
 
 "Manage Scripts" (`View::Scripts`, `app/script_view.rs`): Enter runs with
 the saved arguments; Tab or Ctrl+Enter opens "Run with Arguments", whose
@@ -1339,7 +1370,9 @@ A `url` containing `{query}` takes a query. A root query of the form
 quicklink at row 0, shown as `Name "text"`; Enter opens `url` with every
 `{query}` replaced by the trimmed text, percent-encoded as in the web search
 (decision 014), or inserted as typed when `url` starts with a drive (`C:\`)
-or UNC (`\\`) path. Selecting a query-taking quicklink without text (Enter,
+or UNC (`\\`) path or a `%NAME%\` path. A leading `%NAME%` followed by a
+separator is expanded from the environment at launch (`quicklink::expand_variable`),
+as Explorer would; a URL's `%20` never matches. Selecting a query-taking quicklink without text (Enter,
 click, or Tab) replaces the search with `<id> ` and keeps the palette open.
 Nothing else in `url` is expanded.
 
@@ -1679,3 +1712,34 @@ publishes a prerelease. While the repository is public, the job also attests
 the exe's build provenance (`actions/attest-build-provenance`, Sigstore), so
 `gh attestation verify <exe> --repo Archetypically/smolcast` ties a download
 to the workflow and tag. The app does not check attestations.
+
+---
+
+## 14. Crash log and bug reports (2026-10-23, decision 035)
+
+Crash log. `main` installs a panic hook (`win/crash_log.rs`) right after
+resolving the state paths. On a panic, on any thread, it appends one entry to
+`%LOCALAPPDATA%\smolcast\crash.log` and creates the empty
+`crash.unseen`, then runs the default hook; the release profile then aborts.
+An entry (`core::crash_log::entry`) is a `=== smolcast crash, <UTC time>`
+line, the version and Windows build, the thread and source location, and the
+panic message cut to 2000 characters. A write that would take the log past
+64 KiB first renames it to `crash.old.log`, replacing the older one. Every
+failure in the hook is ignored. Native crashes (access violations, stack
+overflows) do not run the hook and are not logged.
+
+Next start. If `crash.unseen` exists, `main` deletes it and queues one
+warning notice, shown on the next summon, that names Report a Bug. The last
+entry (from `crash.log`, else `crash.old.log`) is read once at startup.
+
+Report a Bug (`Command::ReportBug`, `View::ReportBug`,
+`app/report_view.rs`). The view says what the issue will carry (version and
+Windows build) and, when a crash entry exists, offers an unticked "Include
+the crash report from <time>" with a preview of exactly that text. Enter or
+the button opens `<repository>/issues/new?body=…` (`core::crash_log::issue_url`:
+an outline, the environment, and `issue_excerpt`, the crash entry cut to
+1200 percent-encoded bytes so the whole URL stays near 2 KB; the preview
+shows exactly that excerpt) through `shell::open_uri` and hides the
+palette. Nothing is sent by smolcast: the user reviews and submits the issue
+on GitHub.
+
