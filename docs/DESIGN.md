@@ -362,7 +362,7 @@ The website (`website/`, decision 030) speaks the same language on the web:
   it the way the app is dismissed.
 - **Feature tiles are palette states**, not screenshots or icons: each shows
   the query and rows that feature produces.
-- **Other pages** (privacy, comparisons) share the home page's top bar,
+- **Other pages** (privacy, code signing, comparisons) share the home page's top bar,
   footer, type and tokens, in a 1040-wide column. Each opens with a hero
   (breadcrumb, short headline, a lead that answers the page's question in
   casual words, an "Updated" pill), then puts facts in
