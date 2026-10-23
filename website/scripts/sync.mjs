@@ -140,6 +140,9 @@ for (const path of await pages(pub)) {
   }
 
   if (/<meta name="robots" content="noindex/.test(before)) continue;
+  // Every indexable page carries all of the shared chrome.
+  for (const n of ["head", "topbar", "footer"])
+    if (!before.includes(`<!-- partial:${n} -->`)) problems.push(`${name}: no partial:${n} markers`);
   const canonical = before.match(/<link rel="canonical" href="([^"]+)"/)?.[1];
   if (!canonical) {
     problems.push(`${name}: no canonical link`);

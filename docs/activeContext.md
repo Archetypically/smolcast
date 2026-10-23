@@ -1,6 +1,6 @@
 # Active context
 
-Read this first each session, by section. Budget: 250 lines. Architecture
+Read this first each session, by section. Budget: 500 lines. Architecture
 contracts are in `systemPatterns.md` (cited as "plan §N"), decisions in
 `decisions/`, visual rules in `DESIGN.md`.
 
@@ -68,17 +68,17 @@ at 150%.
 Decision 030: `website/`, a static site for Cloudflare Pages (`task
 web:*`), whose hero is a working recreation of the palette. Since
 2026-10-23 (branch `website-pages`, decision 033) it also has `/privacy`
-and `/compare/` (hub, Raycast, PowerToys Command Palette, Flow Launcher,
-Tinycast). Their chrome is stamped from `partials/`, and the colors are
-generated from `theme.rs` (`task web:sync`; CI checks both). Comparison
-facts were checked 2026-10-23; recheck when those products ship. The
-privacy contact is GitHub issues plus evanlee.engineer until the user
-names an email. Domain
+and `/compare/` (hub plus Raycast, PowerToys Command Palette/Run, Flow
+Launcher, Tinycast, Fluent Search, Listary, Wox, Alfred, Keypirinha, Ueli;
+`task web:compare`). Chrome is stamped from `partials/`, colors come from
+`theme.rs` (`task web:sync`; CI checks both). Comparison facts checked
+2026-10-23; recheck when those products ship. Privacy contact: GitHub
+issues and evanlee.engineer until the user names an email. Domain
 `smolcast.evanlee.engineer` is hard-coded in `public/` (canonical, OG,
 JSON-LD, sitemap, robots, llms.txt): grep and replace it on a move. The demo
 film is a faithful simulation (decision 031, `task web:film`); keep it in step
 with the app. It now carries restrained motion graphics (backdrop stippled
-with s. marks, drifting; chapter captions, camera lean, title card) and loops
+with s. marks, drifting; chapter captions, camera lean, title card), loops
 seamlessly at 36 s in three cuts: wide for the page, square and vertical in
 `media/out/` for social posts. To do: check touch scrolling on a real phone;
 create the Pages project and DNS (turn off Cloudflare's AI-crawler
@@ -100,6 +100,17 @@ Mark-of-the-Web prompt for File Search opens (check on Windows); DLL search
 hardening (CI's Mesa `opengl32.dll` relies on the app folder); clipboard
 history TTL. Windows check: script hotkey with the palette open, paste from
 a password manager is not captured, Reveal and Edit Config still open.
+
+## Code review leftovers (2026-10-23), unverified, not on this branch
+
+Raised by the website branch's review, outside its diff; verify before
+fixing: `win/process.rs:50` resolves only `powershell.exe` by full path, so
+other bare interpreters (`python.exe`, `node.exe`) search the exe's folder
+first; `app/launcher.rs:225` a late launch result from an earlier summon can
+clear the new `launch_pending` (matched by AppId only);
+`app/script_view.rs:681` `select_id` is never cleared after a failed or
+cancelled save; `script_view.rs:792` `editor_ui` re-resolves the script
+every frame (cost only).
 
 ## Pending Windows checks
 
@@ -170,16 +181,18 @@ a password manager is not captured, Reveal and Edit Config still open.
 - **Emoji tile vs Hallmark 30a** (floor, unwaivable): the home emoji tile
   shows real emoji as the picker's output; Hallmark reads them as emoji
   icons. User's call: keep, or draw them as Fluent emoji images.
-- **Privacy contact**: the page lists GitHub issues and evanlee.engineer.
-  Store and winget listings may want an email; ask the user.
+- **Publishing via winget and the Microsoft Store** (user, 2026-10-23):
+  not worked out yet (manifests, signing, Store listing). Both want the
+  privacy URL and maybe a contact email (the page lists GitHub issues and
+  evanlee.engineer); ask the user.
 - **Dictionary**: tabled by the user (2026-10-21). Windows has no definitions
   API (only ISpellChecker). Options if revived: "define <word>" via web
   search, bundled WordNet (+10–30 MB), or an online API.
 - **Real engine logos** instead of monogram badges: needs bundled assets
   (licensing) or a network fetch.
+- **Calculator Enter** pastes; Raycast copies. Revisit if the user wants copy.
 - **Broken-shortcut "Ignore"** is in memory only; persist it if the offer
   nags across restarts.
-- **Calculator Enter** pastes; Raycast copies. Revisit if the user wants copy.
 - **Flag font**: Segoe UI Emoji has no flags; a COLR flag-only font (e.g.
   Twemoji, CC-BY/MIT with notice) costs ~1–2 MB. Also rank the Flags group
   above "flag in hole" for the bare query `flag`.

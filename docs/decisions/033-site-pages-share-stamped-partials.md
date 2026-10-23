@@ -62,4 +62,6 @@ source of truth for its palette, as DESIGN.md already said it was.
 - `tokens.css` is never edited by hand. Web-only tokens (page, muted,
   shadows) stay in `styles.css`.
 - Comparison pages state the date and sources they were checked against,
-  and need rechecking when the other products change.
+  and need rechecking when the other products change. Being ten pages of
+  one shape, they are generated from `website/scripts/compare.py`, whose
+  output is committed like any other page.

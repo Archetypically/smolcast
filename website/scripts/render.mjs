@@ -13,6 +13,13 @@ import { serve } from "./serve.mjs";
 const pub = (name) => fileURLToPath(new URL(`../public/${name}`, import.meta.url));
 const wanted = new Set(process.argv.slice(2));
 const want = (name) => !wanted.size || wanted.has(name);
+// The social cards: 1200 x 630 at 2x, in the dark theme, without motion.
+const cardOptions = {
+  viewport: { width: 1200, height: 630 },
+  deviceScaleFactor: 2,
+  colorScheme: "dark",
+  reducedMotion: "reduce",
+};
 
 const server = await serve();
 const base = `http://127.0.0.1:${server.address().port}`;
@@ -39,12 +46,7 @@ try {
   }
 
   if (want("og")) {
-    const page = await browser.newPage({
-      viewport: { width: 1200, height: 630 },
-      deviceScaleFactor: 2,
-      colorScheme: "dark",
-      reducedMotion: "reduce",
-    });
+    const page = await browser.newPage(cardOptions);
     await page.goto(`${base}/_media/og.html`);
     await page.evaluate(() => {
       window.smolcast.setQuery("40cm to in");
@@ -62,12 +64,7 @@ try {
       const path = new URL(loc).pathname.replace(/^\/|\/$/g, "");
       if (!path) continue;
       const file = `og/${path.replaceAll("/", "-")}.png`;
-      const page = await browser.newPage({
-        viewport: { width: 1200, height: 630 },
-        deviceScaleFactor: 2,
-        colorScheme: "dark",
-        reducedMotion: "reduce",
-      });
+      const page = await browser.newPage(cardOptions);
       await page.goto(`${base}/_media/og-page.html?page=${path}${loc.endsWith("/") ? "/" : ""}`);
       await page.waitForSelector("body[data-ready]");
       await page.screenshot({ path: pub(file) });
