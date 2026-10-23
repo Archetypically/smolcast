@@ -93,9 +93,10 @@ pub fn write_settings(
         .as_ref()
         .map(|current| to_table(current, path))
         .transpose()?;
+    // `settings = { … }` is as valid as a `[settings]` header.
     let table = doc["settings"]
-        .as_table_mut()
-        .ok_or_else(|| invalid("[settings] is not a table".into()))?;
+        .as_table_like_mut()
+        .ok_or_else(|| invalid("settings is not a table".into()))?;
     for (key, value) in &new {
         if old.as_ref().and_then(|old| old.get(key)) == Some(value) {
             continue;
