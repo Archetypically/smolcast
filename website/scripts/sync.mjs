@@ -118,6 +118,8 @@ if (oldTokens !== tokens) {
 
 const sitemap = await readFile(join(pub, "sitemap.xml"), "utf8");
 const llms = await readFile(join(pub, "llms.txt"), "utf8");
+// Every page is linked from home in plain HTML, so crawlers find it.
+const home = await readFile(join(pub, "index.html"), "utf8");
 
 for (const path of await pages(pub)) {
   const name = relative(site, path);
@@ -145,6 +147,9 @@ for (const path of await pages(pub)) {
   if (!sitemap.includes(`<loc>${canonical}</loc>`))
     problems.push(`${name}: ${canonical} is not in sitemap.xml`);
   if (!llms.includes(`(${canonical})`)) problems.push(`${name}: ${canonical} is not linked from llms.txt`);
+  const url = new URL(canonical).pathname;
+  if (url !== "/" && !home.includes(`href="${url}"`))
+    problems.push(`${name}: ${url} is not linked from the home page`);
 }
 
 for (const p of problems) console.error(p);

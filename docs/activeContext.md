@@ -68,10 +68,6 @@ key caps with a lower lip. Not seen on Windows yet: check every view in both
 themes, at 100/150/200%, reduced motion and high contrast; divider crispness
 at 150%.
 
-## Desktop smoke test in CI (2026-10-22), on main
-
-Decision 029; see techContext CI. If slow, make it a release `example`.
-
 ## Website (2026-10-22), branch, not deployed
 
 Decision 030: `website/`, a static site for Cloudflare Pages (`task
@@ -170,6 +166,9 @@ a password manager is not captured, Reveal and Edit Config still open.
 
 ## Open questions and parked ideas
 
+- **Emoji tile vs Hallmark 30a** (floor, unwaivable): the home emoji tile
+  shows real emoji as the picker's output; Hallmark reads them as emoji
+  icons. User's call: keep, or draw them as Fluent emoji images.
 - **Privacy contact**: the page lists GitHub issues and evanlee.engineer.
   Store and winget listings may want an email; ask the user.
 - **Dictionary**: tabled by the user (2026-10-21). Windows has no definitions

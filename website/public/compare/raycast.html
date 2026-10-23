@@ -20,7 +20,7 @@
     <title>smolcast vs Raycast for Windows · smolcast</title>
     <meta
       name="description"
-      content="Raycast for Windows brings extensions, AI and window management with an optional Pro plan. smolcast covers the core launcher features in a 7 MB open-source executable with no account, AI or telemetry."
+      content="Raycast for Windows has extensions, AI and window management, with a paid Pro plan. smolcast does the everyday stuff in a free, open-source 7 MB app with no account."
     />
     <link rel="canonical" href="https://smolcast.evanlee.engineer/compare/raycast" />
     <meta name="robots" content="index, follow, max-snippet:-1" />
@@ -30,7 +30,7 @@
     <meta property="og:title" content="smolcast vs Raycast for Windows" />
     <meta
       property="og:description"
-      content="Raycast for Windows brings extensions, AI and window management with an optional Pro plan. smolcast covers the core launcher features in a 7 MB open-source executable with no account, AI or telemetry."
+      content="Raycast for Windows has extensions, AI and window management, with a paid Pro plan. smolcast does the everyday stuff in a free, open-source 7 MB app with no account."
     />
     <meta property="og:image" content="https://smolcast.evanlee.engineer/og.png" />
     <meta name="twitter:card" content="summary_large_image" />
@@ -44,7 +44,7 @@
             "@id": "https://smolcast.evanlee.engineer/compare/raycast",
             "url": "https://smolcast.evanlee.engineer/compare/raycast",
             "name": "smolcast vs Raycast for Windows",
-            "description": "Raycast for Windows brings extensions, AI and window management with an optional Pro plan. smolcast covers the core launcher features in a 7 MB open-source executable with no account, AI or telemetry.",
+            "description": "Raycast for Windows has extensions, AI and window management, with a paid Pro plan. smolcast does the everyday stuff in a free, open-source 7 MB app with no account.",
             "datePublished": "2026-10-23",
             "dateModified": "2026-10-23",
             "isPartOf": {
@@ -112,211 +112,352 @@
     <!-- /partial:topbar -->
 
     <main class="doc" id="content" tabindex="-1">
-      <ol class="crumbs">
-        <li><a href="/">smolcast</a></li>
-        <li><a href="/compare/">Compare</a></li>
-        <li aria-current="page">Raycast</li>
-      </ol>
+      <header class="doc-hero">
+        <ol class="crumbs">
+          <li><a href="/">smolcast</a></li>
+          <li><a href="/compare/">Compare</a></li>
+          <li aria-current="page">Raycast</li>
+        </ol>
+        <h1>smolcast vs Raycast for Windows</h1>
+        <p class="lead">Raycast does more. smolcast does the everyday stuff, free and tiny, with no account.</p>
+        <p class="stamp">
+          <span class="tag">Updated <time datetime="2026-10-23">23 Oct 2026</time></span> Checked against
+          <a href="https://www.raycast.com/windows">raycast.com/windows</a> (v2.9). <a href="#sources">Sources</a>
+        </p>
+      </header>
 
-      <p class="label">Compare</p>
-      <h1>smolcast vs Raycast for Windows</h1>
-      <p class="lead">
-        Raycast for Windows is the fuller product: an extension store, AI, window management, notes and Cloud Sync with
-        your Mac. smolcast covers the everyday core (apps, files, clipboard, emoji, snippets, calculator) in a 7&nbsp;MB
-        open-source executable with no account, no AI and no telemetry.
-      </p>
-      <p class="stamp">
-        Checked against <a href="https://www.raycast.com/windows">raycast.com/windows</a> (version 2.9) and
-        <a href="https://www.raycast.com/pricing">its pricing page</a> on
-        <time datetime="2026-10-23">23 October 2026</time>. Something out of date?
-        <a href="https://github.com/Archetypically/smolcast/issues">Tell us</a>.
-      </p>
-
-      <h2 id="table">Side by side</h2>
-      <div class="table-wrap">
-        <table class="compare">
-          <thead>
-            <tr>
-              <td></td>
-              <th scope="col" class="us">smolcast</th>
-              <th scope="col">Raycast for Windows</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <th scope="row">Made by</th>
-              <td>Evan Lee, an independent developer</td>
-              <td>Raycast, a company</td>
-            </tr>
-            <tr>
-              <th scope="row">Runs on</th>
-              <td>Windows 11, x64</td>
-              <td>Windows 10 (21H2 or later) and 11; also macOS</td>
-            </tr>
-            <tr>
-              <th scope="row">Price</th>
-              <td>Free</td>
-              <td>Free. Pro is $10 a month and adds AI, Cloud Sync and more</td>
-            </tr>
-            <tr>
-              <th scope="row">Source</th>
-              <td>Open source, MIT</td>
-              <td>Closed source; the extensions are open source</td>
-            </tr>
-            <tr>
-              <th scope="row">Built with</th>
-              <td>Rust and egui. One executable of about 7&nbsp;MB, no installer, no CPU while hidden</td>
-              <td>Installed from the Microsoft Store or WinGet</td>
-            </tr>
-            <tr>
-              <th scope="row">Account</th>
-              <td>None</td>
-              <td>Sign in for Pro, AI and Cloud Sync</td>
-            </tr>
-            <tr>
-              <th scope="row">Extensions</th>
-              <td>None. Scripts, snippets and quicklinks live in one TOML file</td>
-              <td>The Raycast Store. Extensions without native code run on both Windows and macOS</td>
-            </tr>
-            <tr>
-              <th scope="row">AI</th>
-              <td>None</td>
-              <td>Quick AI and AI Chat, with Pro</td>
-            </tr>
-            <tr>
-              <th scope="row">Clipboard history</th>
-              <td>
-                Text and images, pasted back into your app. Uses Windows clipboard history when it is on, otherwise its
-                own, encrypted
-              </td>
-              <td>Yes, pasted into the active app</td>
-            </tr>
-            <tr>
-              <th scope="row">Snippets</th>
-              <td>Found by name or keyword, edited in the palette. No automatic expansion</td>
-              <td>Yes, inserted with keywords</td>
-            </tr>
-            <tr>
-              <th scope="row">File search</th>
-              <td>By name, through the Windows Search index</td>
-              <td>Yes</td>
-            </tr>
-            <tr>
-              <th scope="row">Emoji picker</th>
-              <td>Every Unicode 17.0 emoji, in color</td>
-              <td>Yes</td>
-            </tr>
-            <tr>
-              <th scope="row">Calculator</th>
-              <td>Math and unit conversions, offline. Enter pastes the answer</td>
-              <td>Yes</td>
-            </tr>
-            <tr>
-              <th scope="row">Window management</th>
-              <td>None</td>
-              <td>Yes</td>
-            </tr>
-            <tr>
-              <th scope="row">Default hotkey</th>
-              <td><kbd class="cap">Ctrl</kbd><kbd class="cap">Alt</kbd><kbd class="cap">Space</kbd></td>
-              <td>Configurable</td>
-            </tr>
-            <tr>
-              <th scope="row">Privacy</th>
-              <td>No telemetry. One daily update check, which you can turn off</td>
-              <td>
-                Most features work offline; AI and Cloud Sync need a connection. See
-                <a href="https://www.raycast.com/privacy">Raycast's privacy policy</a>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+      <div class="cards">
+        <article class="card us">
+          <h2><img src="/favicon.svg" alt="" width="24" height="24" />smolcast</h2>
+          <p class="by">Evan Lee</p>
+          <ul class="tags">
+            <li class="tag">Free</li>
+            <li class="tag">Open source</li>
+            <li class="tag">7 MB</li>
+            <li class="tag">No account</li>
+          </ul>
+          <p class="best"><b>Best for</b> the essentials, small and private</p>
+        </article>
+        <article class="card">
+          <h2>Raycast for Windows</h2>
+          <p class="by">Raycast</p>
+          <ul class="tags">
+            <li class="tag">Free + Pro $10/mo</li>
+            <li class="tag">Closed source</li>
+            <li class="tag">Extensions</li>
+            <li class="tag">AI</li>
+          </ul>
+          <p class="best"><b>Best for</b> extensions, AI and a Mac + PC setup</p>
+          <p class="links"><a href="https://www.raycast.com/windows?ref=smolcast">Get Raycast for Windows</a></p>
+        </article>
       </div>
 
-      <h2 id="choose">Which one fits</h2>
-      <div class="choose">
-        <div>
-          <h3>Choose Raycast if</h3>
-          <ul>
-            <li>You want extensions: Linear, GitHub, Notion, Slack, Spotify and hundreds more.</li>
-            <li>You want AI chat and AI commands in the launcher.</li>
-            <li>You want window management, notes or the game launcher.</li>
-            <li>You use Raycast on a Mac too, and want your setup synced.</li>
-            <li>You are on Windows 10.</li>
-          </ul>
+      <section class="doc-section" aria-labelledby="table-title">
+        <h2 id="table-title">Feature by feature</h2>
+        <p>
+          Bold marks the better pick on a row, whoever has it. No bold means it’s a wash, or the other side doesn’t
+          publish the number.
+        </p>
+        <div class="table-wrap">
+          <table class="compare">
+            <thead>
+              <tr>
+                <td></td>
+                <th scope="col" class="us">smolcast</th>
+                <th scope="col">Raycast for Windows</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="group">
+                <th scope="rowgroup" colspan="3">The basics</th>
+              </tr>
+              <tr>
+                <th scope="row">Price</th>
+                <td>Free</td>
+                <td>Free; Pro $10/mo</td>
+              </tr>
+              <tr>
+                <th scope="row">Source</th>
+                <td class="win"><strong>Open source (MIT)</strong><span class="sr-only"> (the better pick)</span></td>
+                <td>Closed source<span class="note">Extensions are open</span></td>
+              </tr>
+              <tr>
+                <th scope="row">Runs on</th>
+                <td>Windows 11</td>
+                <td class="win">
+                  <strong>Windows 10 and 11, plus macOS</strong><span class="sr-only"> (the better pick)</span>
+                </td>
+              </tr>
+              <tr>
+                <th scope="row">Account</th>
+                <td class="win"><strong>None</strong><span class="sr-only"> (the better pick)</span></td>
+                <td>Needed for Pro, AI and sync</td>
+              </tr>
+              <tr>
+                <th scope="row">Default hotkey</th>
+                <td>
+                  <kbd class="cap" data-key="Control">Ctrl</kbd><kbd class="cap" data-key="Alt">Alt</kbd
+                  ><kbd class="cap" data-key=" ">Space</kbd>
+                </td>
+                <td>Configurable</td>
+              </tr>
+              <tr class="group">
+                <th scope="rowgroup" colspan="3">Features</th>
+              </tr>
+              <tr>
+                <th scope="row">Clipboard history</th>
+                <td>
+                  <span class="status yes"
+                    ><svg aria-hidden="true"><use href="/icons.svg#check" /></svg>Built in</span
+                  ><span class="note">Text and images. Encrypted on disk</span>
+                </td>
+                <td>
+                  <span class="status yes"
+                    ><svg aria-hidden="true"><use href="/icons.svg#check" /></svg>Built in</span
+                  >
+                </td>
+              </tr>
+              <tr>
+                <th scope="row">Snippets</th>
+                <td>
+                  <span class="status yes"
+                    ><svg aria-hidden="true"><use href="/icons.svg#check" /></svg>Built in</span
+                  ><span class="note">Find by name or keyword. No auto-expand</span>
+                </td>
+                <td class="win">
+                  <strong
+                    ><span class="status yes"
+                      ><svg aria-hidden="true"><use href="/icons.svg#check" /></svg>Built in</span
+                    ><span class="note">Expands by keyword</span></strong
+                  ><span class="sr-only"> (the better pick)</span>
+                </td>
+              </tr>
+              <tr>
+                <th scope="row">Emoji picker</th>
+                <td>
+                  <span class="status yes"
+                    ><svg aria-hidden="true"><use href="/icons.svg#check" /></svg>Built in</span
+                  ><span class="note">Every emoji, in color</span>
+                </td>
+                <td>
+                  <span class="status yes"
+                    ><svg aria-hidden="true"><use href="/icons.svg#check" /></svg>Built in</span
+                  >
+                </td>
+              </tr>
+              <tr>
+                <th scope="row">File search</th>
+                <td>
+                  <span class="status yes"
+                    ><svg aria-hidden="true"><use href="/icons.svg#check" /></svg>Built in</span
+                  ><span class="note">Through Windows Search</span>
+                </td>
+                <td>
+                  <span class="status yes"
+                    ><svg aria-hidden="true"><use href="/icons.svg#check" /></svg>Built in</span
+                  >
+                </td>
+              </tr>
+              <tr>
+                <th scope="row">Calculator</th>
+                <td>
+                  <span class="status yes"
+                    ><svg aria-hidden="true"><use href="/icons.svg#check" /></svg>Built in</span
+                  ><span class="note">Units too. Enter pastes</span>
+                </td>
+                <td>
+                  <span class="status yes"
+                    ><svg aria-hidden="true"><use href="/icons.svg#check" /></svg>Built in</span
+                  >
+                </td>
+              </tr>
+              <tr>
+                <th scope="row">Quicklinks</th>
+                <td>
+                  <span class="status yes"
+                    ><svg aria-hidden="true"><use href="/icons.svg#check" /></svg>Built in</span
+                  ><span class="note">Keywords with {query}</span>
+                </td>
+                <td>
+                  <span class="status yes"
+                    ><svg aria-hidden="true"><use href="/icons.svg#check" /></svg>Built in</span
+                  >
+                </td>
+              </tr>
+              <tr>
+                <th scope="row">Extensions</th>
+                <td><span class="status no">No</span><span class="note">Scripts and quicklinks instead</span></td>
+                <td class="win">
+                  <strong
+                    ><span class="status yes"
+                      ><svg aria-hidden="true"><use href="/icons.svg#check" /></svg>Raycast Store</span
+                    ><span class="note">Shared with the Mac app</span></strong
+                  ><span class="sr-only"> (the better pick)</span>
+                </td>
+              </tr>
+              <tr>
+                <th scope="row">AI</th>
+                <td><span class="status no">No</span></td>
+                <td class="win">
+                  <strong><span class="status part">Pro</span><span class="note">Quick AI and AI Chat</span></strong
+                  ><span class="sr-only"> (the better pick)</span>
+                </td>
+              </tr>
+              <tr>
+                <th scope="row">Window management</th>
+                <td><span class="status no">No</span></td>
+                <td class="win">
+                  <strong
+                    ><span class="status yes"
+                      ><svg aria-hidden="true"><use href="/icons.svg#check" /></svg>Built in</span
+                    ></strong
+                  ><span class="sr-only"> (the better pick)</span>
+                </td>
+              </tr>
+              <tr class="group">
+                <th scope="rowgroup" colspan="3">Under the hood</th>
+              </tr>
+              <tr>
+                <th scope="row">Download</th>
+                <td>7 MB, one .exe<span class="note">No installer</span></td>
+                <td>Microsoft Store or WinGet<span class="note">Size not published</span></td>
+              </tr>
+              <tr>
+                <th scope="row">Idle</th>
+                <td>0% CPU while hidden</td>
+                <td>Not published</td>
+              </tr>
+              <tr>
+                <th scope="row">Privacy</th>
+                <td class="win">
+                  <strong>No telemetry<span class="note">One daily update check, can be turned off</span></strong
+                  ><span class="sr-only"> (the better pick)</span>
+                </td>
+                <td>See its policy<span class="note">AI and sync need a connection</span></td>
+              </tr>
+            </tbody>
+          </table>
         </div>
-        <div>
-          <h3>Choose smolcast if</h3>
-          <ul>
-            <li>You want the core launcher features and nothing to sign in to.</li>
-            <li>You want one small executable whose source you can read, that uses no CPU while hidden.</li>
-            <li>You prefer settings in a text file you can keep in version control.</li>
-            <li>You want no AI features and no telemetry at all.</li>
-          </ul>
-        </div>
-      </div>
+      </section>
 
-      <h2 id="moving">Coming from Raycast</h2>
-      <ul>
-        <li>
-          <strong>Quicklinks</strong> become <code>[quicklinks.&lt;keyword&gt;]</code> tables in
-          <code>config.toml</code>; <code>{query}</code> in the URL takes the text typed after the keyword, as in
-          Raycast.
-        </li>
-        <li>
-          <strong>Snippets</strong> become <code>[snippets.&lt;id&gt;]</code> with a <code>keyword</code>. smolcast
-          finds them by keyword in the palette but does not expand them as you type.
-        </li>
-        <li>
-          <strong>Script commands</strong> become tracked script files: <em>Track Script File</em> in the palette adds a
-          <code>.ps1</code>, <code>.cmd</code>, <code>.py</code> or any program, with its own hotkey if you like.
-        </li>
-        <li><strong>The calculator</strong> pastes its answer on Enter, where Raycast copies it.</li>
-      </ul>
-      <p>
-        Everything else is in <a href="/#config">the configuration example</a> and the
-        <a href="https://github.com/Archetypically/smolcast#configuration">full settings table</a>.
-      </p>
-      <div class="cta">
+      <section class="doc-section" aria-labelledby="choose-title">
+        <h2 id="choose-title">Pick the one that fits</h2>
+        <div class="choose">
+          <div class="card">
+            <h3>Go with Raycast if</h3>
+            <ul class="checks">
+              <li>You want extensions (Linear, GitHub, Notion, Spotify…)</li>
+              <li>You want AI right in the launcher</li>
+              <li>You need window management</li>
+              <li>You also use Raycast on a Mac</li>
+              <li>You’re on Windows 10</li>
+            </ul>
+            <p class="links"><a href="https://www.raycast.com/windows?ref=smolcast">Get Raycast for Windows</a></p>
+          </div>
+          <div class="card us">
+            <h3>Go with smolcast if</h3>
+            <ul class="checks">
+              <li>You just want the essentials, fast</li>
+              <li>You’d rather not make an account</li>
+              <li>You like a small app you can read the code of</li>
+              <li>You want zero AI and zero telemetry</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="doc-section" aria-labelledby="moving-title">
+        <h2 id="moving-title">Coming from Raycast</h2>
+        <ul class="maps">
+          <li>
+            <span class="from">Quicklinks</span
+            ><span><code>[quicklinks.gh]</code> in <code>config.toml</code>, same <code>{query}</code> idea</span>
+          </li>
+          <li>
+            <span class="from">Snippets</span
+            ><span><code>[snippets.sig]</code> with a keyword. Found in the palette, not expanded as you type</span>
+          </li>
+          <li>
+            <span class="from">Script commands</span
+            ><span
+              ><em>Track Script File</em>: any <code>.ps1</code>, <code>.cmd</code>, <code>.py</code> or program, with
+              its own hotkey</span
+            >
+          </li>
+          <li>
+            <span class="from">Calculator</span
+            ><span>Same idea, but Enter pastes the answer instead of copying it</span>
+          </li>
+        </ul>
+      </section>
+
+      <section class="cta" aria-labelledby="get-title">
+        <img src="/favicon.svg" alt="" width="56" height="56" />
+        <div>
+          <h2 id="get-title">Try smolcast</h2>
+          <ul class="tags">
+            <li class="tag">Windows 11, x64</li>
+            <li class="tag">7 MB</li>
+            <li class="tag">Free and open source</li>
+          </ul>
+        </div>
         <a class="button" href="https://github.com/Archetypically/smolcast/releases/latest"
-          ><svg aria-hidden="true"><use href="/icons.svg#download" /></svg>Download smolcast</a
+          ><svg aria-hidden="true"><use href="/icons.svg#download" /></svg>Download</a
         >
-        <span class="meta">Windows 11 · x64 · about 7&nbsp;MB · free and open source</span>
-      </div>
+      </section>
 
-      <h2 id="more">More comparisons</h2>
-      <ul class="rows">
-        <li>
-          <a href="/compare/"
-            ><svg aria-hidden="true"><use href="/icons.svg#doc" /></svg><span class="name">All launchers compared</span
-            ><span class="trail">Compare</span></a
-          >
-        </li>
-        <li>
-          <a href="/compare/powertoys-command-palette"
-            ><svg aria-hidden="true"><use href="/icons.svg#doc" /></svg
-            ><span class="name">smolcast vs PowerToys Command Palette</span><span class="trail">Compare</span></a
-          >
-        </li>
-        <li>
-          <a href="/compare/flow-launcher"
-            ><svg aria-hidden="true"><use href="/icons.svg#doc" /></svg
-            ><span class="name">smolcast vs Flow Launcher</span><span class="trail">Compare</span></a
-          >
-        </li>
-        <li>
-          <a href="/compare/tinycast"
-            ><svg aria-hidden="true"><use href="/icons.svg#doc" /></svg><span class="name">smolcast vs Tinycast</span
-            ><span class="trail">Compare</span></a
-          >
-        </li>
-        <li>
-          <a href="/"
-            ><svg aria-hidden="true"><use href="/icons.svg#doc" /></svg><span class="name">smolcast features</span
-            ><span class="trail">Home</span></a
-          >
-        </li>
-      </ul>
+      <section class="doc-section" aria-labelledby="more-title">
+        <h2 id="more-title">More comparisons</h2>
+        <ul class="rows">
+          <li>
+            <a href="/compare/"
+              ><svg aria-hidden="true"><use href="/icons.svg#doc" /></svg
+              ><span class="name">All the launchers, side by side</span><span class="trail">Compare</span></a
+            >
+          </li>
+          <li>
+            <a href="/compare/powertoys-command-palette"
+              ><svg aria-hidden="true"><use href="/icons.svg#doc" /></svg
+              ><span class="name">smolcast vs PowerToys Command Palette</span><span class="trail">Compare</span></a
+            >
+          </li>
+          <li>
+            <a href="/compare/flow-launcher"
+              ><svg aria-hidden="true"><use href="/icons.svg#doc" /></svg
+              ><span class="name">smolcast vs Flow Launcher</span><span class="trail">Compare</span></a
+            >
+          </li>
+          <li>
+            <a href="/compare/tinycast"
+              ><svg aria-hidden="true"><use href="/icons.svg#doc" /></svg><span class="name">smolcast vs Tinycast</span
+              ><span class="trail">Compare</span></a
+            >
+          </li>
+          <li>
+            <a href="/privacy"
+              ><svg aria-hidden="true"><use href="/icons.svg#doc" /></svg
+              ><span class="name">What smolcast keeps (nothing)</span><span class="trail">Privacy</span></a
+            >
+          </li>
+        </ul>
+      </section>
+
+      <footer class="footnotes" id="sources" aria-labelledby="sources-title">
+        <h2 id="sources-title">Sources</h2>
+        <ol>
+          <li>
+            smolcast, main branch:
+            <a href="https://github.com/Archetypically/smolcast">github.com/Archetypically/smolcast</a>
+          </li>
+          <li>Raycast for Windows 2.9: <a href="https://www.raycast.com/windows">raycast.com/windows</a></li>
+          <li>Raycast pricing: <a href="https://www.raycast.com/pricing">raycast.com/pricing</a></li>
+        </ol>
+        <p>
+          Checked against these versions on <time datetime="2026-10-23">23 Oct 2026</time>, which is also when this page
+          was last updated. Things move fast; if something here is stale,
+          <a href="https://github.com/Archetypically/smolcast/issues">open an issue</a> and we’ll fix it.
+        </p>
+      </footer>
     </main>
 
     <!-- partial:footer -->

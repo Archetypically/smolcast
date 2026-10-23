@@ -20,7 +20,7 @@
     <title>Privacy · smolcast</title>
     <meta
       name="description"
-      content="smolcast collects nothing. What the Windows app keeps on your PC, the one request it makes on its own, and what this website does and does not record."
+      content="smolcast collects nothing. What the Windows app keeps on your PC (five files), the one daily update check it makes, and what this website records (no cookies, no analytics)."
     />
     <link rel="canonical" href="https://smolcast.evanlee.engineer/privacy" />
     <meta name="robots" content="index, follow, max-snippet:-1" />
@@ -84,118 +84,144 @@
     <!-- /partial:topbar -->
 
     <main class="doc" id="content" tabindex="-1">
-      <ol class="crumbs">
-        <li><a href="/">smolcast</a></li>
-        <li aria-current="page">Privacy</li>
-      </ol>
+      <header class="doc-hero">
+        <ol class="crumbs">
+          <li><a href="/">smolcast</a></li>
+          <li aria-current="page">Privacy</li>
+        </ol>
+        <h1>smolcast collects nothing.</h1>
+        <p class="lead">
+          Your stuff stays on your PC. The app makes one request a day, an update check you can switch off. This site
+          has no cookies and no analytics.
+        </p>
+        <p class="stamp">
+          <span class="tag">Updated <time datetime="2026-10-23">23 Oct 2026</time></span>
+        </p>
+      </header>
 
-      <p class="label">Privacy</p>
-      <h1>smolcast collects nothing.</h1>
-      <p class="lead">
-        Everything the app keeps stays on your computer, and the only request it makes on its own is a daily update
-        check you can turn off. This website sets no cookies and runs no analytics.
-      </p>
-      <p class="stamp">Updated <time datetime="2026-10-23">23 October 2026</time></p>
-
-      <h2 id="app">The app</h2>
-
-      <h3>What it keeps, and where</h3>
-      <p>Only these files, all under your own Windows profile. Delete the two folders and nothing is left.</p>
-      <dl class="files">
-        <dt><code>%APPDATA%\smolcast\config.toml</code></dt>
-        <dd>Your settings, scripts, snippets and quicklinks.</dd>
-        <dt><code>%APPDATA%\smolcast\favorites.json</code></dt>
-        <dd>The results you pinned.</dd>
-        <dt><code>%LOCALAPPDATA%\smolcast\usage.json</code></dt>
-        <dd>How often and how recently you opened each result, to rank them.</dd>
-        <dt><code>%LOCALAPPDATA%\smolcast\clipboard\</code></dt>
-        <dd>smolcast's own clipboard history, encrypted, when it keeps one (below).</dd>
-        <dt><code>%LOCALAPPDATA%\smolcast\update.json</code></dt>
-        <dd>When it last checked for an update, and any version you chose to skip.</dd>
-      </dl>
-      <p>
-        There is no account, no telemetry, no crash reporting and no log file. When something fails, the notice you see
-        names the operation and an error code, never what you copied or typed.
-      </p>
-
-      <h3>The one request it makes on its own</h3>
-      <p>
-        Once a day smolcast asks GitHub for the latest release of
-        <a href="https://github.com/Archetypically/smolcast/releases">Archetypically/smolcast</a> at
-        <code>api.github.com</code>. The request carries smolcast's version in its user agent and nothing about you.
-        GitHub sees your IP address, as it does for any visit, under
-        <a href="https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement"
-          >GitHub's privacy statement</a
-        >. A new version is downloaded only when you choose to install it.
-      </p>
-      <p>
-        To turn the check off, clear <strong>Check GitHub for a new version once a day</strong> in smolcast's settings,
-        or set <code>check_for_updates = false</code> in <code>config.toml</code>.
-      </p>
-
-      <h3>Things that leave your computer only when you choose them</h3>
-      <ul>
-        <li>
-          <strong>Web searches and quicklinks</strong> open in your browser when you pick them. The search engine or
-          site you chose receives your query under its own policy.
+      <ul class="facts">
+        <li class="card"><span class="figure">0</span><span>Accounts, trackers, telemetry or crash reports</span></li>
+        <li class="card">
+          <span class="figure">1</span><span>Request a day: the update check, with an off switch</span>
         </li>
-        <li>
-          <strong>File search</strong> asks the Windows Search index on your PC. smolcast keeps no index of its own.
-        </li>
-        <li><strong>Scripts</strong> run the programs you set up, with your permissions.</li>
+        <li class="card"><span class="figure">0</span><span>Cookies or analytics on this website</span></li>
       </ul>
 
-      <h3>Clipboard history</h3>
-      <ul>
-        <li>
-          When Windows clipboard history (<kbd class="cap">Win</kbd><kbd class="cap">V</kbd>) is on, smolcast shows
-          Windows' history and keeps no copy of its own.
-        </li>
-        <li>
-          Otherwise it keeps its own: the last 100 items by default, encrypted on disk with Windows' Data Protection API
-          so that only your Windows account can read them. Set <code>clipboard_persist = false</code> to keep it in
-          memory only, or <code>clipboard_capture = false</code> to record nothing.
-        </li>
-        <li>
-          It skips anything an app marks as excluded from clipboard history, which is how most password managers flag
-          passwords. It cannot recognize a password that is not marked.
-        </li>
-      </ul>
+      <section class="doc-section" aria-labelledby="files-title">
+        <h2 id="files-title">Five files, all yours</h2>
+        <p>Everything lives in your own Windows profile. Delete the two <code>smolcast</code> folders and it’s gone.</p>
+        <ul class="files">
+          <li>
+            <code>%APPDATA%\smolcast\config.toml</code><span>Your settings, scripts, snippets and quicklinks</span>
+          </li>
+          <li><code>%APPDATA%\smolcast\favorites.json</code><span>The results you pinned</span></li>
+          <li>
+            <code>%LOCALAPPDATA%\smolcast\usage.json</code><span>What you open and when, so results rank well</span>
+          </li>
+          <li>
+            <code>%LOCALAPPDATA%\smolcast\clipboard\</code
+            ><span>smolcast’s own clipboard history, encrypted (below)</span>
+          </li>
+          <li>
+            <code>%LOCALAPPDATA%\smolcast\update.json</code
+            ><span>When it last checked, and any version you skipped</span>
+          </li>
+        </ul>
+        <p>
+          No log file either. When something fails, the notice names the operation and an error code, never what you
+          copied or typed.
+        </p>
+      </section>
 
-      <h2 id="site">This website</h2>
-      <ul>
-        <li>
-          <strong>No cookies, analytics or trackers.</strong> Every page, script, style, image and font comes from this
-          site; nothing loads from anywhere else, and the site's Content Security Policy enforces that.
-        </li>
-        <li>
-          <strong>Your theme choice.</strong> If you switch between light and dark here, your browser remembers the
-          choice in its local storage. It never leaves your browser.
-        </li>
-        <li>
-          <strong>Hosting.</strong> The site is served by Cloudflare Pages. Cloudflare handles each request, including
-          your IP address and browser's user agent, to deliver and protect the site, under
-          <a href="https://www.cloudflare.com/privacypolicy/">Cloudflare's privacy policy</a>. No visitor analytics are
-          turned on.
-        </li>
-        <li><strong>Downloads</strong> come from GitHub's release pages, under GitHub's privacy statement.</li>
-      </ul>
+      <section class="doc-section" aria-labelledby="net-title">
+        <h2 id="net-title">What leaves, and when</h2>
+        <div class="cards three">
+          <article class="card">
+            <h3>The update check</h3>
+            <p class="by"><span class="status part">Automatic, once a day</span></p>
+            <p>
+              Asks <code>api.github.com</code> for smolcast’s latest release. It sends smolcast’s version and nothing
+              about you. GitHub sees your IP, as with any visit (<a
+                href="https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement"
+                >GitHub’s privacy statement</a
+              >). Updates install only when you say so.
+            </p>
+            <p>
+              Off switch: <strong>Check GitHub for a new version once a day</strong> in settings, or
+              <code>check_for_updates = false</code>.
+            </p>
+          </article>
+          <article class="card">
+            <h3>Only when you ask</h3>
+            <p class="by"><span class="status yes">You’re in control</span></p>
+            <ul>
+              <li>
+                <strong>Web searches and quicklinks</strong> open in your browser when you pick them. That site gets
+                your query.
+              </li>
+              <li><strong>File search</strong> asks the Windows Search index on your PC. No index of its own.</li>
+              <li><strong>Scripts</strong> run the programs you set up, as you.</li>
+            </ul>
+          </article>
+          <article class="card">
+            <h3>Clipboard history</h3>
+            <p class="by"><span class="status yes">Encrypted, on your PC</span></p>
+            <ul>
+              <li>
+                Windows clipboard history (<kbd class="cap" data-key="Meta">Win</kbd
+                ><kbd class="cap" data-key="v">V</kbd>) on? smolcast just shows it and keeps no copy.
+              </li>
+              <li>
+                Otherwise it keeps its own: 100 items by default, encrypted so only your Windows account can read them.
+                <code>clipboard_persist = false</code> keeps it in memory; <code>clipboard_capture = false</code> keeps
+                nothing.
+              </li>
+              <li>
+                Skips anything an app marks as private, which is how most password managers flag passwords. It can’t
+                spot an unmarked password.
+              </li>
+            </ul>
+          </article>
+        </div>
+      </section>
 
-      <h2 id="changes">Changes</h2>
-      <p>
-        This page carries the date of its last change, and every earlier version is in
-        <a href="https://github.com/Archetypically/smolcast/commits/main/website/public/privacy.html"
-          >the project's history</a
-        >. smolcast is open source, so all of the above can be checked against
-        <a href="https://github.com/Archetypically/smolcast">its code</a>.
-      </p>
+      <section class="doc-section" aria-labelledby="site-title">
+        <h2 id="site-title">No cookies, no analytics, no trackers</h2>
+        <div class="cards">
+          <article class="card">
+            <h3>Nothing from anywhere else</h3>
+            <p>
+              Every page, script, style, image and font comes from this site, and its Content Security Policy enforces
+              that. If you flip between light and dark, your browser remembers it in local storage. That never leaves
+              your browser.
+            </p>
+          </article>
+          <article class="card">
+            <h3>Hosting and downloads</h3>
+            <p>
+              Cloudflare Pages serves the site, so Cloudflare handles each request, including your IP and user agent (<a
+                href="https://www.cloudflare.com/privacypolicy/"
+                >Cloudflare’s privacy policy</a
+              >). No visitor analytics are on. Downloads come from GitHub.
+            </p>
+          </article>
+        </div>
+      </section>
 
-      <h2 id="contact">Contact</h2>
-      <p>
-        Questions about privacy go to Evan Lee, who makes smolcast: open an issue on
-        <a href="https://github.com/Archetypically/smolcast/issues">GitHub</a>, or write through
-        <a href="https://evanlee.engineer">evanlee.engineer</a>.
-      </p>
+      <footer class="footnotes" id="changes" aria-labelledby="changes-title">
+        <h2 id="changes-title">Changes and contact</h2>
+        <p>
+          Last updated <time datetime="2026-10-23">23 October 2026</time>. Every earlier version is in
+          <a href="https://github.com/Archetypically/smolcast/commits/main/website/public/privacy.html"
+            >the project’s history</a
+          >, and since smolcast is open source, you can check all of this against
+          <a href="https://github.com/Archetypically/smolcast">its code</a>.
+        </p>
+        <p>
+          Questions? Open an issue on <a href="https://github.com/Archetypically/smolcast/issues">GitHub</a> or reach
+          Evan Lee through <a href="https://evanlee.engineer">evanlee.engineer</a>.
+        </p>
+      </footer>
     </main>
 
     <!-- partial:footer -->

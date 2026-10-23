@@ -82,7 +82,16 @@ body {
 .backdrop {
   position: absolute;
   inset: 0;
-  background: url("film/stipple.svg") 0 0 / 192px 192px #0f0f11;
+  background: #0f0f11;
+}
+
+/* The tile is the site's (/stipple.svg), a mask, so the marks take this color. */
+.backdrop::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgb(255 255 255 / 7.5%);
+  mask: url("/stipple.svg") 0 0 / 192px 192px;
 }
 
 /* The stage holds the desktop; the camera inside it leans in and out. The
