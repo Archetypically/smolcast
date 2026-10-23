@@ -1046,7 +1046,13 @@ search_engine = "google"   # optional: google | bing | duckduckgo | brave | ecos
 web_search_url = "https://www.google.com/search?q=%s" # optional; used by "custom"
 check_for_updates = true   # optional: daily GitHub release check (§13)
 
-[scripts.open-project]
+[scripts.deploy]           # a tracked file (§10.3)
+name = "Deploy"
+path = "C:\\Tools\\deploy.ps1"
+args = ["-Env", "prod"]    # optional; after the path
+hotkey = "control+alt+KeyD" # optional
+
+[scripts.open-project]     # a command: no path
 name = "Open project"
 interpreter = "pwsh.exe"
 args = ["-NoLogo", "-NoProfile", "-File", "C:\\Tools\\open-project.ps1"]
@@ -1093,9 +1099,10 @@ struct Settings {
 
 struct ScriptConfig {
     name: String,
-    interpreter: String,
-    args: Vec<String>,
-    cwd: String,
+    path: Option<String>,   // a tracked file
+    interpreter: String,    // default ""; required without path, override with it
+    args: Vec<String>,      // default []
+    cwd: String,            // default ""; required without path
     hotkey: Option<String>,
 }
 ```
@@ -1106,7 +1113,9 @@ absent. Validation:
 
 - `schema_version` must equal 1; never overwrite a newer unknown version;
 - script ID matches ASCII `[A-Za-z0-9_-]{1,64}`;
-- name/interpreter/cwd are nonempty; name is at most 128 Unicode scalar values;
+- name is nonempty and at most 128 Unicode scalar values; without `path`,
+  interpreter and cwd are nonempty; a `path` is absolute (drive or UNC) and
+  has an extension §10.3 runs, unless `interpreter` is set;
 - at most 64 arguments per script and each argument is at most 32 KiB UTF-8;
 - no NUL in any string;
 - clipboard limits obey §7.5;
@@ -1121,10 +1130,10 @@ reload failure, retain the last-known-good config and registrations.
 ### 10.3 Script execution
 
 Build `std::process::Command` directly from `interpreter`, `.args(args)`, and
-`.current_dir(cwd)`. Fuzzy query text is never appended, expanded, substituted, or
-exposed as an environment variable. Shell syntax works only when the configured
-interpreter implements it; `.cmd`/`.bat` users must explicitly configure
-`cmd.exe` and its arguments.
+`.current_dir(cwd)` (for a tracked file, as resolved below). Fuzzy query text is
+never appended, expanded, substituted, or exposed as an environment variable; the
+only run-time input is the "Run with Arguments" line, appended as separate
+elements. Shell syntax works only when the interpreter implements it.
 
 On Windows set `CREATE_NO_WINDOW`, null stdin/stdout/stderr, spawn, and immediately
 drop the child handle. Spawn success is success; v1 does not monitor exit status.
@@ -1142,6 +1151,47 @@ palette; a failure notice waits for the next summon. On reload, unchanged
 script keys stay registered, removed or changed keys are unregistered, and new
 keys register one at a time. If a changed key fails to register, that script
 has no hotkey until the conflict is fixed. The summon key is never touched.
+
+**Tracked script files (2026-10-23, decision 032):** a script is usually a
+tracked file, `[scripts.<id>]` with `path`, and is tracked, edited and
+untracked in the palette through `config_edit::write_script` with the
+snippet editor's rules (§10.6): only changed keys are rewritten, comments
+survive, and a save completes when the normal reload accepts the file.
+`core::script_file::resolve` builds the process at index time: `.ps1` →
+`powershell.exe -NoProfile -NonInteractive -ExecutionPolicy RemoteSigned -File
+<path>` (spawned by its System32 path, never via PATH; RemoteSigned runs local
+scripts and still refuses downloaded ones), `.py` →
+`python.exe <path>`, `.pyw` → `pythonw.exe`, `.js`/`.mjs` → `node.exe`;
+`.exe`/`.com` and `.cmd`/`.bat` are the program themselves. A batch file
+must never go through `cmd /c <path>`: cmd would re-parse the arguments
+(`a&b` starts `b`), while the standard library escapes arguments for a
+batch program and refuses ones it cannot escape. A set `interpreter`
+replaces the extension's program (`interpreter <path> args…`); `cwd`
+defaults to the file's folder. The path is one verbatim argument, then
+`args`. Hand-written commands without `path` run as before. A `path` is a
+drive or UNC path, never `\\?\` or `\\.\`; the spawn checks the file exists
+(an interpreter given a missing file would exit silently and read as a
+run), and a row on a network share draws no file icon (no SMB lookups on
+indexing).
+
+"Manage Scripts" (`View::Scripts`, `app/script_view.rs`): Enter runs with
+the saved arguments; Tab or Ctrl+Enter opens "Run with Arguments", whose
+line is split by `script_file::split_args` (whitespace separates, double
+quotes group, `""` is a literal quote, backslashes are plain) and appended
+after the saved arguments, one element each; nothing is expanded and no
+shell sees it. Both go through `Launcher::run_script(id, …, from_palette,
+extra)`, which sets the pending launch so a successful spawn hides the
+palette like a root launch; a hotkey runs with no extra arguments. Ctrl+N
+tracks a file, Ctrl+E edits, Shift+Delete untracks (removes the table,
+never the file). The form holds the file (Browse or typed), name, saved
+arguments on one line (`join_args`; an unchanged line keeps the saved
+vector exactly) and a hotkey, typed or recorded (`RecordTarget::Script`);
+a hotkey that does not parse, or that another script uses, blocks the
+save. A command entry shows program and working folder instead of the
+file. Browse shows the `IFileOpenDialog` on its own STA thread owned by
+the palette (`win/file_dialog.rs`, `Effect::PickScriptFile` →
+`AppEvent::ScriptFilePicked`); while it is up, losing focus does not
+dismiss the palette.
 
 Register script hotkeys after the main summon key. Map crate hotkey IDs to script
 IDs. A parse error or registration collision disables only that script hotkey; the

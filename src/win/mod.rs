@@ -7,6 +7,7 @@ pub mod appearance;
 pub mod autostart;
 pub mod clipboard;
 pub mod emoji_render;
+pub mod file_dialog;
 pub mod file_search;
 pub mod hotkey;
 pub mod http;

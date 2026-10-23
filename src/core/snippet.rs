@@ -10,7 +10,7 @@ use std::collections::BTreeMap;
 use fuzzy_matcher::FuzzyMatcher;
 use fuzzy_matcher::skim::SkimMatcherV2;
 
-use crate::core::config::SnippetConfig;
+use crate::core::config::{self, SnippetConfig};
 
 /// One configured snippet, owned by the view.
 #[derive(Clone, Debug)]
@@ -58,32 +58,10 @@ pub fn from_config(snippets: &BTreeMap<String, SnippetConfig>) -> Vec<Snippet> {
         .collect()
 }
 
-/// Table id for a new snippet named `name`: ASCII letters and digits
-/// lowercased, every other run of characters collapsed to `-`, at most 48
-/// bytes, and `snippet` when nothing is left. A `-2`, `-3`, … suffix makes
-/// it unique among `snippets`, ignoring case.
+/// Table id for a new snippet named `name` ([`config::new_id`]), unique
+/// among `snippets`.
 pub fn new_id(name: &str, snippets: &[Snippet]) -> String {
-    let mut base = String::new();
-    for c in name.chars() {
-        if c.is_ascii_alphanumeric() {
-            base.push(c.to_ascii_lowercase());
-        } else if !base.is_empty() && !base.ends_with('-') {
-            base.push('-');
-        }
-        if base.len() >= 48 {
-            break;
-        }
-    }
-    let base = base.trim_end_matches('-');
-    let base = if base.is_empty() { "snippet" } else { base };
-    let taken = |id: &str| snippets.iter().any(|s| s.id.eq_ignore_ascii_case(id));
-    if !taken(base) {
-        return base.to_owned();
-    }
-    (2..)
-        .map(|n| format!("{base}-{n}"))
-        .find(|id| !taken(id))
-        .expect("a free suffix exists")
+    config::new_id(name, "snippet", snippets.iter().map(|s| s.id.as_str()))
 }
 
 /// Why `draft` cannot be saved: a field rule, or a keyword another snippet

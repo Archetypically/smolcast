@@ -23,6 +23,7 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 
 use crate::core::config::{QuicklinkConfig, ScriptConfig};
+use crate::core::script_file;
 
 /// Stable identity of one launch action; also the usage-state key (§10.4).
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
@@ -92,13 +93,18 @@ pub enum LaunchSpec {
 }
 
 /// The exact process a script runs: the interpreter executable, its argument
-/// vector, and the working directory, all verbatim from config. Search text is
-/// never appended, expanded, or substituted.
+/// vector, and the working directory, from config (a tracked file's program
+/// and folder resolved by `script_file::resolve`). Search text is never
+/// appended, expanded, or substituted; only arguments typed into "Run with
+/// Arguments" are appended, each as its own element.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ScriptSpec {
     pub interpreter: String,
     pub args: Vec<String>,
     pub cwd: String,
+    /// The tracked file, checked to exist before the spawn: an interpreter
+    /// given a missing file would start, fail silently, and look like a run.
+    pub file: Option<String>,
 }
 
 /// The table id as an alias of a config entry, unless it already is the name.
@@ -115,19 +121,30 @@ fn id_alias(id: &str, name: &str) -> Vec<String> {
 pub fn script_entries(scripts: &BTreeMap<String, ScriptConfig>) -> Vec<IndexedApp> {
     scripts
         .iter()
-        .map(|(id, script)| IndexedApp {
-            id: AppId::Script { id: id.clone() },
-            display_name: script.name.clone(),
-            sort_name: script.name.to_lowercase(),
-            aliases: id_alias(id, &script.name),
-            source: AppSource::Config,
-            launch: LaunchSpec::Script(ScriptSpec {
-                interpreter: script.interpreter.clone(),
-                args: script.args.clone(),
-                cwd: script.cwd.clone(),
-            }),
-            // The interpreter's own icon; the icon worker resolves bare names.
-            icon_key: script.interpreter.clone(),
+        .map(|(id, script)| {
+            let run = script_file::resolve(script, &[]);
+            IndexedApp {
+                id: AppId::Script { id: id.clone() },
+                display_name: script.name.clone(),
+                sort_name: script.name.to_lowercase(),
+                aliases: id_alias(id, &script.name),
+                source: AppSource::Config,
+                // A tracked file shows its own icon (its type's, in
+                // Explorer); a command shows its program's, and the icon
+                // worker resolves bare names. Nothing on a network share is
+                // read just to draw a row (no SMB/NTLM traffic on indexing).
+                icon_key: match &script.path {
+                    Some(path) if !script_file::is_unc(path) => path.clone(),
+                    _ if script_file::is_unc(&run.interpreter) => String::new(),
+                    _ => run.interpreter.clone(),
+                },
+                launch: LaunchSpec::Script(ScriptSpec {
+                    interpreter: run.interpreter,
+                    args: run.args,
+                    cwd: run.cwd,
+                    file: script.path.clone(),
+                }),
+            }
         })
         .collect()
 }
@@ -159,6 +176,10 @@ pub enum Command {
     Snippets,
     /// Opens the snippet view straight into a new-snippet form (§10.6).
     CreateSnippet,
+    /// Lists tracked scripts to run, edit or untrack (§10.3).
+    Scripts,
+    /// Picks a script file on disk to track (§10.3).
+    TrackScript,
     Settings,
     /// The version and credits.
     About,
@@ -169,11 +190,13 @@ pub enum Command {
 }
 
 impl Command {
-    pub const ALL: [Command; 8] = [
+    pub const ALL: [Command; 10] = [
         Command::ClipboardHistory,
         Command::Emoji,
         Command::Snippets,
         Command::CreateSnippet,
+        Command::Scripts,
+        Command::TrackScript,
         Command::Settings,
         Command::About,
         Command::SearchFiles,
@@ -186,6 +209,8 @@ impl Command {
             Command::Emoji => "Search Emoji",
             Command::Snippets => "Search Snippets",
             Command::CreateSnippet => "Create Snippet",
+            Command::Scripts => "Manage Scripts",
+            Command::TrackScript => "Track Script File",
             Command::Settings => "smolcast settings",
             Command::About => "About smolcast",
             Command::SearchFiles => "Search Files",
@@ -196,6 +221,8 @@ impl Command {
     /// Other names a command is found by.
     pub fn aliases(self) -> &'static [&'static str] {
         match self {
+            Command::Scripts => &["Scripts", "Edit Scripts"],
+            Command::TrackScript => &["Add Script", "New Script", "Import Script"],
             Command::About => &["Credits"],
             Command::SearchFiles => &["Find Files", "Documents"],
             Command::CheckForUpdates => &["Update smolcast"],
@@ -210,6 +237,8 @@ impl Command {
             Command::Emoji => "emoji",
             Command::Snippets => "snippets",
             Command::CreateSnippet => "create-snippet",
+            Command::Scripts => "scripts",
+            Command::TrackScript => "track-script",
             Command::Settings => "settings",
             Command::About => "about",
             Command::SearchFiles => "search-files",
@@ -844,6 +873,7 @@ mod tests {
                 ],
                 cwd: "C:\\Users\\me\\Projects".into(),
                 hotkey: Some("control+alt+KeyP".into()),
+                path: None,
             },
         );
         let entries = script_entries(&scripts);
@@ -869,6 +899,7 @@ mod tests {
                     "C:\\Tools\\my script \"x\" ✓.ps1".into(),
                 ],
                 cwd: "C:\\Users\\me\\Projects".into(),
+                file: None,
             })
         );
         assert_eq!(
