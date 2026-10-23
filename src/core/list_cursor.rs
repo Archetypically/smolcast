@@ -18,7 +18,15 @@ impl ListCursor {
 
     /// Move the selection one row down or up, wrapping at both ends.
     pub fn step(&mut self, count: usize, down: bool, up: bool) {
-        step_selection(&mut self.selected, count, down, up);
+        if count == 0 {
+            return;
+        }
+        if down {
+            self.selected = (self.selected + 1) % count;
+        }
+        if up {
+            self.selected = (self.selected + count - 1) % count;
+        }
     }
 
     /// Keep the selection on one of `count` rows, e.g. after the list shrank.
@@ -32,19 +40,6 @@ impl ListCursor {
         self.selected = scroll_window(&mut self.first_row, self.selected, count, visible, step);
         keep_visible(self.selected, &mut self.first_row, visible);
         self.first_row..(self.first_row + visible).min(count)
-    }
-}
-
-/// Move `selected` one row down or up, wrapping at both ends.
-fn step_selection(selected: &mut usize, count: usize, down: bool, up: bool) {
-    if count == 0 {
-        return;
-    }
-    if down {
-        *selected = (*selected + 1) % count;
-    }
-    if up {
-        *selected = (*selected + count - 1) % count;
     }
 }
 

@@ -18,11 +18,11 @@
 //!   names become aliases.
 
 use std::collections::{BTreeMap, BTreeSet};
-
-use crate::core::config::{QuicklinkConfig, ScriptConfig};
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
+
+use crate::core::config::{QuicklinkConfig, ScriptConfig};
 
 /// Stable identity of one launch action; also the usage-state key (§10.4).
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
@@ -101,6 +101,15 @@ pub struct ScriptSpec {
     pub cwd: String,
 }
 
+/// The table id as an alias of a config entry, unless it already is the name.
+fn id_alias(id: &str, name: &str) -> Vec<String> {
+    if id.eq_ignore_ascii_case(name) {
+        Vec::new()
+    } else {
+        vec![id.to_owned()]
+    }
+}
+
 /// Root-list entries for configured scripts (§10.3). The script id is an
 /// alias, so it is searchable alongside the display name.
 pub fn script_entries(scripts: &BTreeMap<String, ScriptConfig>) -> Vec<IndexedApp> {
@@ -110,11 +119,7 @@ pub fn script_entries(scripts: &BTreeMap<String, ScriptConfig>) -> Vec<IndexedAp
             id: AppId::Script { id: id.clone() },
             display_name: script.name.clone(),
             sort_name: script.name.to_lowercase(),
-            aliases: if id.eq_ignore_ascii_case(&script.name) {
-                Vec::new()
-            } else {
-                vec![id.clone()]
-            },
+            aliases: id_alias(id, &script.name),
             source: AppSource::Config,
             launch: LaunchSpec::Script(ScriptSpec {
                 interpreter: script.interpreter.clone(),
@@ -136,11 +141,7 @@ pub fn quicklink_entries(quicklinks: &BTreeMap<String, QuicklinkConfig>) -> Vec<
             id: AppId::Quicklink { id: id.clone() },
             display_name: link.name.clone(),
             sort_name: link.name.to_lowercase(),
-            aliases: if id.eq_ignore_ascii_case(&link.name) {
-                Vec::new()
-            } else {
-                vec![id.clone()]
-            },
+            aliases: id_alias(id, &link.name),
             source: AppSource::Config,
             launch: LaunchSpec::Quicklink {
                 target: link.url.clone(),
