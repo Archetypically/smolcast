@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <!-- partial:head -->
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark light" />
+    <meta name="theme-color" content="#101012" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#f0f0f2" media="(prefers-color-scheme: light)" />
+    <meta name="author" content="Evan Lee" />
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <link rel="alternate" type="text/plain" href="/llms.txt" title="llms.txt" />
+    <link rel="stylesheet" href="/tokens.css" />
+    <link rel="stylesheet" href="/styles.css" />
+    <script src="/app.js" defer></script>
+    <!-- /partial:head -->
+    <title>Code signing policy · smolcast</title>
+    <meta
+      name="description"
+      content="How smolcast releases will be signed: built from a tagged commit on GitHub, signed through SignPath Foundation's free program for open-source projects, approved by hand. Being set up; releases so far are unsigned."
+    />
+    <link rel="canonical" href="https://smolcast.evanlee.engineer/code-signing" />
+    <meta name="robots" content="index, follow, max-snippet:-1" />
+    <meta property="og:type" content="article" />
+    <meta property="og:site_name" content="smolcast" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:url" content="https://smolcast.evanlee.engineer/code-signing" />
+    <meta property="og:title" content="Signed releases will only come from GitHub" />
+    <meta
+      property="og:description"
+      content="Being set up: releases built from a tagged commit on GitHub, signed through SignPath Foundation, approved by hand. Until then they are unsigned."
+    />
+    <meta property="og:image" content="https://smolcast.evanlee.engineer/og/code-signing.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta
+      property="og:image:alt"
+      content="smolcast code signing, being set up: one file to sign, never from a personal computer, each release approved by hand."
+    />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Signed releases will only come from GitHub" />
+    <meta
+      name="twitter:description"
+      content="Being set up: releases built from a tagged commit on GitHub, signed through SignPath Foundation, approved by hand. Until then they are unsigned."
+    />
+    <meta name="twitter:image" content="https://smolcast.evanlee.engineer/og/code-signing.png" />
+    <meta
+      name="twitter:image:alt"
+      content="smolcast code signing, being set up: one file to sign, never from a personal computer, each release approved by hand."
+    />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebPage",
+            "@id": "https://smolcast.evanlee.engineer/code-signing",
+            "url": "https://smolcast.evanlee.engineer/code-signing",
+            "name": "smolcast code signing policy",
+            "description": "What smolcast will sign, how a release is built and approved, who holds each role, and how to check a download.",
+            "datePublished": "2026-10-23",
+            "dateModified": "2026-10-23",
+            "isPartOf": { "@id": "https://smolcast.evanlee.engineer/#website" },
+            "about": { "@id": "https://smolcast.evanlee.engineer/#app" },
+            "author": { "@id": "https://smolcast.evanlee.engineer/#author" }
+          },
+          {
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+              { "@type": "ListItem", "position": 1, "name": "smolcast", "item": "https://smolcast.evanlee.engineer/" },
+              { "@type": "ListItem", "position": 2, "name": "Code signing policy" }
+            ]
+          }
+        ]
+      }
+    </script>
+  </head>
+  <body>
+    <a class="skip" href="#content">Skip to the policy</a>
+
+    <!-- partial:topbar -->
+    <header class="topbar" id="top">
+      <a class="brand" href="/" aria-label="smolcast home">
+        <img src="/favicon.svg" alt="" width="24" height="24" />
+        <span>smolcast</span>
+      </a>
+      <nav class="topbar-actions" aria-label="Site">
+        <button class="summon-pill" type="button" data-summon aria-label="Open the palette (Ctrl K)">
+          <svg aria-hidden="true"><use href="/icons.svg#search" /></svg>
+          <span>Search</span>
+          <kbd class="cap" data-key="Control">Ctrl</kbd><kbd class="cap" data-key="k">K</kbd>
+        </button>
+        <a class="link" href="https://github.com/Archetypically/smolcast">GitHub</a>
+        <a class="button small" href="/#install">Download</a>
+      </nav>
+    </header>
+    <!-- /partial:topbar -->
+
+    <main class="doc" id="content" tabindex="-1">
+      <header class="doc-hero">
+        <ol class="crumbs">
+          <li><a href="/">smolcast</a></li>
+          <li aria-current="page">Code signing policy</li>
+        </ol>
+        <h1>Signed releases will only come from GitHub.</h1>
+        <p class="lead">
+          Once signing is on, each release is built from a tagged commit on GitHub and signed through SignPath
+          Foundation. Until then, releases are unsigned.
+        </p>
+        <p class="stamp">
+          <span class="tag">Updated <time datetime="2026-10-23">23 Oct 2026</time></span>
+          <span class="status part">Signing is being set up; releases so far are unsigned</span>
+        </p>
+      </header>
+
+      <ul class="facts">
+        <li class="card"><span class="figure">1</span><span>File to sign: smolcast’s own executable</span></li>
+        <li class="card"><span class="figure">0</span><span>Builds signed from a personal computer</span></li>
+        <li class="card"><span class="figure">1</span><span>Approval by hand for every signed release</span></li>
+      </ul>
+
+      <section class="doc-section" aria-labelledby="how-title">
+        <h2 id="how-title">How a release will be signed</h2>
+        <p>
+          Once signing is on, every release goes through these three steps. What gets signed:
+          <code>smolcast-&lt;version&gt;-x86_64.exe</code> on
+          <a href="https://github.com/Archetypically/smolcast/releases">GitHub Releases</a>. smolcast bundles no other
+          programs, so nothing else carries the signature.
+        </p>
+        <div class="cards three">
+          <article class="card">
+            <h3>Built on GitHub</h3>
+            <p>
+              Pushing a version tag such as <code>v0.2.0</code> runs
+              <a href="https://github.com/Archetypically/smolcast/blob/main/.github/workflows/release.yml"
+                >the release workflow</a
+              >
+              on a fresh GitHub-hosted Windows machine. It builds from that commit and nothing else.
+            </p>
+          </article>
+          <article class="card">
+            <h3>Signed through SignPath</h3>
+            <p>
+              The workflow hands the executable to SignPath, which checks it came from this repository’s workflow before
+              signing it with SignPath Foundation’s certificate. The signing key never leaves SignPath.
+            </p>
+          </article>
+          <article class="card">
+            <h3>Approved by hand</h3>
+            <p>
+              An approver (below) confirms each signing request. Only then is the release published, with its SHA-256
+              checksum beside it.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section class="doc-section" aria-labelledby="team-title">
+        <h2 id="team-title">Who does what</h2>
+        <ul class="files">
+          <li>
+            <span><strong>Committers and reviewers</strong></span
+            ><span
+              ><a href="https://github.com/Archetypically">Evan Lee</a>. Changes from anyone else are reviewed before
+              they merge.</span
+            >
+          </li>
+          <li>
+            <span><strong>Approvers</strong></span
+            ><span><a href="https://github.com/Archetypically">Evan Lee</a>, for every signing request.</span>
+          </li>
+        </ul>
+      </section>
+
+      <section class="doc-section" aria-labelledby="check-title">
+        <h2 id="check-title">Check a download</h2>
+        <p>
+          Every release has a checksum. The signature starts with the first signed release, and the build record once
+          the repository is public; earlier releases have neither.
+        </p>
+        <div class="cards three">
+          <article class="card">
+            <h3>The signature</h3>
+            <p>
+              Right-click the file, then <strong>Properties</strong> › <strong>Digital Signatures</strong>. A signed
+              release names <strong>SignPath Foundation</strong>.
+            </p>
+          </article>
+          <article class="card">
+            <h3>The checksum</h3>
+            <p>
+              Each release lists a <code>.sha256</code> file. In PowerShell,
+              <code>Get-FileHash smolcast-*.exe</code> should print the same value, in capitals.
+            </p>
+          </article>
+          <article class="card">
+            <h3>The build</h3>
+            <p>
+              <code>gh attestation verify</code> on the file, with <code>--repo Archetypically/smolcast</code>, confirms
+              GitHub built it from this repository.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section class="doc-section" aria-labelledby="privacy-title">
+        <h2 id="privacy-title">Privacy</h2>
+        <p>
+          The signed program sends nothing about you. The only request it makes on its own is a daily update check, with
+          an off switch. <a href="/privacy">Read the privacy policy</a> for everything it keeps and sends.
+        </p>
+      </section>
+
+      <footer class="footnotes" id="changes" aria-labelledby="changes-title">
+        <h2 id="changes-title">Credits, changes and contact</h2>
+        <p>
+          Free code signing provided by <a href="https://about.signpath.io">SignPath.io</a>, certificate by
+          <a href="https://signpath.org">SignPath Foundation</a>.
+        </p>
+        <p>
+          Last updated <time datetime="2026-10-23">23 October 2026</time>. Every earlier version is in
+          <a href="https://github.com/Archetypically/smolcast/commits/main/website/public/code-signing.html"
+            >the project’s history</a
+          >.
+        </p>
+        <p>
+          Found a file signed as smolcast that didn’t come from its releases? Open an issue on
+          <a href="https://github.com/Archetypically/smolcast/issues">GitHub</a> or reach Evan Lee through
+          <a href="https://evanlee.engineer">evanlee.engineer</a>.
+        </p>
+      </footer>
+    </main>
+
+    <!-- partial:footer -->
+    <footer class="footer" id="about" tabindex="-1">
+      <div class="footer-inner">
+        <a class="brand" href="/" aria-label="smolcast home">
+          <img src="/favicon.svg" alt="" width="24" height="24" /><span>smolcast</span>
+        </a>
+        <p class="made">
+          Made with
+          <svg class="heart" aria-hidden="true"><use href="/icons.svg#heart" /></svg
+          ><span class="sr-only">love</span> by <a href="https://evanlee.engineer">Evan Lee</a>
+        </p>
+        <p class="credits">
+          In the spirit of <a href="https://tinycast.dev">Tinycast</a>,
+          <a href="https://www.raycast.com">Raycast</a> and <a href="https://www.alfredapp.com">Alfred</a>. Not
+          affiliated with any of them.
+        </p>
+        <nav class="footer-links" aria-label="Project">
+          <a href="https://github.com/Archetypically/smolcast">Source</a>
+          <a href="https://github.com/Archetypically/smolcast/releases">Releases</a>
+          <a href="https://github.com/Archetypically/smolcast/issues">Issues</a>
+          <a href="/compare/">Compare</a>
+          <a href="/privacy">Privacy</a>
+          <a href="/code-signing">Code signing policy</a>
+          <a href="https://github.com/Archetypically/smolcast/blob/main/LICENSE">MIT License</a>
+          <a href="/llms.txt">llms.txt</a>
+        </nav>
+      </div>
+    </footer>
+    <!-- /partial:footer -->
+  </body>
+</html>
