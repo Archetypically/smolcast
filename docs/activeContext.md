@@ -168,9 +168,14 @@ every frame (cost only).
    `main`. Also add release notes: license notices, checksum, first-run
    behavior, and the clean-account check (§12.7 gate). Updates only work
    once the repo is public and a `v*` tag has published a release.
-3. **Sign builds** (decision 019): Authenticode (e.g. Azure Trusted Signing)
-   for SmartScreen, and/or an Ed25519 key embedded in the exe, verified
-   before the update swap. Until then the checksum only catches corruption.
+3. **Sign builds** (decision 019): Authenticode (Azure Artifact Signing if
+   the user qualifies as a US/Canada individual, else SignPath Foundation
+   once public; either also covers winget and a Store exe installer), then
+   `WinVerifyTrust` on the signer name before the update swap (or an ECDSA
+   P-256 key checked with BCrypt). Until then the checksum only catches
+   corruption. Done (2026-10-23): releases only on `v<semver>` tags, and
+   build provenance attestations, which start when the repo goes public
+   (plan §13); then mention `gh attestation verify` in the README.
 4. Decide the deferred review items above. `old-review-fixes` (on main) moved
    every view onto `RequestCache` and `ListCursor` (decision 024). Windows
    check: icons, file icons, emoji and thumbnails stay sharp across a
