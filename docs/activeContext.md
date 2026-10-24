@@ -137,6 +137,16 @@ on the next start. Windows check: starting from the Start menu opens the
 palette and Esc dismisses it; with `start_at_login` on, the Run value ends
 in `--login` and signing in shows nothing; an update relaunch stays hidden.
 
+## Web search globe glyph (2026-10-23), unverified
+
+Decision 038: the web search fallback row is led by a globe glyph for every
+engine; the monogram badge (`theme::engine_badge`, `SearchEngine::badge`) is
+gone, and the website's quicklinks tile and the demo film's source match
+(the published film in `public/media/` still shows the badge until it is
+re-recorded with `task web:film`). Windows check: the row shows
+the globe from Segoe Fluent Icons (🌐 without the font), distinct from the
+Search Files magnifier below it.
+
 ## Pending Windows checks
 
 - Installed programs (decision 027, linted for GNU only): Overwatch and
@@ -228,8 +238,6 @@ in `--login` and signing in shows nothing; an update relaunch stays hidden.
 - **Dictionary**: tabled by the user (2026-10-21). Windows has no definitions
   API (only ISpellChecker). Options if revived: "define <word>" via web
   search, bundled WordNet (+10–30 MB), or an online API.
-- **Real engine logos** instead of monogram badges: needs bundled assets
-  (licensing) or a network fetch.
 - **Calculator Enter** pastes; Raycast copies. Revisit if the user wants copy.
 - **Broken-shortcut "Ignore"** is in memory only; persist it if the offer
   nags across restarts.

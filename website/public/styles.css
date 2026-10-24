@@ -27,7 +27,6 @@
   --thumb-sky: #8fb7d9;
   --thumb-sand: #d8c3a5;
   --thumb-shade: rgb(0 0 0 / 25%);
-  --google: #4285f4;
   --hairline: linear-gradient(90deg, transparent, var(--divider) 18%, var(--divider) 82%, transparent);
 
   --font: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
@@ -1219,18 +1218,6 @@ h2 {
   background:
     linear-gradient(160deg, transparent 55%, var(--thumb-shade) 55%),
     linear-gradient(180deg, var(--thumb-sky), var(--thumb-sand));
-}
-
-.badge {
-  display: grid;
-  place-items: center;
-  width: 17px;
-  height: 17px;
-  margin: 0 1.5px;
-  border-radius: 50%;
-  background: var(--badge);
-  color: var(--on-color);
-  font: 600 10px/1 var(--font);
 }
 
 .mini-card {
