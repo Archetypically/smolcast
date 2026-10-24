@@ -1,4 +1,6 @@
-# smolcast
+![](website/public/og.png)
+
+# [smolcast](https://smolcast.evanlee.engineer)
 
 **A small, fully native command palette for Windows 11. One hotkey for your apps, files, clipboard, emoji, scripts and snippets, in a single executable that sits idle until you need it.**
 
