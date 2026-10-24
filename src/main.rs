@@ -20,6 +20,7 @@ use windows::Win32::UI::WindowsAndMessaging::{MB_ICONERROR, MB_OK, MessageBoxW};
 use windows::core::PCWSTR;
 
 use smolcast::app::eframe_host::{EframeApp, Startup};
+use smolcast::app::launcher::LauncherStores;
 use smolcast::app::model::{AppEvent, AppModel, Wake};
 use smolcast::app::notice::{Notice, Severity, op};
 use smolcast::app::report_view::ReportView;
@@ -92,6 +93,8 @@ fn main() -> eframe::Result {
     startup_notices.extend(usage_notice);
     let (favorites, favorites_notice) = persistence::load_favorites(&paths.favorites);
     startup_notices.extend(favorites_notice);
+    let (hidden, hidden_notice) = persistence::load_hidden(&paths.hidden);
+    startup_notices.extend(hidden_notice);
     if crash_log::take_unseen(&paths.crash_log) {
         startup_notices.push(Notice::new(
             Severity::Warning,
@@ -154,8 +157,11 @@ fn main() -> eframe::Result {
             let model = AppModel::new(
                 event_rx,
                 config,
-                usage,
-                favorites,
+                LauncherStores {
+                    usage,
+                    favorites,
+                    hidden,
+                },
                 startup_notices,
                 force_visible,
                 report,

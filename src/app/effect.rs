@@ -30,6 +30,7 @@ pub enum Effect {
     /// Encoded usage to write, with its generation (§10.4).
     SaveUsage(u64, Vec<u8>),
     SaveFavorites(Vec<u8>),
+    SaveHidden(Vec<u8>),
     /// A file query for the Windows Search worker: generation, text (§6.6).
     FileSearch(u64, String),
     Update(UpdateRequest),

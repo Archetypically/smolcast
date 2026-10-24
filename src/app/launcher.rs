@@ -9,6 +9,8 @@ use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use egui::{Color32, Key, Modifiers, Pos2, Rect, RichText, Sense, TextureHandle, Vec2};
+use fuzzy_matcher::FuzzyMatcher;
+use fuzzy_matcher::skim::SkimMatcherV2;
 
 use std::collections::BTreeMap;
 
@@ -19,6 +21,7 @@ use crate::core::app_index::{
 use crate::core::calc::{self, Answer};
 use crate::core::config::{PaletteSize, QuicklinkConfig, ScriptConfig, SearchEngine};
 use crate::core::favorites::{Favorites, MAX_FAVORITES};
+use crate::core::hidden::Hidden;
 use crate::core::list_cursor::{self, ListCursor};
 use crate::core::matcher::{Ranked, rank};
 use crate::core::quicklink;
@@ -67,6 +70,13 @@ pub struct IconRequest {
     pub app_id: AppId,
     pub icon_key: String,
     pub size: u32,
+}
+
+/// The launcher's state loaded from disk at startup.
+pub struct LauncherStores {
+    pub usage: Stored<Usage>,
+    pub favorites: Stored<Favorites>,
+    pub hidden: Stored<Hidden>,
 }
 
 pub struct Launcher {
@@ -121,7 +131,16 @@ pub struct Launcher {
     /// How many of `ranked`'s leading entries are favorites (empty query
     /// only; 0 while searching).
     favorite_rows: usize,
-    /// A notice for the model to show (favorites full).
+    /// Entries left out of the root list, listed by the Hidden Entries view.
+    hidden: Hidden,
+    hidden_writable: bool,
+    /// The hidden-entries document to save after a change.
+    hidden_snapshot: Option<Vec<u8>>,
+    /// Selection and scroll in the Hidden Entries view, and the query
+    /// they are for.
+    hidden_cursor: ListCursor,
+    hidden_query: String,
+    /// A notice for the model to show (favorites full, an entry hidden).
     notice: Option<Notice>,
     icons: RequestCache<AppId, TextureHandle>,
     /// Result rows shown at once, from the palette size.
@@ -153,13 +172,17 @@ pub struct Launcher {
 impl Launcher {
     /// Starts with the persisted usage and requests the startup scan.
     pub fn new(
-        usage: Stored<Usage>,
-        favorites: Stored<Favorites>,
+        stores: LauncherStores,
         scripts: &BTreeMap<String, ScriptConfig>,
         quicklinks: &BTreeMap<String, QuicklinkConfig>,
     ) -> Self {
         let scripts = script_entries(scripts);
         let quicklinks = quicklink_entries(quicklinks);
+        let LauncherStores {
+            usage,
+            favorites,
+            hidden,
+        } = stores;
         let mut launcher = Self {
             apps: Vec::new(),
             usage_writable: usage.writable,
@@ -167,6 +190,11 @@ impl Launcher {
             favorites: favorites.value,
             favorites_snapshot: None,
             favorite_rows: 0,
+            hidden_writable: hidden.writable,
+            hidden: hidden.value,
+            hidden_snapshot: None,
+            hidden_cursor: ListCursor::default(),
+            hidden_query: String::new(),
             notice: None,
             indexed: false,
             scanned: Vec::new(),
@@ -636,6 +664,10 @@ impl Launcher {
         self.favorites_snapshot.take()
     }
 
+    pub fn take_hidden_snapshot(&mut self) -> Option<Vec<u8>> {
+        self.hidden_snapshot.take()
+    }
+
     pub fn take_notice(&mut self) -> Option<Notice> {
         self.notice.take()
     }
@@ -727,9 +759,174 @@ impl Launcher {
         if self.favorites_writable {
             self.favorites_snapshot = Some(self.favorites.encode());
         }
-        // Re-rank in place: the query is unchanged, so keep the selection.
+        self.rerank_in_place();
+    }
+
+    /// Re-rank for the same query, keeping the selection.
+    fn rerank_in_place(&mut self) {
         let query = self.ranked_for.clone().unwrap_or_default();
         self.rank_now(&query);
+    }
+
+    // ---- hidden entries -----------------------------------------------------------
+
+    /// Whether the entry can be hidden: everything but the view that
+    /// unhides, so hidden entries can always be brought back.
+    fn hideable(id: &AppId) -> bool {
+        *id != Command::HiddenEntries.id()
+    }
+
+    /// Take the entry on `row` out of the root list. A favorite stops being
+    /// one, so it does not hold a place among the 5.
+    fn hide(&mut self, row: usize) {
+        let Some(app) = self.app_at(row) else {
+            return;
+        };
+        if !Self::hideable(&app.id) {
+            return;
+        }
+        let (id, name) = (app.id.clone(), app.display_name.clone());
+        if self.favorites.contains(&id) {
+            self.favorites.remove(&id);
+            if self.favorites_writable {
+                self.favorites_snapshot = Some(self.favorites.encode());
+            }
+        }
+        self.notice = Some(Notice::new(
+            Severity::Info,
+            op::LAUNCHER,
+            format!("Hid \u{201C}{name}\u{201D}. Manage Hidden Entries brings it back."),
+        ));
+        self.hidden.hide(id, name);
+        self.hidden_changed();
+        self.rerank_in_place();
+    }
+
+    fn hidden_changed(&mut self) {
+        if self.hidden_writable {
+            self.hidden_snapshot = Some(self.hidden.encode());
+        }
+    }
+
+    /// Open the Hidden Entries view at its first row.
+    pub fn open_hidden(&mut self) {
+        self.hidden_cursor.reset();
+    }
+
+    /// Indices into the hidden entries matching `query`, in the order hidden.
+    /// A new query starts the selection from the top.
+    fn hidden_matches(&mut self, query: &str) -> Vec<usize> {
+        let query = query.trim();
+        if self.hidden_query != query {
+            self.hidden_query = query.to_owned();
+            self.hidden_cursor.reset();
+        }
+        let matcher = SkimMatcherV2::default();
+        (0..self.hidden.entries().len())
+            .filter(|&i| {
+                query.is_empty() || matcher.fuzzy_match(&self.hidden_name(i), query).is_some()
+            })
+            .collect()
+    }
+
+    /// A hidden entry's current name, or the one it had when hidden while
+    /// it is not in the index.
+    fn hidden_name(&self, i: usize) -> String {
+        let entry = &self.hidden.entries()[i];
+        self.apps
+            .iter()
+            .find(|a| a.id == entry.id)
+            .map_or_else(|| entry.name.clone(), |a| a.display_name.clone())
+    }
+
+    fn unhide(&mut self, i: usize) {
+        let id = self.hidden.entries()[i].id.clone();
+        self.hidden.unhide(&id);
+        self.hidden_changed();
+        // The root list re-ranks when shown again.
+        self.ranked_for = None;
+    }
+
+    /// Up, Down and Enter (unhide) in the Hidden Entries view.
+    pub fn hidden_keys(&mut self, ui: &mut egui::Ui, query: &str) {
+        let (down, up, enter) = ui.input_mut(|i| {
+            (
+                i.consume_key(Modifiers::NONE, Key::ArrowDown),
+                i.consume_key(Modifiers::NONE, Key::ArrowUp),
+                i.consume_key(Modifiers::NONE, Key::Enter),
+            )
+        });
+        let matches = self.hidden_matches(query);
+        self.hidden_cursor.step(matches.len(), down, up);
+        if enter && let Some(&i) = matches.get(self.hidden_cursor.selected) {
+            self.unhide(i);
+        }
+    }
+
+    /// The Hidden Entries view: every hidden entry, unhidden by Enter or a
+    /// click.
+    pub fn hidden_ui(&mut self, ui: &mut egui::Ui, query: &str) {
+        let matches = self.hidden_matches(query);
+        theme::section_header(ui, "Hidden", None);
+        if matches.is_empty() {
+            theme::inset(ui, |ui| {
+                let text = if self.hidden.entries().is_empty() {
+                    "Nothing is hidden."
+                } else {
+                    "No matches."
+                };
+                ui.label(RichText::new(text).weak());
+                ui.label(
+                    RichText::new(
+                        "Hide an entry from its right-click menu or with Ctrl+Shift+H. \
+                         Enter here brings it back.",
+                    )
+                    .weak()
+                    .small(),
+                );
+            });
+            return;
+        }
+        self.hidden_cursor.clamp_selected(matches.len());
+        let visible = list::scroll(ui, &mut self.hidden_cursor, matches.len(), self.rows);
+        let icon_px = (ICON_POINTS * ui.ctx().pixels_per_point()).round() as u32;
+        self.icons.set_edge(list::icon_request_edge(icon_px));
+        let mut clicked = None;
+        for row in visible.clone() {
+            let i = matches[row];
+            let entry = &self.hidden.entries()[i];
+            let index = self.apps.iter().position(|a| a.id == entry.id);
+            let icon = index.and_then(|index| self.icon_for(index));
+            let launch = index.map(|index| &self.apps[index].launch);
+            let kind = launch.map_or("Not installed", kind_label);
+            let name = self.hidden_name(i);
+            let leading = |ui: &mut egui::Ui| entry_leading(ui, icon.as_ref(), launch);
+            let trailing = |ui: &mut egui::Ui| {
+                ui.label(RichText::new(kind).weak().small());
+            };
+            let state =
+                list::RowState::of(row, self.hidden_cursor.selected, &visible, matches.len());
+            if list::row(ui, state, &name, leading, trailing).clicked() {
+                clicked = Some(i);
+            }
+        }
+        if let Some(i) = clicked {
+            self.unhide(i);
+        }
+    }
+
+    /// The icon of `apps[index]`, requested from the host when missing.
+    fn icon_for(&mut self, index: usize) -> Option<TextureHandle> {
+        let app = &self.apps[index];
+        let icon = self.icons.get(&app.id);
+        if icon.is_none() && !app.icon_key.is_empty() && self.icons.begin(&app.id) {
+            self.icon_requests.push(IconRequest {
+                app_id: app.id.clone(),
+                icon_key: app.icon_key.clone(),
+                size: self.icons.edge(),
+            });
+        }
+        icon
     }
 
     /// What a running scan is doing, for the section header.
@@ -801,15 +998,19 @@ impl Launcher {
         }
         // Raycast's favorite shortcuts, with Ctrl for Cmd.
         let shift_ctrl = Modifiers::CTRL | Modifiers::SHIFT;
-        let (toggle, move_up, move_down) = ui.input_mut(|i| {
+        let (toggle, move_up, move_down, hide) = ui.input_mut(|i| {
             (
                 i.consume_key(shift_ctrl, Key::F),
                 i.consume_key(shift_ctrl, Key::ArrowUp),
                 i.consume_key(shift_ctrl, Key::ArrowDown),
+                i.consume_key(shift_ctrl, Key::H),
             )
         });
         if toggle {
             self.toggle_favorite(self.cursor.selected);
+        }
+        if hide {
+            self.hide(self.cursor.selected);
         }
         let on_favorite = self.cursor.selected >= self.answer_rows()
             && self.cursor.selected - self.answer_rows() < self.favorite_rows;
@@ -847,7 +1048,15 @@ impl Launcher {
     }
 
     fn rank_now(&mut self, query: &str) {
-        self.ranked = rank(query, &self.apps, &self.usage, unix_ms_now());
+        self.ranked = rank(
+            query,
+            &self.apps,
+            &self.usage,
+            &self.favorites,
+            unix_ms_now(),
+        );
+        self.ranked
+            .retain(|r| !self.hidden.contains(&self.apps[r.index].id));
         let trimmed = query.trim();
         // An empty query leads with the favorites, in the user's order.
         self.favorite_rows = 0;
@@ -871,6 +1080,7 @@ impl Launcher {
         self.keyword_query = quicklink::split_keyword(trimmed).and_then(|(keyword, rest)| {
             let index = self.apps.iter().position(|app| {
                 matches!(&app.id, AppId::Quicklink { id } if id.eq_ignore_ascii_case(keyword))
+                    && !self.hidden.contains(&app.id)
                     && matches!(&app.launch, LaunchSpec::Quicklink { target }
                         if quicklink::takes_query(target))
             })?;
@@ -1003,44 +1213,19 @@ impl Launcher {
                 continue;
             }
             let index = self.ranked[row - offset].index;
-            let app = &self.apps[index];
-            let favorite = self.favorites.contains(&app.id);
+            let id = &self.apps[index].id;
+            let favorite = self.favorites.contains(id);
+            let hideable = Self::hideable(id);
             let in_favorites = row - offset < self.favorite_rows;
-            let icon = self.icons.get(&app.id);
-            if icon.is_none() && !app.icon_key.is_empty() && self.icons.begin(&app.id) {
-                self.icon_requests.push(IconRequest {
-                    app_id: app.id.clone(),
-                    icon_key: app.icon_key.clone(),
-                    size: self.icons.edge(),
-                });
-            }
+            let icon = self.icon_for(index);
+            let app = &self.apps[index];
 
             let launching = self
                 .launch_pending
                 .as_ref()
                 .is_some_and(|(_, id, _)| *id == app.id);
             let confirming = self.confirming.as_ref() == Some(&app.id);
-            let leading = |ui: &mut egui::Ui| {
-                let size = Vec2::splat(ICON_POINTS);
-                match (&icon, &app.launch) {
-                    (Some(texture), _) => list::icon(ui, texture, ICON_POINTS),
-                    (None, LaunchSpec::Command(command)) => {
-                        theme::glyph(ui, command_glyph(*command), ICON_POINTS);
-                    }
-                    (None, LaunchSpec::System(action)) => {
-                        theme::glyph(ui, system_glyph(*action), ICON_POINTS);
-                    }
-                    (None, LaunchSpec::Quicklink { .. }) => {
-                        theme::glyph(ui, Glyph::new('\u{E71B}', "🔗"), ICON_POINTS);
-                    }
-                    (None, LaunchSpec::Script(_)) => {
-                        theme::glyph(ui, Glyph::new('\u{E768}', "▶"), ICON_POINTS);
-                    }
-                    (None, _) => {
-                        ui.allocate_exact_size(size, Sense::hover());
-                    }
-                }
-            };
+            let leading = |ui: &mut egui::Ui| entry_leading(ui, icon.as_ref(), Some(&app.launch));
             // The right column is the entry type (§5.4); while searching, a
             // favorite says so, since it is not in its own section then. A
             // system action waiting for its second Enter says that instead.
@@ -1076,16 +1261,22 @@ impl Launcher {
                     .add(egui::Button::new(toggle).shortcut_text(shortcut))
                     .clicked()
                 {
-                    menu = Some((row, FavoriteAction::Toggle));
+                    menu = Some((row, RowAction::Toggle));
                 }
                 if in_favorites {
                     let up = egui::Button::new("Move Up").shortcut_text("Ctrl+Shift+Up");
                     if ui.add(up).clicked() {
-                        menu = Some((row, FavoriteAction::Up));
+                        menu = Some((row, RowAction::Up));
                     }
                     let down = egui::Button::new("Move Down").shortcut_text("Ctrl+Shift+Down");
                     if ui.add(down).clicked() {
-                        menu = Some((row, FavoriteAction::Down));
+                        menu = Some((row, RowAction::Down));
+                    }
+                }
+                if hideable {
+                    let hide = egui::Button::new("Hide").shortcut_text("Ctrl+Shift+H");
+                    if ui.add(hide).clicked() {
+                        menu = Some((row, RowAction::Hide));
                     }
                 }
             });
@@ -1093,9 +1284,10 @@ impl Launcher {
         if let Some((row, action)) = menu {
             self.cursor.selected = row;
             match action {
-                FavoriteAction::Toggle => self.toggle_favorite(row),
-                FavoriteAction::Up => self.move_favorite(row, true),
-                FavoriteAction::Down => self.move_favorite(row, false),
+                RowAction::Toggle => self.toggle_favorite(row),
+                RowAction::Up => self.move_favorite(row, true),
+                RowAction::Down => self.move_favorite(row, false),
+                RowAction::Hide => self.hide(row),
             }
         } else if let Some(row) = clicked {
             if row != self.cursor.selected {
@@ -1211,11 +1403,35 @@ fn fallback_title(query: &str) -> String {
     format!("Search for \u{201C}{shown}{ellipsis}\u{201D}")
 }
 
-/// A favorites change chosen from a row's context menu.
-enum FavoriteAction {
+/// A change chosen from a row's context menu.
+enum RowAction {
     Toggle,
     Up,
     Down,
+    Hide,
+}
+
+/// A row's leading icon, or its kind's glyph until the icon loads; `launch`
+/// is `None` for a hidden entry that is not installed.
+fn entry_leading(ui: &mut egui::Ui, icon: Option<&TextureHandle>, launch: Option<&LaunchSpec>) {
+    match (icon, launch) {
+        (Some(texture), _) => list::icon(ui, texture, ICON_POINTS),
+        (None, Some(LaunchSpec::Command(command))) => {
+            theme::glyph(ui, command_glyph(*command), ICON_POINTS);
+        }
+        (None, Some(LaunchSpec::System(action))) => {
+            theme::glyph(ui, system_glyph(*action), ICON_POINTS);
+        }
+        (None, Some(LaunchSpec::Quicklink { .. })) => {
+            theme::glyph(ui, Glyph::new('\u{E71B}', "🔗"), ICON_POINTS);
+        }
+        (None, Some(LaunchSpec::Script(_))) => {
+            theme::glyph(ui, Glyph::new('\u{E768}', "▶"), ICON_POINTS);
+        }
+        (None, _) => {
+            ui.allocate_exact_size(Vec2::splat(ICON_POINTS), Sense::hover());
+        }
+    }
 }
 
 /// List rows the calculator card and the "Results" header below it replace.
@@ -1328,6 +1544,7 @@ fn command_glyph(command: Command) -> Glyph {
         Command::SearchFiles => GLYPH_SEARCH,
         Command::CheckForUpdates => Glyph::new('\u{E895}', "🔄"), // Sync
         Command::ReportBug => Glyph::new('\u{EBE8}', "🐞"),       // Bug
+        Command::HiddenEntries => Glyph::new('\u{ED1A}', "🙈"),   // Hide
     }
 }
 

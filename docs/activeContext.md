@@ -147,6 +147,17 @@ re-recorded with `task web:film`). Windows check: the row shows
 the globe from Segoe Fluent Icons (🌐 without the font), distinct from the
 Search Files magnifier below it.
 
+## Favorites in search, hidden entries (2026-10-24), unverified
+
+Decision 039, plan §6.3: favorites get a ranking bonus while searching;
+Ctrl+Shift+H or "Hide" takes any entry but Manage Hidden Entries out of the
+root list (`hidden.json`), and that command's view unhides. The desktop
+smoke test hides and unhides its marker shortcut. Windows check: a favorite
+outranks a comparable match ("pa" with Notepad pinned) but not a much better
+one; hiding a favorite unpins it; a hidden quicklink's keyword does nothing;
+the view's icons, "Not installed" rows, search, Enter and click; the unhide
+glyph (U+ED1A) renders; persistence across restart.
+
 ## Pending Windows checks
 
 - Installed programs (decision 027, linted for GNU only): Overwatch and
@@ -222,8 +233,6 @@ Search Files magnifier below it.
 ## Open questions and parked ideas
 
 - **Backlog from the user (2026-10-23)**, not designed yet:
-  - *Per-entry hiding*: "Hide" on any result (app, command, quicklink),
-    persisted like favorites (decision 011), with a way to list and unhide.
   - *About links*: "About smolcast" exists (`app/about_view.rs`) but links
     nowhere; add the website and the repository.
   - *Donations via Polar (polar.sh)*: a "Support smolcast" link (About, the
@@ -251,7 +260,7 @@ Search Files magnifier below it.
   and radii fixed; high contrast wins; hot reload via config reload.
 - **Tinycast gaps** (reviewed 2026-10-22, AI features ignored; Tinycast is
   AGPL, so ideas only, never code). Good fits not started: per-app hotkeys,
-  app aliases/hiding, running apps with quit, Uninstall, clipboard pinning,
+  app aliases, running apps with quit, Uninstall, clipboard pinning,
   paste as plain text, snippet placeholders, script arguments and shown
   output (Raycast's modes), quicklink `{clipboard}`/`{date}` and an editor.
   Bigger: window switcher, notes. Out: window management, network features,

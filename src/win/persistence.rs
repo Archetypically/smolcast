@@ -29,6 +29,7 @@ use windows::core::PCWSTR;
 use crate::app::model::{AppEvent, Wake};
 use crate::app::notice::{Notice, Severity, op};
 use crate::core::favorites::Favorites;
+use crate::core::hidden::Hidden;
 use crate::core::history::{Payload, decode_record};
 use crate::core::usage::Usage;
 use crate::win::{known_folder, wide_path};
@@ -46,6 +47,8 @@ pub struct StatePaths {
     /// `%APPDATA%\smolcast\favorites.json`: user-curated, so it roams with
     /// the config rather than living with the usage cache.
     pub favorites: PathBuf,
+    /// `%APPDATA%\smolcast\hidden.json`: user-curated, like favorites.
+    pub hidden: PathBuf,
     /// `%LOCALAPPDATA%\smolcast\usage.json`
     pub usage: PathBuf,
     /// `%LOCALAPPDATA%\smolcast\clipboard\`: one DPAPI-encrypted file per
@@ -65,6 +68,7 @@ impl StatePaths {
         Some(Self {
             config: roaming.join("config.toml"),
             favorites: roaming.join("favorites.json"),
+            hidden: roaming.join("hidden.json"),
             usage: local.join("usage.json"),
             clipboard_dir: local.join("clipboard"),
             update_state: local.join("update.json"),
@@ -224,6 +228,17 @@ pub fn load_favorites(path: &Path) -> (Stored<Favorites>, Option<Notice>) {
     )
 }
 
+/// Load hidden entries; see [`load_versioned`].
+pub fn load_hidden(path: &Path) -> (Stored<Hidden>, Option<Notice>) {
+    load_versioned(
+        path,
+        "hidden",
+        "Hidden entries",
+        op::LAUNCHER,
+        Hidden::decode,
+    )
+}
+
 /// Missing means empty and writable. A file that does not decode is renamed
 /// to `<stem>.corrupt-<unix_ms>.json` and replaced by empty state. A file
 /// that cannot be read (locked, access denied) or moved aside is never
@@ -337,6 +352,8 @@ enum WriterCommand {
     },
     /// The whole favorites document; the newest queued one wins.
     Favorites(Vec<u8>),
+    /// The whole hidden-entries document; the newest queued one wins.
+    Hidden(Vec<u8>),
     Clipboard(ClipboardStoreCommand),
     Shutdown,
 }
@@ -371,6 +388,10 @@ impl StateWriter {
         let _ = self.tx.send(WriterCommand::Favorites(bytes));
     }
 
+    pub fn save_hidden(&self, bytes: Vec<u8>) {
+        let _ = self.tx.send(WriterCommand::Hidden(bytes));
+    }
+
     pub fn clipboard(&self, command: ClipboardStoreCommand) {
         let _ = self.tx.send(WriterCommand::Clipboard(command));
     }
@@ -399,14 +420,17 @@ fn writer_main(rx: Receiver<WriterCommand>, paths: StatePaths, wake: Wake) {
         usage: usage_path,
         clipboard_dir,
         favorites: favorites_path,
+        hidden: hidden_path,
         ..
     } = paths;
     remove_stale_temps(&usage_path);
     remove_stale_temps(&favorites_path);
+    remove_stale_temps(&hidden_path);
     let mut written_generation = 0u64;
     while let Ok(first) = rx.recv() {
         let mut newest: Option<(u64, Vec<u8>)> = None;
         let mut favorites: Option<Vec<u8>> = None;
+        let mut hidden: Option<Vec<u8>> = None;
         let mut stop = false;
         for command in std::iter::once(first).chain(rx.try_iter()) {
             match command {
@@ -416,6 +440,7 @@ fn writer_main(rx: Receiver<WriterCommand>, paths: StatePaths, wake: Wake) {
                     }
                 }
                 WriterCommand::Favorites(bytes) => favorites = Some(bytes),
+                WriterCommand::Hidden(bytes) => hidden = Some(bytes),
                 // Clipboard operations are not coalesced: each runs in order.
                 WriterCommand::Clipboard(command) => {
                     clipboard_store(&clipboard_dir, command, &wake)
@@ -423,15 +448,8 @@ fn writer_main(rx: Receiver<WriterCommand>, paths: StatePaths, wake: Wake) {
                 WriterCommand::Shutdown => stop = true,
             }
         }
-        if let Some(bytes) = favorites
-            && let Err(e) = atomic_write(&favorites_path, &bytes)
-        {
-            wake.send(AppEvent::Notice(Notice::new(
-                Severity::Warning,
-                op::LAUNCHER,
-                format!("Could not save favorites: {e}"),
-            )));
-        }
+        save_document(&favorites_path, favorites, "favorites", &wake);
+        save_document(&hidden_path, hidden, "hidden entries", &wake);
         if let Some((generation, bytes)) = newest
             && generation > written_generation
         {
@@ -447,6 +465,19 @@ fn writer_main(rx: Receiver<WriterCommand>, paths: StatePaths, wake: Wake) {
         if stop {
             break;
         }
+    }
+}
+
+/// Write a whole-document snapshot; a failed write is reported as a notice.
+fn save_document(path: &Path, bytes: Option<Vec<u8>>, what: &str, wake: &Wake) {
+    if let Some(bytes) = bytes
+        && let Err(e) = atomic_write(path, &bytes)
+    {
+        wake.send(AppEvent::Notice(Notice::new(
+            Severity::Warning,
+            op::LAUNCHER,
+            format!("Could not save {what}: {e}"),
+        )));
     }
 }
 

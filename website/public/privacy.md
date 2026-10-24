@@ -14,6 +14,7 @@ Everything lives in your own Windows profile. Delete the two `smolcast` folders 
 
 - `%APPDATA%\smolcast\config.toml`: Your settings, scripts, snippets and quicklinks
 - `%APPDATA%\smolcast\favorites.json`: The results you pinned
+- `%APPDATA%\smolcast\hidden.json`: The results you hid
 - `%LOCALAPPDATA%\smolcast\usage.json`: What you open and when, so results rank well
 - `%LOCALAPPDATA%\smolcast\clipboard\`: smolcast’s own clipboard history, encrypted (below)
 - `%LOCALAPPDATA%\smolcast\update.json`: When it last checked, and any version you skipped

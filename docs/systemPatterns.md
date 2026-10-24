@@ -388,6 +388,8 @@ src/
     installed_programs.rs // Uninstall-row filter for the launcher (decision 027)
     matcher.rs            // scoring and total deterministic ordering
     usage.rs              // schema v1, ranking bonuses, saturating updates
+    favorites.rs          // pinned entries, at most 5 shown (decision 011)
+    hidden.rs             // entries left out of the root list (decision 039)
     config.rs             // schema v1 + pure validation
     history.rs            // payloads, dedup, recency, byte/count eviction
     list_cursor.rs        // list selection, scroll window, wheel carry
@@ -610,7 +612,9 @@ recency_bonus = 20 if age <= 1 day
                 10 if age <= 7 days
                  5 if age <= 30 days
                  0 otherwise
+favorite_bonus = 2000 for a favorite, 0 otherwise (decision 039)
 combined_score = fuzzy_score * 100 + frequency_bonus + recency_bonus
+                 + favorite_bonus
 ```
 
 Treat a future or invalid last-launch timestamp as no recency bonus. Use saturating
@@ -624,7 +628,16 @@ arithmetic. Sort by this complete tuple:
 6. derived `AppId::cmp` ascending.
 
 This is the only ranking order; do not depend on filesystem, hash-map, or channel
-arrival order.
+arrival order. An empty query then moves the shown favorites to the top in the
+user's order.
+
+Hidden entries (`core::hidden`, decision 039) are dropped after ranking, for
+every query; a hidden quicklink's keyword does not match. Ctrl+Shift+H or a
+row's "Hide" menu item hides any entry except `Command::HiddenEntries`, and
+hiding a favorite removes it from favorites. "Manage Hidden Entries"
+(`View::Hidden`, drawn by the launcher) lists them in the order hidden,
+filtered by the search; Enter or a click unhides. An entry not in the index
+shows the name it had when hidden and "Not installed".
 
 Increment usage only after `ShellExecuteExW` returns success or
 `ActivateApplication` returns `S_OK`. Spawn success is the observable boundary;
@@ -1043,7 +1056,9 @@ failure.
 Use `directories::BaseDirs`, then join exact product paths:
 
 - `%APPDATA%\\smolcast\\config.toml`;
-- `%LOCALAPPDATA%\\smolcast\\usage.json`.
+- `%LOCALAPPDATA%\\smolcast\\usage.json`;
+- `%APPDATA%\\smolcast\\favorites.json` and `hidden.json` (user-curated,
+  roaming; decisions 011, 039).
 
 - `%LOCALAPPDATA%\\smolcast\\clipboard\\` (DPAPI-encrypted history entries, §7.2).
 - `%LOCALAPPDATA%\\smolcast\\crash.log`, `crash.old.log` and the empty
@@ -1254,8 +1269,9 @@ usage state, but schema version must equal 1.
 
 If usage JSON is malformed or has an unsupported version, atomically rename it to
 `usage.corrupt-<unix_ms>.json`, start empty, and show one notice. Usage is a cache;
-config is not and is never quarantined automatically. Favorites follow the same
-rule. A file that exists but cannot be read, or cannot be moved aside, is never
+config is not and is never quarantined automatically. Favorites and hidden
+entries (`{"schema_version": 1, "hidden": [{"id": AppId, "name": "…"}]}`) follow
+the same rule. A file that exists but cannot be read, or cannot be moved aside, is never
 overwritten: the session starts empty, keeps changes in memory only, and says so.
 
 ### 10.5 Atomic writes
