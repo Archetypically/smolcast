@@ -2,6 +2,13 @@
 
 # [smolcast](https://smolcast.evanlee.engineer)
 
+[![CI](https://img.shields.io/github/actions/workflow/status/Archetypically/smolcast/ci.yml?branch=main&label=ci&style=flat-square)](https://github.com/Archetypically/smolcast/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/Archetypically/smolcast?include_prereleases&style=flat-square)](https://github.com/Archetypically/smolcast/releases)
+[![Downloads](https://img.shields.io/github/downloads/Archetypically/smolcast/total?style=flat-square)](https://github.com/Archetypically/smolcast/releases)
+[![License: MIT](https://img.shields.io/github/license/Archetypically/smolcast?style=flat-square)](LICENSE)
+![Windows 11](https://img.shields.io/badge/platform-Windows%2011-0078D4?logo=windows11&logoColor=white&style=flat-square)
+![Rust 1.95+](https://img.shields.io/badge/rust-1.95%2B-orange?logo=rust&style=flat-square)
+
 **A small, fully native command palette for Windows 11. One hotkey for your apps, files, clipboard, emoji, scripts and snippets, in a single executable that sits idle until you need it.**
 
 smolcast is a Windows take on [Tinycast](https://github.com/abue-ammar/tinycast) and Raycast's core features, written in Rust with egui and the Windows APIs. No Electron, no WebView, no Node runtime, no extensions, no AI, and no telemetry: about a 7 MB exe that imports only Windows system DLLs and uses no CPU while hidden.
