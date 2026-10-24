@@ -15,7 +15,7 @@ use egui::{
     Color32, Context, CornerRadius, FontFamily, FontId, RichText, Stroke, TextStyle, Theme, Vec2,
 };
 
-use crate::core::config::{PaletteSize, SearchEngine, TextSize};
+use crate::core::config::{PaletteSize, TextSize};
 use crate::core::motion::{KEY_HELD_SECS, LEAN_SECS};
 
 /// Horizontal inset of content shared by the search bar, list, and footer.
@@ -306,23 +306,6 @@ pub fn inset<R>(ui: &mut egui::Ui, add_contents: impl FnOnce(&mut egui::Ui) -> R
         .inner_margin(egui::Margin::symmetric(ROW_INSET as i8, 0))
         .show(ui, add_contents)
         .inner
-}
-
-/// A search engine's monogram badge: its letter on a circle in its color.
-/// Painted, since engine logos are not bundled.
-pub fn engine_badge(ui: &mut egui::Ui, engine: SearchEngine, edge: f32) -> egui::Response {
-    let (rect, response) = ui.allocate_exact_size(Vec2::splat(edge), egui::Sense::hover());
-    let (letter, [r, g, b]) = engine.badge();
-    let painter = ui.painter();
-    painter.circle_filled(rect.center(), edge * 0.45, Color32::from_rgb(r, g, b));
-    painter.text(
-        rect.center(),
-        egui::Align2::CENTER_CENTER,
-        letter,
-        FontId::proportional((edge * 0.55).round()),
-        Color32::WHITE,
-    );
-    response
 }
 
 /// A small gray section heading ("Suggestions", "General").

@@ -43,6 +43,7 @@ const MEDIUM_ROWS: usize = 7;
 const ICON_POINTS: f32 = theme::ICON_SLOT;
 /// The search glyph: the Search Files command and the file fallback row.
 const GLYPH_SEARCH: Glyph = Glyph::new('\u{E721}', "🔍");
+const GLYPH_GLOBE: Glyph = Glyph::new('\u{E774}', "🌐");
 
 /// A row below the ranked entries that hands the query to something else.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1124,14 +1125,12 @@ impl Launcher {
                 (format!("Search Files for \u{201C}{query}\u{201D}"), "Files")
             }
         };
-        let engine = self.search_engine;
-        let leading = |ui: &mut egui::Ui| match fallback {
-            Fallback::Web(_) => {
-                theme::engine_badge(ui, engine, ICON_POINTS);
-            }
-            Fallback::Files(_) => {
-                theme::glyph(ui, GLYPH_SEARCH, ICON_POINTS);
-            }
+        let glyph = match fallback {
+            Fallback::Web(_) => GLYPH_GLOBE,
+            Fallback::Files(_) => GLYPH_SEARCH,
+        };
+        let leading = |ui: &mut egui::Ui| {
+            theme::glyph(ui, glyph, ICON_POINTS);
         };
         let trailing = |ui: &mut egui::Ui| {
             ui.label(RichText::new(kind).weak().small());

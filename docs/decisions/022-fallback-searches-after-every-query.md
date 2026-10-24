@@ -4,7 +4,7 @@ slug: fallback-searches-after-every-query
 author: archetypically
 status: resolved
 created: 2026-10-22
-updated: 2026-10-22
+updated: 2026-10-23
 tags: [launcher, search]
 ---
 
@@ -16,7 +16,7 @@ Every non-empty root query ends with two fallback rows, the web search and
 then "Search Files", under a `Search for "query"` section header. With no
 results they are the only rows and the header is left out. A calculation or
 a quicklink query shows no fallbacks. The engine setting and badge from
-decision 014 are unchanged.
+decision 014 are unchanged (the badge is replaced by a globe glyph, decision 038).
 
 ## Context
 
@@ -42,8 +42,9 @@ the web as before.
 
 ## Consequences
 
-- Supersedes decision 014's "only when nothing matches"; its engine setting,
-  custom URL and monogram badge stand.
+- Supersedes decision 014's "only when nothing matches"; its engine setting
+  and custom URL stand. Its monogram badge is replaced by a globe glyph
+  (decision 038).
 - The header takes one list row when results come first, like
   "Suggestions"; the fallbacks scroll with the list.
 - Plan §5.4 and DESIGN.md (Fallback rows) describe the layout.

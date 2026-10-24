@@ -112,7 +112,6 @@ function emojiImg(code, cls) {
 
 function icon(entry) {
   if (entry.app) return el("span", `app ${entry.app}`, entry.text);
-  if (entry.badge) return el("span", "badge", entry.badge);
   if (entry.emoji) return emojiImg(entry.emoji);
   return glyph(entry.glyph);
 }
@@ -199,7 +198,7 @@ function render() {
             {
               name: `Search Google for “${typed}”`,
               kind: "Web Search",
-              badge: "G",
+              glyph: "globe",
               fallback: "Search Web",
             },
             {

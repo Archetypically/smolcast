@@ -64,21 +64,6 @@ impl SearchEngine {
         })
     }
 
-    /// A monogram badge (letter and RGB color) standing in for the engine's
-    /// logo, which is not bundled.
-    pub fn badge(self) -> (char, [u8; 3]) {
-        match self {
-            Self::Google => ('G', [66, 133, 244]),
-            Self::Bing => ('b', [0, 120, 212]),
-            Self::DuckDuckGo => ('D', [222, 88, 51]),
-            Self::Brave => ('B', [251, 84, 43]),
-            Self::Ecosia => ('E', [54, 140, 80]),
-            Self::Startpage => ('S', [101, 115, 255]),
-            Self::Kagi => ('K', [255, 179, 25]),
-            Self::Custom => ('W', [128, 128, 132]),
-        }
-    }
-
     /// The URL template in effect, given the custom one from the settings.
     pub fn template_or(self, custom: &str) -> &str {
         self.template().unwrap_or(custom)
