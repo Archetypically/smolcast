@@ -31,7 +31,7 @@ those natively, in one small executable that is idle when hidden.
 
 | Feature | User-facing behavior |
 | --- | --- |
-| Launcher | Fuzzy search over Start Menu shortcuts, packaged apps and installed programs without a shortcut (Uninstall registry rows, filtered; decision 027), ranked by match, frequency and recency. Real program icons. Up to 5 favorites lead the empty query (Ctrl+Shift+F or right-click to pin; Ctrl+Shift+Up/Down to reorder). Broken Start Menu shortcuts are listed with an offer to move them to the Recycle Bin. |
+| Launcher | Fuzzy search over Start Menu shortcuts, packaged apps and installed programs without a shortcut (Uninstall registry rows, filtered; decision 027), ranked by match, frequency and recency. Real program icons. Up to 5 favorites lead the empty query and rank higher while searching (Ctrl+Shift+F or right-click to pin; Ctrl+Shift+Up/Down to reorder). Broken Start Menu shortcuts are listed with an offer to move them to the Recycle Bin. |
 | Calculator | "2^10", "40cm to in", "100f to c", "3 GiB as MB" show a card with the input and result; Enter pastes the result. No currencies (they need the network). |
 | Web search | Every search ends with "Search Google for …", which opens the default browser; the engine is a setting (major engines or a custom URL). |
 | System commands | "Lock Screen", "Sleep", "Restart", "Shut Down", "Sign Out", "Empty Recycle Bin", "Toggle Dark Mode", "Toggle Mute", "Turn Off Display". Restart, shut down, sign out and emptying the bin ask for a second Enter. |

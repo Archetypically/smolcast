@@ -6,7 +6,9 @@
 //! ```text
 //! frequency_bonus = min(launch_count, 100) * 4
 //! recency_bonus   = 20 if age <= 1 day, 10 if <= 7 days, 5 if <= 30 days, else 0
+//! favorite_bonus  = 2000 for a favorite, else 0
 //! combined_score  = fuzzy_score * 100 + frequency_bonus + recency_bonus
+//!                   + favorite_bonus
 //! ```
 //!
 //! Sort key, in order: combined desc, fuzzy desc, launch_count desc,
@@ -17,10 +19,14 @@ use fuzzy_matcher::FuzzyMatcher;
 use fuzzy_matcher::skim::SkimMatcherV2;
 
 use crate::core::app_index::IndexedApp;
+use crate::core::favorites::Favorites;
 use crate::core::usage::{Usage, UsageStats};
 
 pub const FREQUENCY_CAP: u64 = 100;
 pub const FREQUENCY_WEIGHT: i64 = 4;
+/// Worth 20 fuzzy points: about what separates two word-start matches, so a
+/// favorite wins among comparable matches but not over a much better one.
+pub const FAVORITE_BONUS: i64 = 2000;
 const DAY_MS: i64 = 24 * 60 * 60 * 1000;
 
 /// One ranked result: an index into the slice passed to [`rank`].
@@ -54,7 +60,13 @@ pub fn recency_bonus(last_ms: i64, now_ms: i64) -> i64 {
 
 /// Rank `apps` for `query` (trimmed). A non-empty query drops apps whose name
 /// and aliases all fail to match; an empty query scores every app fuzzy 0.
-pub fn rank(query: &str, apps: &[IndexedApp], usage: &Usage, now_ms: i64) -> Vec<Ranked> {
+pub fn rank(
+    query: &str,
+    apps: &[IndexedApp],
+    usage: &Usage,
+    favorites: &Favorites,
+    now_ms: i64,
+) -> Vec<Ranked> {
     let query = query.trim();
     let matcher = SkimMatcherV2::default();
 
@@ -74,7 +86,12 @@ pub fn rank(query: &str, apps: &[IndexedApp], usage: &Usage, now_ms: i64) -> Vec
             let combined_score = fuzzy_score
                 .saturating_mul(100)
                 .saturating_add(frequency_bonus(stats.launch_count))
-                .saturating_add(recency_bonus(stats.last_launch_unix_ms, now_ms));
+                .saturating_add(recency_bonus(stats.last_launch_unix_ms, now_ms))
+                .saturating_add(if favorites.contains(&app.id) {
+                    FAVORITE_BONUS
+                } else {
+                    0
+                });
             Some((
                 Ranked {
                     index,
@@ -168,14 +185,14 @@ mod tests {
         let apps = vec![calc, term];
         let usage = Usage::default();
 
-        let ranked = rank("wterm", &apps, &usage, NOW);
+        let ranked = rank("wterm", &apps, &usage, &Favorites::default(), NOW);
         assert_eq!(names(&apps, &ranked), vec!["Terminal"]);
         assert!(ranked[0].fuzzy_score > 0);
 
-        let ranked = rank("rechner", &apps, &usage, NOW);
+        let ranked = rank("rechner", &apps, &usage, &Favorites::default(), NOW);
         assert_eq!(names(&apps, &ranked), vec!["Calculator"]);
 
-        assert!(rank("zzzz", &apps, &usage, NOW).is_empty());
+        assert!(rank("zzzz", &apps, &usage, &Favorites::default(), NOW).is_empty());
     }
 
     #[test]
@@ -190,7 +207,7 @@ mod tests {
         launches(&mut usage, &apps[3], 2, NOW - 40 * DAY_MS); // freq 8, no recency
         launches(&mut usage, &apps[2], 1, NOW - DAY_MS / 2); // freq 4 + recency 20
         for query in ["", "   "] {
-            let ranked = rank(query, &apps, &usage, NOW);
+            let ranked = rank(query, &apps, &usage, &Favorites::default(), NOW);
             assert_eq!(
                 names(&apps, &ranked),
                 vec!["Beta", "Gamma", "alpha", "Zeta"]
@@ -228,7 +245,7 @@ mod tests {
         .unwrap();
 
         let expected = vec!["A", "D", "C", "B", "F-App", "f-app"];
-        let ranked = rank("", &apps, &usage, NOW);
+        let ranked = rank("", &apps, &usage, &Favorites::default(), NOW);
         assert_eq!(names(&apps, &ranked), expected);
         assert_eq!(
             ranked.iter().map(|r| r.combined_score).collect::<Vec<_>>(),
@@ -238,7 +255,7 @@ mod tests {
         // Input order never matters.
         let mut reversed = apps.clone();
         reversed.reverse();
-        let ranked = rank("", &reversed, &usage, NOW);
+        let ranked = rank("", &reversed, &usage, &Favorites::default(), NOW);
         assert_eq!(names(&reversed, &ranked), expected);
     }
 
@@ -249,7 +266,7 @@ mod tests {
         let apps = vec![app("Notepad", "notepad"), app("Paint", "paint")];
         let mut usage = Usage::default();
         launches(&mut usage, &apps[0], 1000, NOW);
-        let ranked = rank("pa", &apps, &usage, NOW);
+        let ranked = rank("pa", &apps, &usage, &Favorites::default(), NOW);
         assert_eq!(names(&apps, &ranked), vec!["Paint", "Notepad"]);
         assert!(ranked[0].fuzzy_score > ranked[1].fuzzy_score);
     }
