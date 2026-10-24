@@ -1,6 +1,6 @@
 [package]
 name = "smolcast"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 description = "Minimal Windows-native command palette (launcher, clipboard, emoji, scripts)"
 authors = ["Evan Lee"]
 license = "MIT"
