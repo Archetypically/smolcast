@@ -11,6 +11,7 @@ pub mod favorites;
 pub mod file_search;
 #[rustfmt::skip]
 pub mod emoji_data;
+pub mod hidden;
 pub mod history;
 pub mod icon_scale;
 pub mod installed_programs;

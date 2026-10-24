@@ -118,10 +118,16 @@ The font is Segoe UI, with egui's bundled fonts as fallbacks.
   wait above or below dims to 45%, unless selected.
 - **Favorites.** Up to 5 pinned entries (`core::favorites`) lead the empty
   root list under a "Favorites" header, followed by a "Suggestions" header
-  (which takes one row). While searching they get a ranking bonus, and their
-  trailing text reads "Favorite · Application". Toggle with Ctrl+Shift+F or the row's
-  right-click menu, which also has Move Up and Move Down (Ctrl+Shift+Up and
-  Ctrl+Shift+Down).
+  (which takes one row). While searching they get a ranking bonus (decision
+  039), and their trailing text reads "Favorite · Application". Toggle with
+  Ctrl+Shift+F or the row's right-click menu, which also has Move Up and
+  Move Down (Ctrl+Shift+Up and Ctrl+Shift+Down).
+- **Hidden entries.** The right-click menu ends with "Hide" (Ctrl+Shift+H);
+  an info notice names the entry and Manage Hidden Entries. That view (eye
+  glyph with a slash, U+ED1A) lists hidden entries as result rows under a
+  "Hidden" header, with the entry type or "Not installed" as trailing text;
+  its footer action is "Unhide". With nothing to show it says "Nothing is
+  hidden." (or "No matches.") over a small gray hint.
 - **Fallback rows.** After the ranked entries of any query that is not a
   calculation or a quicklink query, scrolling with them, under a
   `Search for "query"` section header (the query cut with "…" past 40

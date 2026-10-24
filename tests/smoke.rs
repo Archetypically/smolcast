@@ -30,7 +30,8 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{
     INPUT, INPUT_0, INPUT_KEYBOARD, INPUT_MOUSE, KEYBD_EVENT_FLAGS, KEYBDINPUT, KEYEVENTF_KEYUP,
     KEYEVENTF_UNICODE, MAPVK_VK_TO_VSC, MOD_ALT, MOD_CONTROL, MOUSE_EVENT_FLAGS,
     MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP, MOUSEINPUT, MapVirtualKeyW, RegisterHotKey,
-    SendInput, UnregisterHotKey, VIRTUAL_KEY, VK_CONTROL, VK_ESCAPE, VK_MENU, VK_RETURN, VK_SPACE,
+    SendInput, UnregisterHotKey, VIRTUAL_KEY, VK_CONTROL, VK_ESCAPE, VK_H, VK_MENU, VK_RETURN,
+    VK_SHIFT, VK_SPACE,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
     CreateWindowExW, DispatchMessageW, EnumWindows, GetForegroundWindow, GetMessageW,
@@ -106,6 +107,41 @@ fn smoke() {
         type_and_enter("thumbs up");
         target.wait_for_text("👍");
     });
+
+    step(
+        "a hidden entry comes back from Manage Hidden Entries",
+        || {
+            let hidden = roaming_dir().join("hidden.json");
+            let read = || std::fs::read_to_string(&hidden).ok();
+            let lists_marker = || read().is_some_and(|text| text.contains(SHORTCUT_NAME));
+            app.summon();
+            type_text(SHORTCUT_NAME);
+            thread::sleep(SETTLE);
+            send(&[
+                key_input(VK_CONTROL, false),
+                key_input(VK_SHIFT, false),
+                key_input(VK_H, false),
+                key_input(VK_H, true),
+                key_input(VK_SHIFT, true),
+                key_input(VK_CONTROL, true),
+            ]);
+            wait_until("the shortcut to be saved as hidden", lists_marker);
+            key(VK_ESCAPE);
+            app.wait_hidden();
+            app.summon();
+            open_command("Manage Hidden Entries");
+            key(VK_RETURN);
+            // The file is rewritten without it, not removed.
+            wait_until("the shortcut to be unhidden", || {
+                read().is_some_and(|text| !text.contains(SHORTCUT_NAME))
+            });
+            // Back to the root list, then away.
+            key(VK_ESCAPE);
+            thread::sleep(SETTLE);
+            key(VK_ESCAPE);
+            app.wait_hidden();
+        },
+    );
 
     step("the launcher starts a Start Menu shortcut", || {
         target.focus();
@@ -329,11 +365,11 @@ impl Drop for App {
     }
 }
 
-/// Start from a first run: no config, history, usage or favorites. The config
-/// written here only turns off what would make the run slower or depend on
-/// the network or on Windows' own clipboard history.
+/// Start from a first run: no config, history, usage, favorites or hidden
+/// entries. The config written here only turns off what would make the run
+/// slower or depend on the network or on Windows' own clipboard history.
 fn reset_state() {
-    let roaming = PathBuf::from(std::env::var_os("APPDATA").unwrap()).join("smolcast");
+    let roaming = roaming_dir();
     let local = PathBuf::from(std::env::var_os("LOCALAPPDATA").unwrap()).join("smolcast");
     for dir in [&roaming, &local] {
         let _ = std::fs::remove_dir_all(dir);
@@ -355,6 +391,11 @@ fn reset_state() {
          check_for_updates = false\n",
     )
     .unwrap();
+}
+
+/// `%APPDATA%\smolcast`: config and user-curated state.
+fn roaming_dir() -> PathBuf {
+    PathBuf::from(std::env::var_os("APPDATA").unwrap()).join("smolcast")
 }
 
 /// A per-user Start Menu shortcut whose program writes `marker`, so a launch
