@@ -189,10 +189,12 @@ pub enum Command {
     CheckForUpdates,
     /// Opens a prefilled GitHub issue (§14).
     ReportBug,
+    /// Lists hidden entries to unhide (§6.3).
+    HiddenEntries,
 }
 
 impl Command {
-    pub const ALL: [Command; 11] = [
+    pub const ALL: [Command; 12] = [
         Command::ClipboardHistory,
         Command::Emoji,
         Command::Snippets,
@@ -204,6 +206,7 @@ impl Command {
         Command::SearchFiles,
         Command::CheckForUpdates,
         Command::ReportBug,
+        Command::HiddenEntries,
     ];
 
     pub fn title(self) -> &'static str {
@@ -219,6 +222,7 @@ impl Command {
             Command::SearchFiles => "Search Files",
             Command::CheckForUpdates => "Check for Updates",
             Command::ReportBug => "Report a Bug",
+            Command::HiddenEntries => "Manage Hidden Entries",
         }
     }
 
@@ -231,6 +235,7 @@ impl Command {
             Command::SearchFiles => &["Find Files", "Documents"],
             Command::CheckForUpdates => &["Update smolcast"],
             Command::ReportBug => &["Send Feedback", "File an Issue", "Bug Report"],
+            Command::HiddenEntries => &["Unhide", "Hidden Apps", "Show Hidden"],
             _ => &[],
         }
     }
@@ -249,6 +254,7 @@ impl Command {
             Command::SearchFiles => "search-files",
             Command::CheckForUpdates => "check-for-updates",
             Command::ReportBug => "report-bug",
+            Command::HiddenEntries => "hidden-entries",
         }
     }
 

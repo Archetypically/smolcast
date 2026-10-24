@@ -8,6 +8,7 @@ smolcast is a Windows take on [Tinycast](https://github.com/abue-ammar/tinycast)
 
 - **App launcher**: fuzzy search across Start Menu shortcuts, Store apps and installed programs that add no shortcut (many games and game launchers), ranked by how often and how recently you use them, with each program's real icon.
 - **Favorites**: pin up to 5 entries to the top of the list (Ctrl+Shift+F), reorder them with Ctrl+Shift+Up/Down, and see them ranked higher when you search.
+- **Hide entries**: take any app, command or quicklink out of the list (Ctrl+Shift+H), and bring it back from **Manage Hidden Entries**.
 - **Calculator and conversions**: type `2^10`, `40cm to in`, `100f to c` or `3 GiB as MB` and the answer appears inline. Enter pastes it. Length, weight, volume, temperature, time, data, area, speed and angles, all offline.
 - **Web search fallback**: every search ends with a row to search Google, Bing, DuckDuckGo, Brave, Ecosia, Startpage, Kagi or your own URL in your default browser.
 - **File search**: find files and folders by name through the Windows Search index, with no index of smolcast's own. Type **Search Files**, or pick the "Search Files for …" row at the end of any search. Enter opens, Ctrl+Enter shows the item in Explorer.
@@ -34,7 +35,7 @@ smolcast runs as a normal user and needs no installer, admin rights, or runtime.
 1. Press **Ctrl+Alt+Space** (change it in settings).
 2. Type to search; **Up/Down** to choose; **Enter** to open, paste, or run.
 3. Type `clipboard`, `emoji`, `snippets`, `files` or `settings` to open those views; **Esc** or **Backspace** on an empty search goes back.
-4. Right-click any app to add it to your favorites.
+4. Right-click any entry to add it to your favorites or hide it.
 
 The footer always shows what Enter will do. The tray icon has Open, Refresh and Quit. **About smolcast** shows the version and credits, **Check for Updates** asks for a new release right away, and **Report a Bug** opens a GitHub issue filled in with your version and Windows build (and, if you tick it, the last crash report).
 

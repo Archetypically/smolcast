@@ -17,12 +17,10 @@ use egui::{Color32, Context, Key, Modifiers, RichText, ViewportCommand};
 use crate::core::app_index::{AppId, Command};
 use crate::core::config::{ClipboardSource, ConfigError, ConfigFile, PaletteSize, Settings};
 use crate::core::config_edit::ConfigEdit;
-use crate::core::favorites::Favorites;
 use crate::core::file_search::FileHit;
 use crate::core::history::{Limits, Payload};
 use crate::core::motion::{self as timing, Tween};
 use crate::core::update::{Update, Version};
-use crate::core::usage::Usage;
 use crate::win::clipboard::{
     ClipboardCommand, ClipboardError, ClipboardWriteReceipt, WindowsSnapshot,
 };
@@ -31,7 +29,7 @@ use crate::win::paste::{
     Destination, PasteOutcome, capture_destination, destination_intact, palette_is_foreground,
     restore_foreground,
 };
-use crate::win::persistence::{LoadedEntry, Stored};
+use crate::win::persistence::LoadedEntry;
 use crate::win::placement::PaletteWindow;
 use crate::win::shell::{IconTarget, LaunchError, ScanOutcome};
 use crate::win::update::CheckOutcome;
@@ -41,7 +39,7 @@ use super::clipboard_view::{ClipboardView, PasteRequest};
 use super::effect::Effect;
 use super::emoji_view::EmojiView;
 use super::file_view::{FileAction, FileView};
-use super::launcher::Launcher;
+use super::launcher::{Launcher, LauncherStores};
 use super::motion;
 use super::notice::{Notice, NoticeStore, Severity, op};
 use super::report_view::ReportView;
@@ -162,6 +160,8 @@ enum View {
     About,
     Files,
     ReportBug,
+    /// Hidden entries to unhide (§6.3).
+    Hidden,
 }
 
 /// What a recorded key chord is for.
@@ -328,8 +328,7 @@ impl AppModel {
     pub fn new(
         receiver: Receiver<AppEvent>,
         config: ConfigFile,
-        usage: Stored<Usage>,
-        favorites: Stored<Favorites>,
+        stores: LauncherStores,
         startup_notices: Vec<Notice>,
         force_visible: bool,
         report: ReportView,
@@ -351,7 +350,7 @@ impl AppModel {
             search: String::new(),
             focus_search: false,
             view: View::Root,
-            launcher: Launcher::new(usage, favorites, &config.scripts, &config.quicklinks),
+            launcher: Launcher::new(stores, &config.scripts, &config.quicklinks),
             clipboard: ClipboardView::new(
                 history_limits(&config.settings),
                 config.settings.clipboard_source,
@@ -559,6 +558,7 @@ impl AppModel {
                 .take_favorites_snapshot()
                 .map(Effect::SaveFavorites),
         );
+        effects.extend(launcher.take_hidden_snapshot().map(Effect::SaveHidden));
         effects.extend(
             self.emoji
                 .take_glyph_requests()
@@ -1121,6 +1121,7 @@ impl AppModel {
             View::About => self.about.open(),
             View::Files => self.files.open(),
             View::ReportBug => self.report.open(),
+            View::Hidden => self.launcher.open_hidden(),
         }
     }
 
@@ -1217,7 +1218,7 @@ impl AppModel {
             View::Settings | View::About | View::ReportBug => true,
             View::Snippets => self.snippets.is_editing(),
             View::Scripts => self.scripts.is_editing(),
-            View::Root | View::Clipboard | View::Emoji | View::Files => false,
+            View::Root | View::Clipboard | View::Emoji | View::Files | View::Hidden => false,
         }
     }
 
@@ -1233,7 +1234,8 @@ impl AppModel {
             | View::Emoji
             | View::About
             | View::Files
-            | View::ReportBug => false,
+            | View::ReportBug
+            | View::Hidden => false,
         }
     }
 
@@ -1256,6 +1258,7 @@ impl AppModel {
             View::About => Some(Command::About.title()),
             View::Files => Some(Command::SearchFiles.title()),
             View::ReportBug => Some(Command::ReportBug.title()),
+            View::Hidden => Some(Command::HiddenEntries.title()),
         };
         let paste_enabled = matches!(self.paste, PasteState::Idle);
         let run_enabled = self.launcher.launching_since().is_none();
@@ -1291,6 +1294,7 @@ impl AppModel {
                 View::About => {}
                 View::Files => self.files.handle_keys(ui),
                 View::ReportBug => self.report.handle_keys(ui),
+                View::Hidden => self.launcher.hidden_keys(ui, &self.search),
             }
         }
         let (nav_offset, nav_opacity) = self.navigation(ui.ctx());
@@ -1301,6 +1305,7 @@ impl AppModel {
             View::Snippets => "Search snippets…",
             View::Scripts => "Search scripts…",
             View::Files => "Search file names…",
+            View::Hidden => "Search hidden entries…",
             // Forms have no search field.
             View::Settings | View::About | View::ReportBug => "",
         };
@@ -1472,6 +1477,7 @@ impl AppModel {
                             self.check_for_updates();
                         }
                         Command::ReportBug => self.open_view(View::ReportBug),
+                        Command::HiddenEntries => self.open_view(View::Hidden),
                     }
                 }
                 theme::inset(ui, |ui| self.launcher.broken_shortcuts_ui(ui));
@@ -1542,6 +1548,7 @@ impl AppModel {
                 }
             }
             View::About => theme::inset(ui, |ui| self.about.ui(ui)),
+            View::Hidden => self.launcher.hidden_ui(ui, &self.search),
             View::ReportBug => {
                 theme::inset(ui, |ui| self.report.ui(ui));
                 // The browser takes over; the next summon starts fresh.
@@ -1607,6 +1614,7 @@ impl AppModel {
             View::Clipboard | View::Emoji | View::Snippets => Some(("Paste", &["Enter"])),
             View::Files => Some(("Open", &["Enter"])),
             View::ReportBug => Some(("Open Issue", &["Enter"])),
+            View::Hidden => Some(("Unhide", &["Enter"])),
             View::About => None,
         };
         // An action in flight replaces its key hint until it finishes.

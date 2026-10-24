@@ -402,6 +402,11 @@ impl EframeApp {
                         writer.save_favorites(bytes);
                     }
                 }
+                Effect::SaveHidden(bytes) => {
+                    if let Some(writer) = &self.state_writer {
+                        writer.save_hidden(bytes);
+                    }
+                }
                 Effect::FileSearch(generation, query) => match &self.file_search {
                     Some(worker) => worker.request(generation, query),
                     None => self

@@ -40,7 +40,8 @@ Name a command in the config and run it from the palette or its own hotkey. Save
 
 ### Also included
 
-- **Favorites.** Pin five entries, reorder them with `Ctrl`+`Shift`+`↑` or `↓`.
+- **Favorites.** Pin five entries, reorder them with `Ctrl`+`Shift`+`↑` or `↓`, and they rank higher as you type.
+- **Hide entries.** Take anything out of the list, and bring it back from Manage Hidden Entries.
 - **Forgiving.** Dismiss by accident and it comes back as you left it for 30 seconds.
 - **Self-updating.** Checks for a release once a day, installs in place when you say so.
 - **Feels native.** Mica backdrop, rounded corners, light and dark, opens on the monitor under your cursor.
@@ -80,6 +81,10 @@ Show a file in Explorer
 `Ctrl`+`Shift`+`F`
 
 Add to or remove from favorites
+
+`Ctrl`+`Shift`+`H`
+
+Hide from the list
 
 `Esc`
 
