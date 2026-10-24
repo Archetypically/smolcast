@@ -5,6 +5,11 @@ on:
     branches: [main]
   pull_request:
 
+# Every job only checks out the code and uploads artifacts, which use the
+# runner's own cache and artifact tokens rather than the GITHUB_TOKEN.
+permissions:
+  contents: read
+
 # A newer push to the same PR or branch cancels the run it supersedes.
 concurrency:
   group: ci-${{ github.ref }}
