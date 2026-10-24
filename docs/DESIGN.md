@@ -118,8 +118,8 @@ The font is Segoe UI, with egui's bundled fonts as fallbacks.
   wait above or below dims to 45%, unless selected.
 - **Favorites.** Up to 5 pinned entries (`core::favorites`) lead the empty
   root list under a "Favorites" header, followed by a "Suggestions" header
-  (which takes one row). While searching they rank normally, and their trailing
-  text reads "Favorite · Application". Toggle with Ctrl+Shift+F or the row's
+  (which takes one row). While searching they get a ranking bonus, and their
+  trailing text reads "Favorite · Application". Toggle with Ctrl+Shift+F or the row's
   right-click menu, which also has Move Up and Move Down (Ctrl+Shift+Up and
   Ctrl+Shift+Down).
 - **Fallback rows.** After the ranked entries of any query that is not a

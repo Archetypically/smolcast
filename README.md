@@ -7,7 +7,7 @@ smolcast is a Windows take on [Tinycast](https://github.com/abue-ammar/tinycast)
 ## Features
 
 - **App launcher**: fuzzy search across Start Menu shortcuts, Store apps and installed programs that add no shortcut (many games and game launchers), ranked by how often and how recently you use them, with each program's real icon.
-- **Favorites**: pin up to 5 entries to the top of the list (Ctrl+Shift+F), and reorder them with Ctrl+Shift+Up/Down.
+- **Favorites**: pin up to 5 entries to the top of the list (Ctrl+Shift+F), reorder them with Ctrl+Shift+Up/Down, and see them ranked higher when you search.
 - **Calculator and conversions**: type `2^10`, `40cm to in`, `100f to c` or `3 GiB as MB` and the answer appears inline. Enter pastes it. Length, weight, volume, temperature, time, data, area, speed and angles, all offline.
 - **Web search fallback**: every search ends with a row to search Google, Bing, DuckDuckGo, Brave, Ecosia, Startpage, Kagi or your own URL in your default browser.
 - **File search**: find files and folders by name through the Windows Search index, with no index of smolcast's own. Type **Search Files**, or pick the "Search Files for …" row at the end of any search. Enter opens, Ctrl+Enter shows the item in Explorer.

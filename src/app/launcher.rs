@@ -847,7 +847,13 @@ impl Launcher {
     }
 
     fn rank_now(&mut self, query: &str) {
-        self.ranked = rank(query, &self.apps, &self.usage, unix_ms_now());
+        self.ranked = rank(
+            query,
+            &self.apps,
+            &self.usage,
+            &self.favorites,
+            unix_ms_now(),
+        );
         let trimmed = query.trim();
         // An empty query leads with the favorites, in the user's order.
         self.favorite_rows = 0;

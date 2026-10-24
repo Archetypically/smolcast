@@ -388,6 +388,7 @@ src/
     installed_programs.rs // Uninstall-row filter for the launcher (decision 027)
     matcher.rs            // scoring and total deterministic ordering
     usage.rs              // schema v1, ranking bonuses, saturating updates
+    favorites.rs          // pinned entries, at most 5 shown (decision 011)
     config.rs             // schema v1 + pure validation
     history.rs            // payloads, dedup, recency, byte/count eviction
     list_cursor.rs        // list selection, scroll window, wheel carry
@@ -610,7 +611,9 @@ recency_bonus = 20 if age <= 1 day
                 10 if age <= 7 days
                  5 if age <= 30 days
                  0 otherwise
+favorite_bonus = 2000 for a favorite, 0 otherwise
 combined_score = fuzzy_score * 100 + frequency_bonus + recency_bonus
+                 + favorite_bonus
 ```
 
 Treat a future or invalid last-launch timestamp as no recency bonus. Use saturating
@@ -624,7 +627,8 @@ arithmetic. Sort by this complete tuple:
 6. derived `AppId::cmp` ascending.
 
 This is the only ranking order; do not depend on filesystem, hash-map, or channel
-arrival order.
+arrival order. An empty query then moves the shown favorites to the top in the
+user's order.
 
 Increment usage only after `ShellExecuteExW` returns success or
 `ActivateApplication` returns `S_OK`. Spawn success is the observable boundary;
