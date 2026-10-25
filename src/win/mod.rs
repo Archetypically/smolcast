@@ -14,6 +14,7 @@ pub mod hotkey;
 pub mod http;
 pub mod icon;
 pub mod installed;
+pub mod package;
 pub mod paste;
 pub mod persistence;
 pub mod placement;

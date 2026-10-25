@@ -214,8 +214,9 @@ monochrome emoji baseline. Measure their binary cost before considering system-f
 replacement.
 
 The root viewport is created hidden. The first frame shows it when the user
-started smolcast (no `--login` from the Run entry, no `--wait-pid` from the
-updater; decision 037) or when startup/config/hotkey registration has an error
+started smolcast (no `--login` from the Run entry, no startup-task activation
+in the Store package (§15), no `--wait-pid` from the updater; decision 037) or
+when startup/config/hotkey registration has an error
 that requires user action; otherwise it stays in the tray. Summon sends `ViewportCommand::Visible(true)`
 then `ViewportCommand::Focus`. Hide sends `Visible(false)`. Never send `Close` to
 implement hide.
@@ -1613,7 +1614,8 @@ writes the quoted running-exe path plus `--login` when missing or different
 value; both are idempotent and quit never
 touches it. A malformed startup config skips reconciliation so falling back to
 defaults cannot unregister. Task Manager's `StartupApproved` state is left alone.
-Failures are a content-free notice (op `autostart`).
+Failures are a content-free notice (op `autostart`). The Store package uses
+its startup task instead of the Run value (§15).
 
 Appearance (2026-09-25, `win/appearance.rs`): DWM rounded corners
 (`DWMWCP_ROUND`) and a dark/light frame (`DWMWA_USE_IMMERSIVE_DARK_MODE`) that

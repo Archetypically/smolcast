@@ -32,7 +32,7 @@ use smolcast::win::persistence::{self, StatePaths};
 use smolcast::win::single_instance::{AcquireError, SingleInstance};
 use smolcast::win::update;
 use smolcast::win::wide;
-use smolcast::win::{appearance, autostart};
+use smolcast::win::{appearance, autostart, package};
 
 /// Show a fatal startup error and exit. `stderr` alone cannot reach a user in a
 /// GUI-subsystem process.
@@ -104,11 +104,13 @@ fn main() -> eframe::Result {
     }
 
     // A start by the user opens the palette, so they see smolcast started;
-    // a start at sign-in (the Run entry's flag) or by the updater
-    // stays in the tray. A config error forces it either way (decision 037).
-    let quiet_start = std::env::args()
-        .skip(1)
-        .any(|arg| arg == autostart::LOGIN_FLAG || arg == update::WAIT_PID_FLAG);
+    // a start at sign-in (the Run entry's flag or the Store package's
+    // startup task) or by the updater stays in the tray. A config error
+    // forces it either way (decision 037).
+    let quiet_start = package::started_at_login()
+        || std::env::args()
+            .skip(1)
+            .any(|arg| arg == autostart::LOGIN_FLAG || arg == update::WAIT_PID_FLAG);
     let force_visible = config_failed || !quiet_start;
 
     // 4. Shared egui context and event channel (§1.2). Producers clone the

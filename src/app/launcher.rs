@@ -29,6 +29,7 @@ use crate::core::request_cache::RequestCache;
 use crate::core::usage::Usage;
 use crate::core::web;
 use crate::win::icon::IconRgba;
+use crate::win::package;
 use crate::win::persistence::{Stored, unix_ms_now};
 use crate::win::shell::{BrokenShortcut, LaunchError, ScanOutcome};
 
@@ -448,7 +449,7 @@ impl Launcher {
 
     fn rebuild(&mut self) {
         self.apps = self.scanned.clone();
-        self.apps.extend(builtin_commands());
+        self.apps.extend(builtin_commands(!package::is_packaged()));
         self.apps.extend(self.scripts.iter().cloned());
         self.apps.extend(self.quicklinks.iter().cloned());
         self.ranked_for = None;

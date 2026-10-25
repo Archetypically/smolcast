@@ -358,15 +358,20 @@ impl SystemAction {
 }
 
 /// Root-list entries for every built-in command and system action.
-pub fn builtin_commands() -> Vec<IndexedApp> {
-    let commands = Command::ALL.into_iter().map(|command| {
-        builtin_entry(
-            command.id(),
-            command.title(),
-            command.aliases(),
-            LaunchSpec::Command(command),
-        )
-    });
+/// `self_update` is false in the Microsoft Store build, which has no
+/// "Check for Updates" (plan §15).
+pub fn builtin_commands(self_update: bool) -> Vec<IndexedApp> {
+    let commands = Command::ALL
+        .into_iter()
+        .filter(|&command| self_update || command != Command::CheckForUpdates)
+        .map(|command| {
+            builtin_entry(
+                command.id(),
+                command.title(),
+                command.aliases(),
+                LaunchSpec::Command(command),
+            )
+        });
     let actions = SystemAction::ALL.into_iter().map(|action| {
         builtin_entry(
             action.id(),
@@ -806,8 +811,9 @@ mod tests {
 
     #[test]
     fn builtin_commands_have_stable_ids() {
-        let commands = builtin_commands();
+        let commands = builtin_commands(true);
         assert_eq!(commands.len(), Command::ALL.len() + SystemAction::ALL.len());
+        assert_eq!(builtin_commands(false).len(), commands.len() - 1);
         assert_eq!(
             serde_json::to_string(&commands[0].id).unwrap(),
             r#"{"kind":"command","name":"clipboard-history"}"#
