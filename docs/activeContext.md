@@ -257,9 +257,9 @@ glyph (U+ED1A) renders; persistence across restart.
    `v*` tag ruleset, Actions defaults, push protection and private
    vulnerability reporting are unconfirmed; only `main`'s protection is
    known to exist. The split release workflow first runs at the next tag.
-6. **Microsoft Store** (decision 040): the identity values in
-   `packaging/msix/AppxManifest.xml`, the Windows checks above, the first
-   submission by hand, then the Entra app, `microsoft-store` environment and
+6. **Microsoft Store** (decision 040): the Windows checks above, the first
+   submission by hand (it also confirms the manifest's identity matches
+   Partner Center), then the Entra app, `microsoft-store` environment and
    `MSSTORE_PRODUCT_ID` (techContext "Microsoft Store"). The first release
    tag after that exercises the `store` job; check the submission in
    Partner Center. Once live, add the Store link to the README and the site.
