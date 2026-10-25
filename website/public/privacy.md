@@ -1,12 +1,12 @@
 # smolcast collects nothing.
 
-Your stuff stays on your PC. The app makes one request a day, an update check you can switch off. This site has no cookies and no analytics.
+Your stuff stays on your PC. The app makes one request a day, an update check you can switch off. This site uses Google Analytics to count visits.
 
 Updated 23 Oct 2026.
 
 - **0** Accounts, trackers, telemetry or crash reports sent
 - **1** Request a day: the update check, with an off switch
-- **0** Cookies or analytics on this website
+- **0** Analytics on the app (the website uses Google Analytics)
 
 ## Five files and a folder, all yours
 
@@ -49,15 +49,15 @@ Encrypted, on your PC
 - Otherwise it keeps its own: 100 items by default, encrypted so only your Windows account can read them. `clipboard_persist = false` keeps it in memory; `clipboard_capture = false` keeps nothing; `clipboard_max_age_days` forgets items after that many days.
 - Skips anything an app marks as private, the flag password managers can set on what they copy. It can’t spot an unmarked password.
 
-## No cookies, no analytics, no trackers
+## Google Analytics on this website only
 
-### Nothing from anywhere else
+### Google Analytics
 
-Every page, script, style, image and font comes from this site, and its Content Security Policy enforces that. If you flip between light and dark, your browser remembers it in local storage. That never leaves your browser.
+This website loads Google Analytics (Google tag, gtag.js), which counts visits and may set cookies and send your IP address and page views to Google. The app never loads it. Everything else on a page comes from this site. Light or dark is remembered in your browser's local storage and never leaves it.
 
 ### Hosting and downloads
 
-Cloudflare Pages serves the site, so Cloudflare handles each request, including your IP and user agent ([Cloudflare’s privacy policy](https://www.cloudflare.com/privacypolicy/)). No visitor analytics are on. Downloads come from GitHub.
+Cloudflare Pages serves the site, so Cloudflare handles each request, including your IP and user agent ([Cloudflare’s privacy policy](https://www.cloudflare.com/privacypolicy/)). Google Analytics is on; see above. Downloads come from GitHub.
 
 ## Changes and contact
 
