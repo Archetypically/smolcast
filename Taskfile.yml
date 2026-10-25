@@ -48,6 +48,13 @@ tasks:
     cmds:
       - '"{{.CARGO}}" build --locked --release --target {{.TARGET}}'
 
+  msix:
+    desc: 'Windows: package the release build as the Microsoft Store MSIX (VERSION=x.y.z while Cargo.toml has a prerelease)'
+    platforms: [windows]
+    cmds:
+      - task: build-release
+      - powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/package_msix.ps1 -Exe target/{{.TARGET}}/release/smolcast.exe {{if .VERSION}}-Version {{.VERSION}}{{end}} {{.CLI_ARGS}}
+
   install:
     desc: Build the release app and install it to INSTALL_DIR (set in .env)
     platforms: [linux]

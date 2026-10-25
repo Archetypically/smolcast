@@ -62,6 +62,7 @@ Machine-specific paths are never tracked. Copy `.env.example` to `.env`
 | `task run` | Windows: build and run. WSL: stage a debug build and launch it through interop |
 | `task stage` | WSL: build (`PROFILE=release` default) and copy the exe to `STAGE_DIR` |
 | `task install` | WSL: release build copied to `INSTALL_DIR` (the everyday copy) |
+| `task msix` | Windows: release build packaged as the Store MSIX in `dist/msix` (`VERSION=` for a prerelease Cargo version) |
 | `task check` / `task clippy` | Windows-target type-check / lint (`-D warnings`, all targets) |
 | `task fmt` / `task fmt-check` | Format / check formatting |
 | `task test` | Library tests on the host |
@@ -99,8 +100,42 @@ and site in the exe's Properties come from `Cargo.toml` through `build.rs`
 (decision 026); the workflow fails if the embedded version is not the tag's.
 The app icon is generated from `assets/smolcast.svg`:
 `python3 scripts/generate_icon.py` (needs cairosvg and Pillow) rewrites
-`assets/smolcast.ico` and `assets/smolcast.png`. A tag with a `-`
-(`v0.2.0-rc.1`) is a prerelease and is never offered.
+`assets/smolcast.ico`, `assets/smolcast.png` and the MSIX logos in
+`packaging/msix/Assets`. A tag with a `-` (`v0.2.0-rc.1`) is a prerelease
+and is never offered.
+
+### Microsoft Store (plan §15, decision 040)
+
+A release (not prerelease) tag also submits the exe to the Store as an MSIX,
+once the Store is set up. `task msix` (Windows, needs the Windows SDK; pass
+`VERSION=1.0.0` while Cargo.toml has a prerelease) builds the same package
+into `dist/msix`. One-time setup, in order:
+
+1. Partner Center > the reserved app > Product management > Product
+   identity: copy `Package/Identity/Name`, `Package/Identity/Publisher` and
+   `Package/Properties/PublisherDisplayName` over the `REPLACE-ME` values in
+   `packaging/msix/AppxManifest.xml`. Note the Store ID (12 characters).
+2. First submission by hand: `task msix VERSION=<version>`, then a
+   submission with the listing, screenshots, age rating, the privacy URL,
+   and under Submission options the restricted-capability justification:
+   `runFullTrust`, a desktop app; `unvirtualizedResources`, a launcher whose
+   launched apps and scripts must write to the user's real AppData and
+   registry. Free. Wait until it is published.
+3. Partner Center > Account settings > User management > Microsoft Entra
+   applications: add (or create) an app with the Manager role and a client
+   secret. Note the tenant ID, client ID, secret and the Seller ID (shown
+   under Account settings).
+4. GitHub > Settings > Environments: create `microsoft-store` (add yourself
+   as a required reviewer to approve each submission; under Deployment
+   branches and tags allow only tags matching `v*`, so no workflow on a
+   branch can read its secrets) with secrets
+   `MSSTORE_TENANT_ID`, `MSSTORE_SELLER_ID`, `MSSTORE_CLIENT_ID` and
+   `MSSTORE_CLIENT_SECRET`. Then add the repository variable
+   `MSSTORE_PRODUCT_ID` (the Store ID), which switches the Store steps on.
+
+The secret expires (24 months at most); renew it in Entra and update the
+environment secret. Certification takes up to a few days; follow it in
+Partner Center.
 
 ## Website
 

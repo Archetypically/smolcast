@@ -50,6 +50,25 @@ Unicode in the path run in the file's folder; a `.cmd` given `a&b` gets
 it as one argument; a recorded hotkey registers on save; Enter on a row
 hides the palette after the spawn.
 
+## Microsoft Store MSIX (2026-10-25), unverified, not set up
+
+Decision 040, plan §15: the release exe ships to the Store in an MSIX
+(`scripts/package_msix.ps1`, `task msix`, manifest and logos in
+`packaging/msix/`), with write virtualization off. Packaged, the exe has no
+self-update and uses the manifest's startup task for sign-in. CI packages
+every build with the placeholder identity; `release.yml`'s `store` job
+submits release tags with `msstore` once `MSSTORE_PRODUCT_ID` is set. The
+user reserved the name in Partner Center; the manifest still has
+`REPLACE-ME` identity values. Setup steps: techContext "Microsoft Store".
+Never run on Windows: makepri/makeappx in CI (first run of `ci.yml` checks
+them), install via `Add-AppxPackage -Register`, Start menu name and icons at
+100/150/200%, taskbar and Alt+Tab icon, the startup task on, off, and off in
+Task Manager (the notice names it), a sign-in start stays in the tray,
+no "Check for Updates" and the Settings line, a launched app and a script
+writing a new AppData file and HKCU key that are visible outside smolcast,
+config shared with the portable exe, paste-back, hotkeys, file search and
+the all-users recycle prompt from the package.
+
 ## App icon and file properties (2026-10-22), on main, unverified
 
 Decision 026: "s." logo (`assets/smolcast.svg` → `scripts/generate_icon.py`
@@ -234,6 +253,16 @@ glyph (U+ED1A) renders; persistence across restart.
 4. `old-review-fixes` (on main) moved every view onto `RequestCache` and `ListCursor` (decision 024). Windows
    check: icons, file icons, emoji and thumbnails stay sharp across a
    150%→100% monitor move; scrolling and selection in every list.
+5. **Repository settings** (techContext CI, "Repository settings"): the
+   `v*` tag ruleset, Actions defaults, push protection and private
+   vulnerability reporting are unconfirmed; only `main`'s protection is
+   known to exist. The split release workflow first runs at the next tag.
+6. **Microsoft Store** (decision 040): the identity values in
+   `packaging/msix/AppxManifest.xml`, the Windows checks above, the first
+   submission by hand, then the Entra app, `microsoft-store` environment and
+   `MSSTORE_PRODUCT_ID` (techContext "Microsoft Store"). The first release
+   tag after that exercises the `store` job; check the submission in
+   Partner Center. Once live, add the Store link to the README and the site.
 
 ## Open questions and parked ideas
 
@@ -245,9 +274,9 @@ glyph (U+ED1A) renders; persistence across restart.
 - **Emoji tile vs Hallmark 30a** (floor, unwaivable): the home emoji tile
   shows real emoji as the picker's output; Hallmark reads them as emoji
   icons. User's call: keep, or draw them as Fluent emoji images.
-- **Publishing via winget and the Microsoft Store** (user, 2026-10-23):
-  not worked out yet (manifests, signing, Store listing). Both want the
-  privacy URL and maybe a contact email (the page lists GitHub issues and
+- **Publishing via winget** (user, 2026-10-23): not worked out yet
+  (manifest, signing). The Store is decision 040. Both want the privacy URL
+  and maybe a contact email (the page lists GitHub issues and
   evanlee.engineer); ask the user.
 - **Dictionary**: tabled by the user (2026-10-21). Windows has no definitions
   API (only ISpellChecker). Options if revived: "define <word>" via web

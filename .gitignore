@@ -28,3 +28,6 @@ MEMORY.md
 
 # Hallmark design-audit output (.agents/skills/hallmark)
 .hallmark/
+
+# task msix output (scripts/package_msix.ps1)
+/dist/

@@ -1764,3 +1764,67 @@ shows exactly that excerpt) through `shell::open_uri` and hides the
 palette. Nothing is sent by smolcast: the user reviews and submits the issue
 on GitHub.
 
+---
+
+## 15. Microsoft Store package (2026-10-25, decision 040)
+
+One exe, two forms. `win/package::is_packaged` (`GetCurrentPackageFullName`,
+cached) tells the GitHub exe from the same exe running inside the Store's
+MSIX. When packaged:
+
+- No self-update: the host starts no `UpdateWorker`, the root list has no
+  "Check for Updates" (`builtin_commands(false)`), and Settings shows "The
+  Microsoft Store keeps smolcast up to date" in place of the
+  `check_for_updates` checkbox. The setting is kept and ignored.
+- Login registration (§12.7) goes through the manifest's `windows.startupTask`
+  extension, `TaskId="smolcast"`, declared `Enabled="false"`.
+  `autostart::reconcile` reads `StartupTask::State`: enabled calls
+  `RequestEnableAsync` (no prompt for a desktop app); disabled calls
+  `Disable`. It runs only when `start_at_login` differs from the value last
+  reconciled in this process, since the calls block the UI thread.
+  `DisabledByUser` (Task Manager) and `DisabledByPolicy` cannot be undone by
+  the app: silent at startup (Task Manager's switch is the user's), and one
+  notice naming the reason when the user turns the setting on; on by policy
+  is left alone. A `smolcast` Run value (the portable exe's) is deleted, so
+  only one copy starts at sign-in.
+- A start by the startup task (`AppInstance::GetActivatedEventArgs` kind
+  `StartupTask`) is a quiet start, like `--login` (decision 037).
+
+Manifest (`packaging/msix/AppxManifest.xml`). Identity `Name`, `Publisher`
+and `PublisherDisplayName` are Partner Center's (Product identity); `Version`
+is `$(Version)`, filled with `<major.minor.patch>.0`. One x64 full-trust
+application (`Windows.FullTrustApplication`, `runFullTrust`), Windows
+Desktop from 10.0.22000. `desktop6:FileSystemWriteVirtualization` and
+`RegistryWriteVirtualization` are `disabled` (capability
+`unvirtualizedResources`), so smolcast and every process it starts write to
+the real AppData and HKCU: the same `%APPDATA%\smolcast` and
+`%LOCALAPPDATA%\smolcast` as the portable exe, and uninstall leaves them.
+Never add `virtualization:ExcludedDirectories`: on Windows 11 it replaces
+the full opt-out.
+
+Logos (`packaging/msix/Assets`) come from `scripts/generate_icon.py`:
+Square44x44Logo (scales 100–400, target sizes 16–256 plated and unplated),
+Square150x150Logo (the squircle at two thirds of the tile) and StoreLogo.
+
+Packaging (`scripts/package_msix.ps1`, `task msix`). Stages the exe,
+`LICENSE`, the logos and the manifest; refuses a prerelease version, a part
+above 65535, or a `REPLACE-ME` identity (unless `-AllowPlaceholders`, which
+CI uses); runs `makepri` (default config without its resource-pack split) and
+`makeappx pack` from the newest Windows SDK. The MSIX is unsigned: the Store
+signs it. `Add-AppxPackage -Register <layout>\AppxManifest.xml` with
+Developer Mode installs the staged layout for testing.
+
+Pipeline. `ci.yml` packages every Windows build with placeholders to catch
+manifest and asset errors. On a release (not prerelease) tag, once the
+repository variable `MSSTORE_PRODUCT_ID` exists, `release.yml`'s `msix` job
+(read-only, beside `publish`, so it never holds up the GitHub release)
+packages the built exe and uploads the MSIX as an artifact; after both, the
+`store` job, which runs no repository code, in the `microsoft-store`
+environment (limited to `v*` tags, with a required reviewer; secrets
+`MSSTORE_TENANT_ID`, `MSSTORE_SELLER_ID`, `MSSTORE_CLIENT_ID`,
+`MSSTORE_CLIENT_SECRET`), installs the Store Developer CLI (`msstore`, pinned
+version), signs in with `msstore reconfigure`, and runs
+`msstore publish <msix> --appId <id>`, which replaces any draft with one
+carrying the package and commits it to certification. The CLI updates only a
+product with a published submission, so the first one is manual.
+

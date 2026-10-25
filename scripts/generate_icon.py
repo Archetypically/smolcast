@@ -9,7 +9,12 @@ The SVG is the source of truth: "s." on a dark squircle (DESIGN.md "App
 icon"). At 24 px and below the hairline rim is dropped and the mark is drawn
 larger, so the tray and small Explorer views stay legible.
 
-Usage: python3 scripts/generate_icon.py [--assets assets]
+It also renders the MSIX package's logos into packaging/msix/Assets (plan
+§15), in the scale and target-size variants makepri indexes: the app list
+and taskbar icon (Square44x44Logo, also unplated), the Start tile
+(Square150x150Logo, the squircle at two thirds of the tile) and StoreLogo.
+
+Usage: python3 scripts/generate_icon.py [--assets assets] [--msix packaging/msix/Assets]
 """
 
 import argparse
@@ -25,6 +30,15 @@ from PIL import Image
 SIZES = [16, 20, 24, 28, 32, 36, 40, 48, 64, 256]
 SMALL = 24
 SMALL_MARK_SCALE = 1.22
+
+# MSIX logos: base size at 100% and the scales Windows asks for.
+SCALES = [100, 125, 150, 200, 400]
+MSIX_LOGOS = {"Square44x44Logo": 44, "Square150x150Logo": 150, "StoreLogo": 50}
+# Square44x44Logo at exact pixel sizes, for the taskbar, Start's app list
+# and Explorer; the unplated copies are drawn without a tile behind them.
+TARGET_SIZES = [16, 24, 32, 48, 256]
+# How much of the Start tile the squircle covers.
+TILE_FILL = 2 / 3
 
 
 def small_variant(svg):
@@ -47,14 +61,49 @@ def render(svg, size):
     return Image.open(io.BytesIO(png)).convert("RGBA")
 
 
+def icon_at(svg, small, size):
+    """The icon drawn at `size`: the small variant at tray sizes."""
+    return render(small if size <= SMALL else svg, size)
+
+
+def padded(image, size, fill):
+    """`image` scaled to `fill` of a transparent `size` square, centred."""
+    inner = round(size * fill)
+    canvas = Image.new("RGBA", (size, size))
+    offset = (size - inner) // 2
+    canvas.alpha_composite(image.resize((inner, inner), Image.LANCZOS), (offset, offset))
+    return canvas
+
+
+def msix_logos(svg, small, out):
+    """The package logos, named as makepri expects its qualifiers."""
+    out.mkdir(parents=True, exist_ok=True)
+    for old in out.glob("*.png"):
+        old.unlink()
+    for name, base in MSIX_LOGOS.items():
+        for scale in SCALES:
+            size = base * scale // 100
+            if name == "Square150x150Logo":
+                image = padded(render(svg, size * 4), size, TILE_FILL)
+            else:
+                image = icon_at(svg, small, size)
+            image.save(out / f"{name}.scale-{scale}.png", optimize=True)
+    for size in TARGET_SIZES:
+        image = icon_at(svg, small, size)
+        for suffix in ("", "_altform-unplated"):
+            image.save(out / f"Square44x44Logo.targetsize-{size}{suffix}.png", optimize=True)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--assets", default="assets", type=pathlib.Path)
+    parser.add_argument("--msix", default="packaging/msix/Assets", type=pathlib.Path)
     args = parser.parse_args()
 
     svg = (args.assets / "smolcast.svg").read_text()
     small = small_variant(svg)
-    frames = [render(small if size <= SMALL else svg, size) for size in SIZES]
+    msix_logos(svg, small, args.msix)
+    frames = [icon_at(svg, small, size) for size in SIZES]
 
     largest = frames[-1]
     largest.save(

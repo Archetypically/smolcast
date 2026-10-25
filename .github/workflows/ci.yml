@@ -56,6 +56,16 @@ jobs:
             Write-Error "smolcast.exe is missing its version or icon resource"
             exit 1
           }
+      # The Microsoft Store package (plan §15), so a manifest or makepri
+      # problem shows here rather than at a release tag. Only release.yml's
+      # package goes to the Store; this one is thrown away.
+      - name: Check the MSIX packaging
+        shell: pwsh
+        run: |
+          # Only the numeric part: MSIX has no prerelease form, and this step
+          # checks the packaging, not the version.
+          $line = Select-String -Path Cargo.toml -Pattern '^version = "([0-9.]+)' | Select-Object -First 1
+          scripts/package_msix.ps1 -Exe target/x86_64-pc-windows-msvc/release/smolcast.exe -Version $line.Matches[0].Groups[1].Value -OutDir "$env:RUNNER_TEMP\msix" -AllowPlaceholders
       - name: Capture release size and import table
         shell: pwsh
         run: |
