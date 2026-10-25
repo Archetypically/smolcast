@@ -1440,7 +1440,10 @@ Releases (2026-10-22, §13): `.github/workflows/release.yml` runs on a pushed
 `v*` tag. It refuses a tag that differs from `v` + the Cargo.toml version,
 builds the MSVC release, and publishes `smolcast-<version>-x86_64.exe` with a
 `.sha256` (`<hex>  <name>`, LF) through `gh release create --generate-notes`;
-a tag with `-` becomes a prerelease, which the updater never offers.
+a tag with `-` becomes a prerelease, which the updater never offers. The
+build job has a read-only token; a separate `publish` job, which runs no
+repository code, holds `contents: write` and the attestation OIDC token.
+Workflows follow the hardening rules in `techContext.md` (CI).
 
 Action `uses:` references are full commit SHAs. A trailing `# vX.Y.Z` comment
 records the release so Dependabot can move the pin. `.github/dependabot.yml`

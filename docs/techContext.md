@@ -92,6 +92,34 @@ and opens one pull request for every version update. Security updates stay on
 Dependabot's own schedule. The pinned toolchain (`rust-toolchain.toml`) is not
 a Dependabot ecosystem; bump it by hand.
 
+Workflow hardening, kept clean by `zizmor` (`pip install zizmor`, then
+`zizmor .github/workflows`): every workflow defaults to no or read-only
+permissions; checkouts never persist the token; a job that builds or runs
+repository code never holds a write token, secrets or OIDC (release.yml
+builds in `build`, writes in `publish`, which only downloads the artifact);
+event data such as the tag name reaches scripts through `env:` or the
+`GITHUB_*` variables, never `${{ }}` inside `run:` (a tag like
+`v1.0.0-$(calc)` is valid and matches the release trigger); downloads
+outside package managers are checked against a pinned SHA-256.
+
+Repository settings the files cannot enforce (whoever can push a `v*` tag
+publishes an update every copy offers, so the tag rule matters most):
+
+- Rulesets: `v*` tags may be created, moved or deleted only by the
+  maintainer; `main` requires a pull request with green checks and blocks
+  force pushes and deletion.
+- Actions > General: workflow token read-only by default; Actions may not
+  create or approve pull requests; approval required for workflows from
+  outside contributors.
+- Code security: Dependabot alerts and security updates, secret scanning
+  with push protection, private vulnerability reporting, CodeQL (advanced
+  setup, `codeql.yml`).
+- Environments: `microsoft-store` limited to `v*` tags with a required
+  reviewer (Microsoft Store, below).
+- The maintainer account uses a passkey or security key for 2FA; until
+  releases are signed (decision 034), that account and the tag rule are what
+  stand between an attacker and every user's next update.
+
 To release, bump `version` in `Cargo.toml`, merge, then push a matching tag
 (`git tag v0.2.0 && git push origin v0.2.0`). `.github/workflows/release.yml`
 builds the MSVC exe and publishes `smolcast-<version>-x86_64.exe` with its
