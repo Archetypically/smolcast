@@ -16,11 +16,13 @@
     <link rel="stylesheet" href="/tokens.css" />
     <link rel="stylesheet" href="/styles.css" />
     <script src="/app.js" defer></script>
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-REY2NJ2MYB"></script>
+    <script src="/gtag.js"></script>
     <!-- /partial:head -->
     <title>Privacy · smolcast</title>
     <meta
       name="description"
-      content="smolcast collects nothing. What the Windows app keeps on your PC (five files), the one daily update check it makes, and what this website records (no cookies, no analytics)."
+      content="smolcast collects nothing. What the Windows app keeps on your PC (five files), the one daily update check it makes, and what this website records (Google Analytics only)."
     />
     <link rel="canonical" href="https://smolcast.evanlee.engineer/privacy" />
     <link rel="alternate" type="text/markdown" href="https://smolcast.evanlee.engineer/privacy.md" />
@@ -40,7 +42,7 @@
     <meta property="og:image:height" content="630" />
     <meta
       property="og:image:alt"
-      content="smolcast collects nothing: no accounts or telemetry, one update check a day you can turn off, and no cookies on this site."
+      content="smolcast collects nothing: no accounts or telemetry, one update check a day you can turn off, and only Google Analytics on this site."
     />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="smolcast collects nothing" />
@@ -51,7 +53,7 @@
     <meta name="twitter:image" content="https://smolcast.evanlee.engineer/og/privacy.png" />
     <meta
       name="twitter:image:alt"
-      content="smolcast collects nothing: no accounts or telemetry, one update check a day you can turn off, and no cookies on this site."
+      content="smolcast collects nothing: no accounts or telemetry, one update check a day you can turn off, and only Google Analytics on this site."
     />
 
     <script type="application/ld+json">
@@ -117,7 +119,7 @@
         <h1>smolcast collects nothing.</h1>
         <p class="lead">
           Your stuff stays on your PC. The app makes one request a day, an update check you can switch off. This site
-          has no cookies and no analytics.
+          uses Google Analytics to count visits.
         </p>
         <p class="stamp">
           <span class="tag">Updated <time datetime="2026-10-23">23 Oct 2026</time></span>
@@ -131,7 +133,9 @@
         <li class="card">
           <span class="figure">1</span><span>Request a day: the update check, with an off switch</span>
         </li>
-        <li class="card"><span class="figure">0</span><span>Cookies or analytics on this website</span></li>
+        <li class="card">
+          <span class="figure">0</span><span>Analytics on the app (the website uses Google Analytics)</span>
+        </li>
       </ul>
 
       <section class="doc-section" aria-labelledby="files-title">
@@ -222,14 +226,14 @@
       </section>
 
       <section class="doc-section" aria-labelledby="site-title">
-        <h2 id="site-title">No cookies, no analytics, no trackers</h2>
+        <h2 id="site-title">Google Analytics on this website only</h2>
         <div class="cards">
           <article class="card">
-            <h3>Nothing from anywhere else</h3>
+            <h3>Google Analytics</h3>
             <p>
-              Every page, script, style, image and font comes from this site, and its Content Security Policy enforces
-              that. If you flip between light and dark, your browser remembers it in local storage. That never leaves
-              your browser.
+              This website loads Google Analytics (Google tag, gtag.js), which counts visits and may set cookies and
+              send your IP address and page views to Google. The app never loads it. Everything else on a page comes
+              from this site. Light or dark is remembered in your browser's local storage and never leaves it.
             </p>
           </article>
           <article class="card">
@@ -238,7 +242,7 @@
               Cloudflare Pages serves the site, so Cloudflare handles each request, including your IP and user agent (<a
                 href="https://www.cloudflare.com/privacypolicy/"
                 >Cloudflare’s privacy policy</a
-              >). No visitor analytics are on. Downloads come from GitHub.
+              >). Google Analytics is on; see above. Downloads come from GitHub.
             </p>
           </article>
         </div>
