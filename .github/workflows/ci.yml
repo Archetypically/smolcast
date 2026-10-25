@@ -67,7 +67,7 @@ jobs:
           # Only the numeric part: MSIX has no prerelease form, and this step
           # checks the packaging, not the version.
           $line = Select-String -Path Cargo.toml -Pattern '^version = "([0-9.]+)' | Select-Object -First 1
-          scripts/package_msix.ps1 -Exe target/x86_64-pc-windows-msvc/release/smolcast.exe -Version $line.Matches[0].Groups[1].Value -OutDir "$env:RUNNER_TEMP\msix" -AllowPlaceholders
+          scripts/package_msix.ps1 -Exe target/x86_64-pc-windows-msvc/release/smolcast.exe -Version $line.Matches[0].Groups[1].Value -OutDir "$env:RUNNER_TEMP\msix"
       - name: Capture release size and import table
         shell: pwsh
         run: |

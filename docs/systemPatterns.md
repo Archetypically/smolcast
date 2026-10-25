@@ -1810,14 +1810,13 @@ Square44x44Logo (scales 100–400, target sizes 16–256 plated and unplated),
 Square150x150Logo (the squircle at two thirds of the tile) and StoreLogo.
 
 Packaging (`scripts/package_msix.ps1`, `task msix`). Stages the exe,
-`LICENSE`, the logos and the manifest; refuses a prerelease version, a part
-above 65535, or a `REPLACE-ME` identity (unless `-AllowPlaceholders`, which
-CI uses); runs `makepri` (default config without its resource-pack split) and
+`LICENSE`, the logos and the manifest; refuses a prerelease version or a part
+above 65535; runs `makepri` (default config without its resource-pack split) and
 `makeappx pack` from the newest Windows SDK. The MSIX is unsigned: the Store
 signs it. `Add-AppxPackage -Register <layout>\AppxManifest.xml` with
 Developer Mode installs the staged layout for testing.
 
-Pipeline. `ci.yml` packages every Windows build with placeholders to catch
+Pipeline. `ci.yml` packages every Windows build to catch
 manifest and asset errors. On a release (not prerelease) tag, once the
 repository variable `MSSTORE_PRODUCT_ID` exists, `release.yml`'s `msix` job
 (read-only, beside `publish`, so it never holds up the GitHub release)

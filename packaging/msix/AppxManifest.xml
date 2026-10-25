@@ -2,8 +2,7 @@
 <!--
   The Microsoft Store package (docs/systemPatterns.md §15). scripts/package_msix.ps1
   fills in Version from Cargo.toml; the Identity values and PublisherDisplayName
-  are the ones Partner Center shows under Product management > Product identity,
-  and the script refuses to package while a REPLACE-ME placeholder is left.
+  are the ones Partner Center shows under Product management > Product identity.
 -->
 <Package
   xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
@@ -14,14 +13,14 @@
   IgnorableNamespaces="uap desktop desktop6 rescap">
 
   <Identity
-    Name="REPLACE-ME.smolcast"
-    Publisher="CN=REPLACE-ME"
+    Name="EvanLee.smolcast"
+    Publisher="CN=C2A09A70-42E7-4CF1-BF58-08850CCB0D3B"
     Version="$(Version)"
     ProcessorArchitecture="x64" />
 
   <Properties>
     <DisplayName>smolcast</DisplayName>
-    <PublisherDisplayName>REPLACE-ME</PublisherDisplayName>
+    <PublisherDisplayName>Evan Lee</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
     <!-- smolcast and everything it starts (apps, scripts, files) write to the
          real AppData and HKCU, as from Explorer: a launcher whose launches

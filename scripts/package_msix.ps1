@@ -7,15 +7,11 @@
 # your own machine, turn on Developer Mode and register the staged layout:
 #   Add-AppxPackage -Register dist\msix\layout\AppxManifest.xml
 #
-# -AllowPlaceholders packages even with the manifest's REPLACE-ME identity, so
-# CI can check the packaging; such a package is never submitted.
-#
-# Usage: scripts/package_msix.ps1 -Exe <smolcast.exe> [-Version 1.2.3] [-OutDir dist/msix] [-AllowPlaceholders]
+# Usage: scripts/package_msix.ps1 -Exe <smolcast.exe> [-Version 1.2.3] [-OutDir dist/msix]
 param(
     [Parameter(Mandatory)] [string]$Exe,
     [string]$Version,
-    [string]$OutDir = 'dist/msix',
-    [switch]$AllowPlaceholders
+    [string]$OutDir = 'dist/msix'
 )
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
@@ -53,9 +49,6 @@ if (-not $sdk) {
 
 # Windows PowerShell 5.1 reads BOM-less files as ANSI without -Encoding.
 $manifest = (Get-Content -Raw -Encoding UTF8 (Join-Path $root 'packaging/msix/AppxManifest.xml')).Replace('$(Version)', "$Version.0")
-if ($manifest.Contains('REPLACE-ME') -and -not $AllowPlaceholders) {
-    throw 'packaging/msix/AppxManifest.xml still has REPLACE-ME placeholders: copy Identity Name, Publisher and PublisherDisplayName from Partner Center > Product identity'
-}
 
 $layout = Join-Path $OutDir 'layout'
 if (Test-Path $layout) { Remove-Item -Recurse -Force $layout }

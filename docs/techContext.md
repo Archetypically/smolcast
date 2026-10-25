@@ -140,9 +140,8 @@ once the Store is set up. `task msix` (Windows, needs the Windows SDK; pass
 into `dist/msix`. One-time setup, in order:
 
 1. Partner Center > the reserved app > Product management > Product
-   identity: copy `Package/Identity/Name`, `Package/Identity/Publisher` and
-   `Package/Properties/PublisherDisplayName` over the `REPLACE-ME` values in
-   `packaging/msix/AppxManifest.xml`. Note the Store ID (12 characters).
+   identity: note the Store ID (12 characters). The manifest already has
+   the identity values.
 2. First submission by hand: `task msix VERSION=<version>`, then a
    submission with the listing, screenshots, age rating, the privacy URL,
    and under Submission options the restricted-capability justification:

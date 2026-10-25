@@ -56,10 +56,10 @@ Decision 040, plan §15: the release exe ships to the Store in an MSIX
 (`scripts/package_msix.ps1`, `task msix`, manifest and logos in
 `packaging/msix/`), with write virtualization off. Packaged, the exe has no
 self-update and uses the manifest's startup task for sign-in. CI packages
-every build with the placeholder identity; `release.yml`'s `store` job
+every build; `release.yml`'s `store` job
 submits release tags with `msstore` once `MSSTORE_PRODUCT_ID` is set. The
-user reserved the name in Partner Center; the manifest still has
-`REPLACE-ME` identity values. Setup steps: techContext "Microsoft Store".
+manifest carries the reserved name's Partner Center identity (Name,
+Publisher, PublisherDisplayName). Setup steps: techContext "Microsoft Store".
 Never run on Windows: makepri/makeappx in CI (first run of `ci.yml` checks
 them), install via `Add-AppxPackage -Register`, Start menu name and icons at
 100/150/200%, taskbar and Alt+Tab icon, the startup task on, off, and off in
