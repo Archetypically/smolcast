@@ -68,6 +68,17 @@ jobs:
           # checks the packaging, not the version.
           $line = Select-String -Path Cargo.toml -Pattern '^version = "([0-9.]+)' | Select-Object -First 1
           scripts/package_msix.ps1 -Exe target/x86_64-pc-windows-msvc/release/smolcast.exe -Version $line.Matches[0].Groups[1].Value -OutDir "$env:RUNNER_TEMP\msix"
+      # The MSIX and its staged layout, so trying the package
+      # (Add-AppxPackage -Register layout\AppxManifest.xml) or a manual Store
+      # upload needs no Windows SDK or Rust toolchain on the maintainer's PC.
+      - name: Upload the MSIX
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: msix
+          path: |
+            ${{ runner.temp }}/msix/*.msix
+            ${{ runner.temp }}/msix/layout/
+          if-no-files-found: error
       - name: Capture release size and import table
         shell: pwsh
         run: |

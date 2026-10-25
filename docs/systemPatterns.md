@@ -1817,7 +1817,8 @@ signs it. `Add-AppxPackage -Register <layout>\AppxManifest.xml` with
 Developer Mode installs the staged layout for testing.
 
 Pipeline. `ci.yml` packages every Windows build to catch
-manifest and asset errors. On a release (not prerelease) tag, once the
+manifest and asset errors, and uploads the MSIX and its layout as the `msix`
+artifact for testing and the first manual submission. On a release (not prerelease) tag, once the
 repository variable `MSSTORE_PRODUCT_ID` exists, `release.yml`'s `msix` job
 (read-only, beside `publish`, so it never holds up the GitHub release)
 packages the built exe and uploads the MSIX as an artifact; after both, the

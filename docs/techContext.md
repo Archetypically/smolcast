@@ -142,7 +142,11 @@ into `dist/msix`. One-time setup, in order:
 1. Partner Center > the reserved app > Product management > Product
    identity: note the Store ID (12 characters). The manifest already has
    the identity values.
-2. First submission by hand: `task msix VERSION=<version>`, then a
+2. First submission by hand, with the MSIX from a CI run's `msix` artifact
+   (or `task msix VERSION=<version>` on Windows with the SDK). CI packages
+   Cargo.toml's version without its prerelease part, and the Store only
+   accepts higher versions afterwards, so take it from the commit that
+   carries the first release's version (or tag a higher one next). Then a
    submission with the listing, screenshots, age rating, the privacy URL,
    and under Submission options the restricted-capability justification:
    `runFullTrust`, a desktop app; `unvirtualizedResources`, a launcher whose
