@@ -214,8 +214,9 @@ monochrome emoji baseline. Measure their binary cost before considering system-f
 replacement.
 
 The root viewport is created hidden. The first frame shows it when the user
-started smolcast (no `--login` from the Run entry, no `--wait-pid` from the
-updater; decision 037) or when startup/config/hotkey registration has an error
+started smolcast (no `--login` from the Run entry, no startup-task activation
+in the Store package (§15), no `--wait-pid` from the updater; decision 037) or
+when startup/config/hotkey registration has an error
 that requires user action; otherwise it stays in the tray. Summon sends `ViewportCommand::Visible(true)`
 then `ViewportCommand::Focus`. Hide sends `Visible(false)`. Never send `Close` to
 implement hide.
@@ -1439,7 +1440,10 @@ Releases (2026-10-22, §13): `.github/workflows/release.yml` runs on a pushed
 `v*` tag. It refuses a tag that differs from `v` + the Cargo.toml version,
 builds the MSVC release, and publishes `smolcast-<version>-x86_64.exe` with a
 `.sha256` (`<hex>  <name>`, LF) through `gh release create --generate-notes`;
-a tag with `-` becomes a prerelease, which the updater never offers.
+a tag with `-` becomes a prerelease, which the updater never offers. The
+build job has a read-only token; a separate `publish` job, which runs no
+repository code, holds `contents: write` and the attestation OIDC token.
+Workflows follow the hardening rules in `techContext.md` (CI).
 
 Action `uses:` references are full commit SHAs. A trailing `# vX.Y.Z` comment
 records the release so Dependabot can move the pin. `.github/dependabot.yml`
@@ -1613,7 +1617,8 @@ writes the quoted running-exe path plus `--login` when missing or different
 value; both are idempotent and quit never
 touches it. A malformed startup config skips reconciliation so falling back to
 defaults cannot unregister. Task Manager's `StartupApproved` state is left alone.
-Failures are a content-free notice (op `autostart`).
+Failures are a content-free notice (op `autostart`). The Store package uses
+its startup task instead of the Run value (§15).
 
 Appearance (2026-09-25, `win/appearance.rs`): DWM rounded corners
 (`DWMWCP_ROUND`) and a dark/light frame (`DWMWA_USE_IMMERSIVE_DARK_MODE`) that
@@ -1761,4 +1766,68 @@ an outline, the environment, and `issue_excerpt`, the crash entry cut to
 shows exactly that excerpt) through `shell::open_uri` and hides the
 palette. Nothing is sent by smolcast: the user reviews and submits the issue
 on GitHub.
+
+---
+
+## 15. Microsoft Store package (2026-10-25, decision 040)
+
+One exe, two forms. `win/package::is_packaged` (`GetCurrentPackageFullName`,
+cached) tells the GitHub exe from the same exe running inside the Store's
+MSIX. When packaged:
+
+- No self-update: the host starts no `UpdateWorker`, the root list has no
+  "Check for Updates" (`builtin_commands(false)`), and Settings shows "The
+  Microsoft Store keeps smolcast up to date" in place of the
+  `check_for_updates` checkbox. The setting is kept and ignored.
+- Login registration (§12.7) goes through the manifest's `windows.startupTask`
+  extension, `TaskId="smolcast"`, declared `Enabled="false"`.
+  `autostart::reconcile` reads `StartupTask::State`: enabled calls
+  `RequestEnableAsync` (no prompt for a desktop app); disabled calls
+  `Disable`. It runs only when `start_at_login` differs from the value last
+  reconciled in this process, since the calls block the UI thread.
+  `DisabledByUser` (Task Manager) and `DisabledByPolicy` cannot be undone by
+  the app: silent at startup (Task Manager's switch is the user's), and one
+  notice naming the reason when the user turns the setting on; on by policy
+  is left alone. A `smolcast` Run value (the portable exe's) is deleted, so
+  only one copy starts at sign-in.
+- A start by the startup task (`AppInstance::GetActivatedEventArgs` kind
+  `StartupTask`) is a quiet start, like `--login` (decision 037).
+
+Manifest (`packaging/msix/AppxManifest.xml`). Identity `Name`, `Publisher`
+and `PublisherDisplayName` are Partner Center's (Product identity); `Version`
+is `$(Version)`, filled with `<major.minor.patch>.0`. One x64 full-trust
+application (`Windows.FullTrustApplication`, `runFullTrust`), Windows
+Desktop from 10.0.22000. `desktop6:FileSystemWriteVirtualization` and
+`RegistryWriteVirtualization` are `disabled` (capability
+`unvirtualizedResources`), so smolcast and every process it starts write to
+the real AppData and HKCU: the same `%APPDATA%\smolcast` and
+`%LOCALAPPDATA%\smolcast` as the portable exe, and uninstall leaves them.
+Never add `virtualization:ExcludedDirectories`: on Windows 11 it replaces
+the full opt-out.
+
+Logos (`packaging/msix/Assets`) come from `scripts/generate_icon.py`:
+Square44x44Logo (scales 100–400, target sizes 16–256 plated and unplated),
+Square150x150Logo (the squircle at two thirds of the tile) and StoreLogo.
+
+Packaging (`scripts/package_msix.ps1`, `task msix`). Stages the exe,
+`LICENSE`, the logos and the manifest; refuses a prerelease version or a part
+above 65535; runs `makepri` (default config without its resource-pack split) and
+`makeappx pack` from the newest Windows SDK. The MSIX is unsigned: the Store
+signs it. `Add-AppxPackage -Register <layout>\AppxManifest.xml` with
+Developer Mode installs the staged layout for testing.
+
+Pipeline. `ci.yml` packages every Windows build to catch
+manifest and asset errors, and uploads the MSIX and its layout as the `msix`
+artifact for testing and the first manual submission. On a release (not prerelease) tag, once the
+repository variable `MSSTORE_PRODUCT_ID` exists, `release.yml`'s `msix` job
+(read-only, beside `publish`, so it never holds up the GitHub release)
+packages the built exe and uploads the MSIX as an artifact; after both, the
+`store` job, which runs no repository code, in the `microsoft-store`
+environment (limited to `v*` tags, with a required reviewer; secrets
+`MSSTORE_TENANT_ID`, `MSSTORE_SELLER_ID`, `MSSTORE_CLIENT_ID`,
+`MSSTORE_CLIENT_SECRET`), installs the Store Developer CLI (`msstore`, pinned
+version), signs in with `msstore reconfigure`, and runs
+`msstore publish <msix> --appId <id>`, which replaces any draft with one
+carrying the package and commits it to certification. The CLI updates only a
+product with a published submission, so the first one is manual.
 

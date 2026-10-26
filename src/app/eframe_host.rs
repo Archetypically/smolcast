@@ -31,7 +31,7 @@ use crate::win::placement::PaletteWindow;
 use crate::win::shell::{self, IconTarget, IconWorker};
 use crate::win::tray::{self, TrayHandle};
 use crate::win::update::{self, UpdateWorker};
-use crate::win::{appearance, autostart, file_dialog, join_by};
+use crate::win::{appearance, autostart, file_dialog, join_by, package};
 
 /// Startup facts decided before the window exists.
 pub struct Startup {
@@ -224,10 +224,14 @@ impl EframeApp {
             .inspect_err(|e| model.file_search_unavailable(&e.to_string()))
             .ok();
         let update_automatic = model.config().settings.check_for_updates;
-        let updates =
+        // The Microsoft Store updates its own package (plan §15).
+        let updates = if package::is_packaged() {
+            None
+        } else {
             UpdateWorker::start(paths.update_state.clone(), update_automatic, wake.clone())
                 .inspect_err(|e| model.updates_unavailable(&e.to_string()))
-                .ok();
+                .ok()
+        };
 
         // Tray icon + menu (§5.2). Failure keeps the app running but reports a
         // visible notice; the hotkey path still works.

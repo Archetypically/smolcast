@@ -13,7 +13,7 @@ use crate::core::config::{
     MAX_CLIPBOARD_TOTAL_BYTES, MAX_KEEP_STATE_SECS, MIN_CLIPBOARD_ENTRIES,
     MIN_CLIPBOARD_ITEM_BYTES, PaletteSize, ReduceMotion, SearchEngine, Settings, TextSize,
 };
-use crate::win::hotkey;
+use crate::win::{hotkey, package};
 
 use super::theme;
 
@@ -173,10 +173,15 @@ impl SettingsView {
             ui.end_row();
 
             ui.label("Updates");
-            ui.checkbox(
-                &mut draft.check_for_updates,
-                "Check GitHub for a new version once a day",
-            );
+            // The Microsoft Store updates its own package (plan §15).
+            if package::is_packaged() {
+                ui.label("The Microsoft Store keeps smolcast up to date");
+            } else {
+                ui.checkbox(
+                    &mut draft.check_for_updates,
+                    "Check GitHub for a new version once a day",
+                );
+            }
             ui.end_row();
 
             ui.label("Web search");

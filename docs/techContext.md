@@ -62,6 +62,7 @@ Machine-specific paths are never tracked. Copy `.env.example` to `.env`
 | `task run` | Windows: build and run. WSL: stage a debug build and launch it through interop |
 | `task stage` | WSL: build (`PROFILE=release` default) and copy the exe to `STAGE_DIR` |
 | `task install` | WSL: release build copied to `INSTALL_DIR` (the everyday copy) |
+| `task msix` | Windows: release build packaged as the Store MSIX in `dist/msix` (`VERSION=` for a prerelease Cargo version) |
 | `task check` / `task clippy` | Windows-target type-check / lint (`-D warnings`, all targets) |
 | `task fmt` / `task fmt-check` | Format / check formatting |
 | `task test` | Library tests on the host |
@@ -91,6 +92,34 @@ and opens one pull request for every version update. Security updates stay on
 Dependabot's own schedule. The pinned toolchain (`rust-toolchain.toml`) is not
 a Dependabot ecosystem; bump it by hand.
 
+Workflow hardening, kept clean by `zizmor` (`pip install zizmor`, then
+`zizmor .github/workflows`): every workflow defaults to no or read-only
+permissions; checkouts never persist the token; a job that builds or runs
+repository code never holds a write token, secrets or OIDC (release.yml
+builds in `build`, writes in `publish`, which only downloads the artifact);
+event data such as the tag name reaches scripts through `env:` or the
+`GITHUB_*` variables, never `${{ }}` inside `run:` (a tag like
+`v1.0.0-$(calc)` is valid and matches the release trigger); downloads
+outside package managers are checked against a pinned SHA-256.
+
+Repository settings the files cannot enforce (whoever can push a `v*` tag
+publishes an update every copy offers, so the tag rule matters most):
+
+- Rulesets: `v*` tags may be created, moved or deleted only by the
+  maintainer; `main` requires a pull request with green checks and blocks
+  force pushes and deletion.
+- Actions > General: workflow token read-only by default; Actions may not
+  create or approve pull requests; approval required for workflows from
+  outside contributors.
+- Code security: Dependabot alerts and security updates, secret scanning
+  with push protection, private vulnerability reporting, CodeQL (advanced
+  setup, `codeql.yml`).
+- Environments: `microsoft-store` limited to `v*` tags with a required
+  reviewer (Microsoft Store, below).
+- The maintainer account uses a passkey or security key for 2FA; until
+  releases are signed (decision 034), that account and the tag rule are what
+  stand between an attacker and every user's next update.
+
 To release, bump `version` in `Cargo.toml`, merge, then push a matching tag
 (`git tag v0.2.0 && git push origin v0.2.0`). `.github/workflows/release.yml`
 builds the MSVC exe and publishes `smolcast-<version>-x86_64.exe` with its
@@ -99,8 +128,45 @@ and site in the exe's Properties come from `Cargo.toml` through `build.rs`
 (decision 026); the workflow fails if the embedded version is not the tag's.
 The app icon is generated from `assets/smolcast.svg`:
 `python3 scripts/generate_icon.py` (needs cairosvg and Pillow) rewrites
-`assets/smolcast.ico` and `assets/smolcast.png`. A tag with a `-`
-(`v0.2.0-rc.1`) is a prerelease and is never offered.
+`assets/smolcast.ico`, `assets/smolcast.png` and the MSIX logos in
+`packaging/msix/Assets`. A tag with a `-` (`v0.2.0-rc.1`) is a prerelease
+and is never offered.
+
+### Microsoft Store (plan §15, decision 040)
+
+A release (not prerelease) tag also submits the exe to the Store as an MSIX,
+once the Store is set up. `task msix` (Windows, needs the Windows SDK; pass
+`VERSION=1.0.0` while Cargo.toml has a prerelease) builds the same package
+into `dist/msix`. One-time setup, in order:
+
+1. Partner Center > the reserved app > Product management > Product
+   identity: note the Store ID (12 characters). The manifest already has
+   the identity values.
+2. First submission by hand, with the MSIX from a CI run's `msix` artifact
+   (or `task msix VERSION=<version>` on Windows with the SDK). CI packages
+   Cargo.toml's version without its prerelease part, and the Store only
+   accepts higher versions afterwards, so take it from the commit that
+   carries the first release's version (or tag a higher one next). Then a
+   submission with the listing, screenshots, age rating, the privacy URL,
+   and under Submission options the restricted-capability justification:
+   `runFullTrust`, a desktop app; `unvirtualizedResources`, a launcher whose
+   launched apps and scripts must write to the user's real AppData and
+   registry. Free. Wait until it is published.
+3. Partner Center > Account settings > User management > Microsoft Entra
+   applications: add (or create) an app with the Manager role and a client
+   secret. Note the tenant ID, client ID, secret and the Seller ID (shown
+   under Account settings).
+4. GitHub > Settings > Environments: create `microsoft-store` (add yourself
+   as a required reviewer to approve each submission; under Deployment
+   branches and tags allow only tags matching `v*`, so no workflow on a
+   branch can read its secrets) with secrets
+   `MSSTORE_TENANT_ID`, `MSSTORE_SELLER_ID`, `MSSTORE_CLIENT_ID` and
+   `MSSTORE_CLIENT_SECRET`. Then add the repository variable
+   `MSSTORE_PRODUCT_ID` (the Store ID), which switches the Store steps on.
+
+The secret expires (24 months at most); renew it in Entra and update the
+environment secret. Certification takes up to a few days; follow it in
+Partner Center.
 
 ## Website
 

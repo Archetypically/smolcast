@@ -4,7 +4,16 @@ name: release
 # release that the in-app updater offers (docs/systemPatterns.md §13): the exe
 # as smolcast-<version>-x86_64.exe plus its .sha256, and a build provenance
 # attestation once the repository is public. The tag must match the version in
-# Cargo.toml. Builds are not Authenticode-signed yet.
+# Cargo.toml. Builds are not Authenticode-signed yet. A release (not
+# prerelease) tag also submits the same exe to the Microsoft Store as an MSIX
+# once the Store is set up (plan §15).
+#
+# Hardening (plan §11): the jobs that run repository and dependency code
+# (build scripts, the packaging script) get a read-only token that is not
+# left in .git/config; only `publish`, which runs no repository code, can
+# write the release and request the attestation, and only `store` sees the
+# Store credentials. The tag reaches scripts through GITHUB_REF_NAME, never
+# `${{ }}` interpolation, so a crafted tag name cannot become script.
 
 # Filters are globs, so they only narrow the trigger; the version step below
 # rejects anything that is not exactly v<semver>.
@@ -14,19 +23,22 @@ on:
       - 'v[0-9]+.[0-9]+.[0-9]+'
       - 'v[0-9]+.[0-9]+.[0-9]+-*'
 
-permissions:
-  contents: write
-  # Build provenance: an OIDC token for the Sigstore certificate, and the
-  # right to store the attestation.
-  id-token: write
-  attestations: write
+permissions: {}
 
 jobs:
-  release:
-    name: Build and publish
+  build:
+    name: Build
     runs-on: windows-latest
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      asset: ${{ steps.asset.outputs.name }}
+      sha256: ${{ steps.asset.outputs.sha256 }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Install pinned toolchain
         shell: pwsh
         run: |
@@ -36,10 +48,10 @@ jobs:
         id: version
         shell: pwsh
         run: |
-          $tag = "${{ github.ref_name }}"
+          $tag = $env:GITHUB_REF_NAME
           # semver.org's grammar; build metadata (+...) is not allowed in tags.
           if ($tag -cnotmatch '^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-((0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(\.(0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*))?$') {
-            Write-Error "Tag $tag is not v<semantic version>"
+            Write-Error "The tag is not v<semantic version>"
             exit 1
           }
           $line = Select-String -Path Cargo.toml -Pattern '^version = "(.+)"$' | Select-Object -First 1
@@ -55,40 +67,148 @@ jobs:
       # an exe whose Properties > Details would be blank or stale.
       - name: Check the embedded file properties
         shell: pwsh
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
           $info = (Get-Item target/x86_64-pc-windows-msvc/release/smolcast.exe).VersionInfo
           $info | Format-List ProductName, FileDescription, FileVersion, ProductVersion, CompanyName, LegalCopyright, OriginalFilename
-          $version = "${{ steps.version.outputs.version }}"
-          if ($info.ProductVersion -ne $version -or $info.FileVersion -ne $version -or $info.ProductName -ne "smolcast" -or $info.LegalCopyright -notmatch 'Evan Lee') {
+          if ($info.ProductVersion -ne $env:VERSION -or $info.FileVersion -ne $env:VERSION -or $info.ProductName -ne "smolcast" -or $info.LegalCopyright -notmatch 'Evan Lee') {
             Write-Error "smolcast.exe is missing its version resource or carries the wrong version"
             exit 1
           }
       - name: Name the asset and its checksum
+        id: asset
         shell: pwsh
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          $name = "smolcast-${{ steps.version.outputs.version }}-x86_64.exe"
+          $name = "smolcast-$env:VERSION-x86_64.exe"
           New-Item -ItemType Directory -Force dist | Out-Null
           Copy-Item target/x86_64-pc-windows-msvc/release/smolcast.exe "dist/$name"
           $hash = (Get-FileHash -Algorithm SHA256 "dist/$name").Hash.ToLowerInvariant()
           # sha256sum format, LF only, so `sha256sum -c` accepts it too.
           [IO.File]::WriteAllText("$PWD/dist/$name.sha256", "$hash  $name`n")
+          "name=$name" >> $env:GITHUB_OUTPUT
+          "sha256=$hash" >> $env:GITHUB_OUTPUT
+      - name: Keep the release files
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release
+          path: dist/*
+          if-no-files-found: error
+
+  publish:
+    name: Publish
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      # Build provenance: an OIDC token for the Sigstore certificate, and the
+      # right to store the attestation.
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release
+          path: dist
+      # Attest and publish only the exact exe the build job hashed.
+      - name: Check the exe is the one built
+        env:
+          ASSET: ${{ needs.build.outputs.asset }}
+          SHA256: ${{ needs.build.outputs.sha256 }}
+        run: echo "$SHA256  dist/$ASSET" | sha256sum --check --strict
       # Lets anyone check an exe came from this workflow and tag:
       # gh attestation verify <exe> --repo Archetypically/smolcast
       # GitHub offers attestations on private repositories only under
-      # Enterprise Cloud, so the step waits for the repository to go public.
+      # Enterprise Cloud, so the step needs the repository public.
       - name: Attest build provenance
         if: github.event.repository.visibility == 'public'
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: dist/*.exe
       - name: Publish the release
-        shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.build.outputs.version }}
         run: |
-          $tag = "${{ github.ref_name }}"
-          $arguments = @('release', 'create', $tag) + (Get-ChildItem dist).FullName
-          $arguments += @('--title', "smolcast ${{ steps.version.outputs.version }}", '--generate-notes')
+          arguments=(release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --verify-tag
+            --title "smolcast $VERSION" --generate-notes)
           # The updater reads releases/latest, which never lists prereleases.
-          if ($tag.Contains('-')) { $arguments += '--prerelease' }
-          gh @arguments
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then arguments+=(--prerelease); fi
+          gh "${arguments[@]}"
+
+  # The Microsoft Store build (plan §15): the same exe in an MSIX, which the
+  # Store signs. A separate job, so a Store problem never holds up the
+  # GitHub release, and only once the Store product ID is set as a
+  # repository variable. Prereleases have no MSIX version and stay off the
+  # Store. Not a release asset: unsigned, it would not install.
+  msix:
+    name: Package for the Microsoft Store
+    needs: build
+    if: ${{ !contains(github.ref_name, '-') && vars.MSSTORE_PRODUCT_ID != '' }}
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release
+          path: dist
+      - name: Package
+        shell: pwsh
+        env:
+          ASSET: ${{ needs.build.outputs.asset }}
+          VERSION: ${{ needs.build.outputs.version }}
+        run: scripts/package_msix.ps1 -Exe "dist/$env:ASSET" -Version $env:VERSION -OutDir msix
+      - name: Keep the MSIX for the Store job
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: msix
+          path: msix/*.msix
+          if-no-files-found: error
+
+  # Submits the MSIX to the Microsoft Store for certification, which
+  # publishes it when it passes; only after the GitHub release exists. Store
+  # credentials live only in the `microsoft-store` environment, limited to
+  # v* tags with a required reviewer who approves each submission
+  # (techContext "Microsoft Store"). It runs no repository code.
+  store:
+    name: Submit to the Microsoft Store
+    needs: [publish, msix]
+    runs-on: windows-latest
+    environment: microsoft-store
+    permissions: {}
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: msix
+          path: msix
+      - name: Install the Microsoft Store Developer CLI
+        uses: microsoft/microsoft-store-apppublisher@cc9910a8d59f2eb55cbb83df0a3800cf3b5300e0 # v1.4
+        with:
+          version: v0.4.3
+      - name: Sign in to Partner Center
+        shell: pwsh
+        env:
+          TENANT_ID: ${{ secrets.MSSTORE_TENANT_ID }}
+          SELLER_ID: ${{ secrets.MSSTORE_SELLER_ID }}
+          CLIENT_ID: ${{ secrets.MSSTORE_CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.MSSTORE_CLIENT_SECRET }}
+        run: |
+          msstore reconfigure --tenantId $env:TENANT_ID --sellerId $env:SELLER_ID --clientId $env:CLIENT_ID --clientSecret $env:CLIENT_SECRET
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      # Replaces any draft submission with one carrying this package and
+      # commits it; the listing, pricing and the rest carry over from the
+      # last published submission.
+      - name: Submit the package
+        shell: pwsh
+        env:
+          PRODUCT_ID: ${{ vars.MSSTORE_PRODUCT_ID }}
+        run: |
+          $msix = (Get-ChildItem msix/*.msix | Select-Object -First 1).FullName
+          msstore publish $msix --appId $env:PRODUCT_ID --verbose
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

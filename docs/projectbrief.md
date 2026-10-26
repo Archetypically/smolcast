@@ -49,7 +49,8 @@ keyboard hook).
 - Network-dependent features in the core: currency conversion, online
   dictionaries, favicon fetching. The one exception is the update check
   (decision 019): one request a day to GitHub's release API, off with a
-  setting, carrying no user data.
+  setting, carrying no user data. The Microsoft Store build makes none: the
+  Store updates it (decision 040).
 
 Out of scope until there is a measured or explicit need: OCR, automatic
 password/secret detection, directory watchers, an app index cache,

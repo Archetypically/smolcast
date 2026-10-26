@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The Microsoft Store package (docs/systemPatterns.md §15). scripts/package_msix.ps1
+  fills in Version from Cargo.toml; the Identity values and PublisherDisplayName
+  are the ones Partner Center shows under Product management > Product identity.
+-->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
+  xmlns:desktop6="http://schemas.microsoft.com/appx/manifest/desktop/windows10/6"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap desktop desktop6 rescap">
+
+  <Identity
+    Name="EvanLee.smolcast"
+    Publisher="CN=C2A09A70-42E7-4CF1-BF58-08850CCB0D3B"
+    Version="$(Version)"
+    ProcessorArchitecture="x64" />
+
+  <Properties>
+    <DisplayName>smolcast</DisplayName>
+    <PublisherDisplayName>Evan Lee</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+    <!-- smolcast and everything it starts (apps, scripts, files) write to the
+         real AppData and HKCU, as from Explorer: a launcher whose launches
+         land in a private per-package copy would break them. Needs
+         unvirtualizedResources below. -->
+    <desktop6:FileSystemWriteVirtualization>disabled</desktop6:FileSystemWriteVirtualization>
+    <desktop6:RegistryWriteVirtualization>disabled</desktop6:RegistryWriteVirtualization>
+  </Properties>
+
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.22000.0" MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="en-us" />
+  </Resources>
+
+  <Applications>
+    <Application Id="smolcast" Executable="smolcast.exe" EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements
+        DisplayName="smolcast"
+        Description="Minimal Windows-native command palette: apps, clipboard history, emoji, snippets and scripts."
+        BackgroundColor="transparent"
+        Square150x150Logo="Assets\Square150x150Logo.png"
+        Square44x44Logo="Assets\Square44x44Logo.png" />
+      <Extensions>
+        <!-- "Start smolcast when you sign in" (plan §15): off until the
+             setting turns it on through the StartupTask API. -->
+        <desktop:Extension Category="windows.startupTask" Executable="smolcast.exe" EntryPoint="Windows.FullTrustApplication">
+          <desktop:StartupTask TaskId="smolcast" Enabled="false" DisplayName="smolcast" />
+        </desktop:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+
+  <Capabilities>
+    <rescap:Capability Name="runFullTrust" />
+    <rescap:Capability Name="unvirtualizedResources" />
+  </Capabilities>
+</Package>
