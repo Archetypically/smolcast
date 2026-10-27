@@ -333,6 +333,7 @@ impl AppModel {
         stores: LauncherStores,
         startup_notices: Vec<Notice>,
         force_visible: bool,
+        mica: bool,
         report: ReportView,
     ) -> Self {
         let mut notices = NoticeStore::new();
@@ -374,7 +375,7 @@ impl AppModel {
             quit_requested: false,
             force_show: force_visible,
             palette_window: None,
-            settings: SettingsView::new(&config.settings),
+            settings: SettingsView::new(&config.settings, mica),
             about: AboutView::default(),
             report,
             had_focus: false,

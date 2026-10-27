@@ -1,21 +1,23 @@
-//! smolcast's look (plan §12.7, decision 028):Raycast's structure (a large
+//! smolcast's look (plan §12.7, decision 028): Raycast's structure (a large
 //! frameless search field, a soft gray selection, a footer action bar with key
 //! caps) with Tinycast's dissolving edges, Spotlight's search glyph, and a
-//! Windows 11 selection pip in the brand red.
+//! Windows 11 selection pip in the theme's accent (the brand red by default).
 //!
-//! Both egui themes are styled at startup and again when the text size,
-//! reduced motion, or high contrast changes; egui keeps following the system
-//! theme.
+//! Both egui themes are styled, in the color theme's light and dark variants,
+//! at startup and again when the theme, text size, reduced motion, or high
+//! contrast changes. Which one shows follows the `appearance` setting: the
+//! system theme, or a forced light or dark.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
 use egui::emath::GuiRounding as _;
 use egui::{
-    Color32, Context, CornerRadius, FontFamily, FontId, RichText, Stroke, TextStyle, Theme, Vec2,
+    Color32, Context, CornerRadius, FontFamily, FontId, RichText, Stroke, TextStyle, Theme,
+    ThemePreference, Vec2,
 };
 
-use crate::core::config::{PaletteSize, TextSize};
+use crate::core::config::{Appearance, ColorTheme, MAX_MICA_OPACITY, PaletteSize, TextSize};
 use crate::core::motion::{KEY_HELD_SECS, LEAN_SECS};
 
 /// Horizontal inset of content shared by the search bar, list, and footer.
@@ -78,8 +80,7 @@ fn font_sizes(size: TextSize) -> [f32; 5] {
 }
 
 const RADIUS: u8 = 8;
-/// The brand red ("s." in the app icon): the text cursor, text selection,
-/// links, and the selection pip.
+/// The brand red ("s." in the app icon): the default theme's accent.
 const ACCENT: Color32 = Color32::from_rgb(255, 99, 99);
 /// Status colors, in small text only (DESIGN.md).
 pub const WARNING: Color32 = Color32::from_rgb(230, 180, 60);
@@ -96,6 +97,8 @@ struct Palette {
     /// Resting control backgrounds (buttons, text fields in forms).
     control: Color32,
     divider: Color32,
+    /// The text cursor, text selection, links, and the selection pip.
+    accent: Color32,
 }
 
 const DARK: Palette = Palette {
@@ -106,6 +109,7 @@ const DARK: Palette = Palette {
     hover: Color32::from_rgba_premultiplied(13, 13, 13, 13),
     control: Color32::from_rgba_premultiplied(18, 18, 18, 18),
     divider: Color32::from_rgba_premultiplied(26, 26, 26, 26),
+    accent: ACCENT,
 };
 
 const LIGHT: Palette = Palette {
@@ -116,10 +120,126 @@ const LIGHT: Palette = Palette {
     hover: Color32::from_rgba_premultiplied(0, 0, 0, 10),
     control: Color32::from_rgba_premultiplied(0, 0, 0, 13),
     divider: Color32::from_rgba_premultiplied(0, 0, 0, 20),
+    accent: ACCENT,
 };
 
-fn palette(dark: bool) -> &'static Palette {
-    if dark { &DARK } else { &LIGHT }
+/// A tinted theme's palette: its fills are its own text color at the
+/// default theme's strengths, so they carry the theme's hue.
+const fn tinted(background: Color32, text: Color32, weak: Color32, accent: Color32) -> Palette {
+    let [r, g, b, _] = text.to_array();
+    let dark = r as u16 + g as u16 + b as u16 > 3 * 128;
+    let [selection, hover, control, divider] = if dark {
+        [26, 13, 18, 26]
+    } else {
+        [20, 10, 13, 20]
+    };
+    Palette {
+        background,
+        text,
+        weak,
+        selection: Color32::from_rgba_unmultiplied_const(r, g, b, selection),
+        hover: Color32::from_rgba_unmultiplied_const(r, g, b, hover),
+        control: Color32::from_rgba_unmultiplied_const(r, g, b, control),
+        divider: Color32::from_rgba_unmultiplied_const(r, g, b, divider),
+        accent,
+    }
+}
+
+/// A color theme's light and dark variants.
+struct Scheme {
+    light: Palette,
+    dark: Palette,
+    /// Percent of the background painted over Mica, so a tinted theme keeps
+    /// its hue while the backdrop still shows through. Neutral themes leave
+    /// Mica clear.
+    mica_opacity: u8,
+}
+
+const SMOLCAST: Scheme = Scheme {
+    light: LIGHT,
+    dark: DARK,
+    mica_opacity: 0,
+};
+
+/// Claude's ivory and charcoal, with its clay as the accent.
+const CLAUDE: Scheme = Scheme {
+    light: tinted(
+        Color32::from_rgb(250, 249, 245),
+        Color32::from_rgb(31, 30, 29),
+        Color32::from_rgb(112, 110, 103),
+        Color32::from_rgb(198, 97, 63),
+    ),
+    dark: tinted(
+        Color32::from_rgb(38, 38, 36),
+        Color32::from_rgb(238, 237, 231),
+        Color32::from_rgb(160, 158, 150),
+        Color32::from_rgb(217, 119, 87),
+    ),
+    mica_opacity: 60,
+};
+
+const SLATE: Scheme = Scheme {
+    light: tinted(
+        Color32::from_rgb(247, 248, 250),
+        Color32::from_rgb(26, 30, 37),
+        Color32::from_rgb(95, 103, 116),
+        Color32::from_rgb(47, 107, 216),
+    ),
+    dark: tinted(
+        Color32::from_rgb(27, 30, 36),
+        Color32::from_rgb(228, 232, 239),
+        Color32::from_rgb(139, 147, 161),
+        Color32::from_rgb(111, 163, 255),
+    ),
+    mica_opacity: 45,
+};
+
+const SAGE: Scheme = Scheme {
+    light: tinted(
+        Color32::from_rgb(246, 247, 243),
+        Color32::from_rgb(28, 33, 29),
+        Color32::from_rgb(100, 108, 101),
+        Color32::from_rgb(58, 132, 89),
+    ),
+    dark: tinted(
+        Color32::from_rgb(27, 31, 28),
+        Color32::from_rgb(227, 232, 226),
+        Color32::from_rgb(140, 149, 141),
+        Color32::from_rgb(116, 191, 142),
+    ),
+    mica_opacity: 50,
+};
+
+/// Paper and ink: no hue at all, so the accent is the text color.
+const MONO: Scheme = Scheme {
+    light: tinted(
+        Color32::from_rgb(255, 255, 255),
+        Color32::from_rgb(17, 17, 17),
+        Color32::from_rgb(107, 107, 107),
+        Color32::from_rgb(17, 17, 17),
+    ),
+    dark: tinted(
+        Color32::from_rgb(14, 14, 14),
+        Color32::from_rgb(242, 242, 242),
+        Color32::from_rgb(140, 140, 140),
+        Color32::from_rgb(242, 242, 242),
+    ),
+    mica_opacity: 0,
+};
+
+fn scheme(theme: ColorTheme) -> &'static Scheme {
+    match theme {
+        ColorTheme::Default => &SMOLCAST,
+        ColorTheme::Claude => &CLAUDE,
+        ColorTheme::Slate => &SLATE,
+        ColorTheme::Sage => &SAGE,
+        ColorTheme::Mono => &MONO,
+    }
+}
+
+fn palette(theme: ColorTheme, dark: bool) -> &'static Palette {
+    let scheme = scheme(theme);
+    if dark { &scheme.dark } else { &scheme.light }
 }
 
 /// Under a Windows high-contrast theme the soft fills and gray text are too
@@ -148,16 +268,19 @@ pub struct Look {
     /// egui's own animations (menus, toggles) are turned off too.
     pub reduced_motion: bool,
     pub high_contrast: bool,
+    pub appearance: Appearance,
+    pub theme: ColorTheme,
 }
 
-/// Style both egui themes. Called again when the look changes.
+/// Style both egui themes in the color theme's light and dark variants, and
+/// pick which one shows. Called again when the look changes.
 pub fn install(ctx: &Context, look: Look) {
-    for theme in [Theme::Dark, Theme::Light] {
-        let dark = theme == Theme::Dark;
-        let base = palette(dark);
+    for egui_theme in [Theme::Dark, Theme::Light] {
+        let dark = egui_theme == Theme::Dark;
+        let base = palette(look.theme, dark);
         let contrast = look.high_contrast.then(|| high_contrast(base, dark));
         let p = contrast.as_ref().unwrap_or(base);
-        ctx.style_mut_of(theme, |style| {
+        ctx.style_mut_of(egui_theme, |style| {
             apply(style, p, look.text);
             // Set both ways: the style persists, so turning reduced motion
             // off again must restore egui's own animations.
@@ -168,6 +291,51 @@ pub fn install(ctx: &Context, look: Look) {
             };
         });
     }
+    ctx.set_theme(match look.appearance {
+        Appearance::System => ThemePreference::System,
+        Appearance::Light => ThemePreference::Light,
+        Appearance::Dark => ThemePreference::Dark,
+    });
+}
+
+/// A theme's default opacity over Mica, in percent.
+pub fn mica_opacity(theme: ColorTheme) -> u8 {
+    scheme(theme).mica_opacity
+}
+
+/// The panel fill over a Mica backdrop: the background at `opacity` percent,
+/// the theme's default unless set. Neutral themes leave Mica clear; tinted ones
+/// keep their hue.
+pub fn mica_fill(ui: &egui::Ui, theme: ColorTheme, opacity: Option<u8>) -> Color32 {
+    let opacity = opacity.unwrap_or_else(|| mica_opacity(theme));
+    ui.visuals()
+        .panel_fill
+        .gamma_multiply(f32::from(opacity.min(MAX_MICA_OPACITY)) / 100.0)
+}
+
+/// Edge of a color theme's swatch.
+pub const SWATCH: f32 = 14.0;
+
+/// A color theme's swatch in `rect`: a small rounded square of its
+/// background, in the variant for the mode showing now, holding a selection
+/// pip in its accent.
+pub fn swatch(ui: &egui::Ui, theme: ColorTheme, rect: egui::Rect) {
+    let p = palette(theme, ui.visuals().dark_mode);
+    let painter = ui.painter();
+    painter.rect_filled(rect, 3, p.background);
+    painter.rect_stroke(
+        rect,
+        3,
+        Stroke::new(1.0, p.divider),
+        egui::StrokeKind::Inside,
+    );
+    let pip = egui::Rect::from_center_size(rect.center(), Vec2::new(3.0, 8.0));
+    painter.rect_filled(pip, 1, p.accent);
+}
+
+/// The theme's accent.
+pub fn accent(ui: &egui::Ui) -> Color32 {
+    ui.visuals().hyperlink_color
 }
 
 fn apply(style: &mut egui::Style, p: &Palette, text: TextSize) {
@@ -197,14 +365,14 @@ fn apply(style: &mut egui::Style, p: &Palette, text: TextSize) {
     v.faint_bg_color = p.hover;
     v.code_bg_color = p.control;
     v.weak_text_color = Some(p.weak);
-    v.hyperlink_color = ACCENT;
+    v.hyperlink_color = p.accent;
     // Text selection needs contrast; rows and key caps use `selected_fill`.
-    v.selection.bg_fill = ACCENT.gamma_multiply(0.35);
+    v.selection.bg_fill = p.accent.gamma_multiply(0.35);
     // Only the color is used for selected text; egui also strokes a focused
     // text field with this, which drew a white outline. The red cursor
     // marks focus instead.
     v.selection.stroke = Stroke::new(0.0, p.text);
-    v.text_cursor.stroke = Stroke::new(2.0, ACCENT);
+    v.text_cursor.stroke = Stroke::new(2.0, p.accent);
     v.window_corner_radius = radius;
     v.menu_corner_radius = radius;
     v.window_stroke = Stroke::new(1.0, p.divider);
@@ -276,14 +444,14 @@ pub fn divider(ui: &mut egui::Ui) {
 }
 
 /// The selected row's pip: a short accent bar at the fill's left edge, as
-/// Windows 11 marks the current item, in the brand red. Painted with the
-/// fill so it glides with it.
-pub fn selection_pip(fill: egui::Rect) -> egui::Shape {
+/// Windows 11 marks the current item, in the theme's accent. Painted with
+/// the fill so it glides with it.
+pub fn selection_pip(ui: &egui::Ui, fill: egui::Rect) -> egui::Shape {
     let pip = egui::Rect::from_center_size(
         egui::pos2(fill.left() + 3.5, fill.center().y),
         Vec2::new(3.0, 14.0),
     );
-    egui::Shape::rect_filled(pip, 2, ACCENT)
+    egui::Shape::rect_filled(pip, 2, accent(ui))
 }
 
 /// Spotlight's magnifier, painted in the icon slot at the head of the search

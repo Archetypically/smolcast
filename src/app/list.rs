@@ -167,7 +167,7 @@ fn row_contents(
         let at = motion::glide(ui, ui.id().with("selection"), rect);
         Shape::Vec(vec![
             Shape::rect_filled(at, 8, theme::selected_fill(ui)),
-            theme::selection_pip(at),
+            theme::selection_pip(ui, at),
         ])
     } else {
         Shape::rect_filled(rect, 8, theme::hover_fill(ui).gamma_multiply(hover))

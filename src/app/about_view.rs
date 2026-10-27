@@ -14,8 +14,6 @@ const AUTHOR: &str = "Evan Lee";
 /// How long the heart's single beat takes, in seconds.
 const BEAT_SECS: f32 = 0.7;
 const HEART_EDGE: f32 = 14.0;
-/// The heart's red. The one decorative color in the app (DESIGN.md).
-const HEART: Color32 = Color32::from_rgb(255, 99, 99);
 
 pub struct AboutView {
     opened_at: Instant,
@@ -125,7 +123,8 @@ impl AboutView {
             egui::emath::easing::linear,
         );
         let scale = 1.0 + 0.25 * beat.max(hover * 0.5);
-        paint_heart(ui, rect.center(), 6.0 * scale, HEART);
+        // In the theme's accent: the one decorative color (DESIGN.md).
+        paint_heart(ui, rect.center(), 6.0 * scale, theme::accent(ui));
         response.on_hover_text("Thank you for using smolcast");
     }
 }

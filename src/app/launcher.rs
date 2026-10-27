@@ -1466,7 +1466,7 @@ fn answer_card(ui: &mut egui::Ui, answer: &Answer, selected: bool) -> egui::Resp
     let painter = ui.painter();
     painter.rect_filled(rect, 8, fill);
     if selected {
-        painter.add(theme::selection_pip(rect));
+        painter.add(theme::selection_pip(ui, rect));
     }
     let half = rect.width() / 2.0;
     let sides = [

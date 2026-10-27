@@ -12,16 +12,17 @@ reference for anyone changing the UI. The tokens live in
 - **Quiet chrome.** Neutral surfaces, no borders around fields or buttons, and
   hairline dividers instead of boxes. Color means status (warning, error), not
   decoration.
-- **One accent, used sparingly.** The brand red (`#FF6363`, the full stop of
-  the "s." icon) marks where you are: the text cursor, text selection, links
+- **One accent, used sparingly.** Each theme has one accent; the default
+  is the brand red (`#FF6363`, the full stop of the "s." icon). It marks where you are: the text cursor, text selection, links
   and the selected row's pip, plus one grace note: the heart on the About
   page. Row selection is a soft gray fill, never an accent fill.
 - **Edges dissolve.** Dividers fade out toward the window's edges, and a
   list's edge row dims while more rows wait beyond it.
 - **One column.** The search glyph, back button and row icons share a
   column, and the query starts where row names do.
-- **Follow the system.** Dark and light themes follow Windows. Mica shows
-  through when it is available (see plan §12.7, Appearance).
+- **Follow the system.** Light and dark follow Windows unless Appearance
+  forces one. Mica shows through when it is available (see plan §12.7,
+  Appearance), under a tinted theme's background at partial opacity.
 - **Quick, and honest about work.** The palette never blocks on work. Anything
   still running shows a small spinner with a plain label ("Indexing apps…",
   "Loading clipboard history…", "Pasting…") until it finishes. A spinner only
@@ -73,7 +74,33 @@ fit notices and the hotkey recovery UI
 and shrinks back when they go. The host measures content without the footer's
 bottom padding so that shrinking works.
 
+## Themes
+
+`theme` and `appearance` are independent (decision 041): every theme has a
+light and a dark variant, and Appearance (Follow Windows, Light, Dark) picks
+which one shows. Themes change colors only; layout, type, radii and motion
+stay the same.
+
+| Theme | Light background / text | Dark background / text | Accent (light / dark) | Mica opacity |
+| --- | --- | --- | --- | --- |
+| Default | `#FAFAFA` / `#1C1C1E` | `#1C1C1E` / `#EDEDED` | `#FF6363` | 0% |
+| Claude | `#FAF9F5` / `#1F1E1D` | `#262624` / `#EEEDE7` | `#C6613F` / `#D97757` | 60% |
+| Slate | `#F7F8FA` / `#1A1E25` | `#1B1E24` / `#E4E8EF` | `#2F6BD8` / `#6FA3FF` | 45% |
+| Sage | `#F6F7F3` / `#1C211D` | `#1B1F1C` / `#E3E8E2` | `#3A8459` / `#74BF8E` | 50% |
+| Mono | `#FFFFFF` / `#111111` | `#0E0E0E` / `#F2F2F2` | the text color | 0% |
+
+Rules for a theme: hue lives in the background, the gray text and one
+accent, never in extra decoration. The selection, hover, control and
+divider fills of a tinted theme are its own text color at the default
+theme's strengths (below), so they carry its hue. Secondary text keeps at
+least 4.5:1 against the background. A neutral theme leaves Mica clear; a
+tinted one paints part of its background over it (`mica_opacity` overrides
+the amount, 0–100%). The theme picker leads each name with a swatch (`theme::swatch`) of
+its background and accent pip.
+
 ## Tokens
+
+The default theme's tokens:
 
 | Token | Dark | Light |
 | --- | --- | --- |
@@ -81,7 +108,7 @@ bottom padding so that shrinking works.
 | Text | `#EDEDED` | `#1C1C1E` |
 | Secondary text | `#8E8E93` | `#6E6E73` |
 | Selected row, key caps | white 10% | black 8% |
-| Text selection | `#FF6363` at 35% | `#FF6363` at 35% |
+| Text selection | accent at 35% | accent at 35% |
 | Hover | white 5% | black 4% |
 | Keyboard focus ring (buttons, checkboxes, menus) | 1 pt secondary text | 1 pt secondary text |
 | Controls (buttons, form fields) | white 7% | black 5% |
@@ -183,10 +210,12 @@ sizes and layout do not change with it, and monospace text keeps egui's font.
 - **About page** (`about_view`). "About smolcast" (also found by "Credits")
   is a centered column: the name at 1.6× the search size, the version,
   a one-line tagline, "Made with ♥ by Evan Lee" (the heart is painted in the
-  accent and beats once, lub-dub, when the page opens; hovering it beats
+  theme's accent and beats once, lub-dub, when the page opens; hovering it beats
   again), then the "Built with" credits and the license in small text. The
   footer shows only `Back Esc`.
-- **Settings form.** Sections (General, Palette, Clipboard), each headed by
+- **Settings form.** Sections (General, Palette, Clipboard; Palette starts
+  with Appearance, Theme and Mica opacity, a slider with its number, plus a
+  Reset button once set, disabled where Mica is off), each headed by
   `theme::section_label` (the same small gray style as "Suggestions"). Labels
   sit in a shared 112-point column so controls align across sections. Rows
   are 6 points apart and sections 16 points apart. Short gray hints sit beside
@@ -267,7 +296,7 @@ palette is idle.
 - **Color only for status.** Warnings are amber and errors are red, in small
   text. Nothing else gets color, except the accent where Principles allow it
   (the selection pip, the About page's heart).
-- **Check new views in both themes.** Also check them at 100%, 150% and 200%
+- **Check new views in both modes and every theme.** Also check them at 100%, 150% and 200%
   scaling, with reduced motion on, and under a high-contrast theme.
 - **Animate paint, never input.** New motion goes through `core::motion`
   tokens and `app::motion` helpers, stays under 200 ms, and has a reduced

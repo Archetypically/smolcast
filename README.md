@@ -27,7 +27,7 @@ smolcast is a Windows take on [Tinycast](https://github.com/abue-ammar/tinycast)
 - **Emoji picker**: searchable grid of every Unicode 17.0 emoji, in color, pasted exactly.
 - **Scripts**: track a script file on disk, then run it from the search or its own hotkey, with saved arguments or ones you type for that run.
 - **Snippets**: save text you paste often, find it by name or keyword, and edit it right in the palette.
-- **Feels native**: a calm look of its own in Raycast's shape, Mica backdrop, rounded corners, light and dark themes, opens on the monitor under your cursor.
+- **Feels native**: a calm look of its own in Raycast's shape, Mica backdrop, rounded corners, light and dark modes with five color themes (Default, Claude, Slate, Sage, Mono), opens on the monitor under your cursor.
 - **Lively, never slow**: the palette settles in, views slide, the selection glides, and nothing waits on an animation. Reduced motion follows Windows' Animation effects setting or your choice.
 - **Forgiving**: dismiss by accident and the palette comes back as you left it for 30 seconds.
 - **Tidy**: offers to move broken Start Menu shortcuts to the Recycle Bin.
@@ -57,6 +57,9 @@ Open **smolcast settings** from the palette, or edit `%APPDATA%\smolcast\config.
 | `summon_hotkey` | `control+alt+Space` | Global hotkey that opens the palette |
 | `start_at_login` | `false` | Start smolcast when you sign in |
 | `check_for_updates` | `true` | Check GitHub once a day for a new release |
+| `appearance` | `system` | `system` (follow Windows), `light` or `dark` |
+| `theme` | `default` | Color theme: `default`, `claude`, `slate`, `sage` or `mono`; each has a light and a dark variant |
+| `mica_opacity` | per theme | How much of the theme's color covers the Mica backdrop, `0` to `100` percent; leave it out for the theme's default |
 | `palette_size` | `medium` | `small`, `medium` or `large` window; larger shows more results |
 | `text_size` | `medium` | `small`, `medium` or `large` text |
 | `font` | `""` | Name of an installed font family for the interface text, such as `"Inter"`; empty uses Segoe UI |

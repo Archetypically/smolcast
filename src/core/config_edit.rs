@@ -124,6 +124,12 @@ pub fn write_settings(
             .map_err(|e| invalid(e.to_string()))?;
         set_value(table, key, replacement);
     }
+    // An optional key cleared in the form (`None`) is left out of `new`.
+    if let Some(old) = &old {
+        for key in old.keys().filter(|key| !new.contains_key(key.as_str())) {
+            table.remove(key);
+        }
+    }
 
     let text = doc.to_string();
     let written: ConfigFile = parse_str(&text, path)?;

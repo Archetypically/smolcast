@@ -153,6 +153,17 @@ pub struct Settings {
     /// motion on or off. Optional; follows Windows.
     #[serde(default)]
     pub reduce_motion: ReduceMotion,
+    /// Light or dark: follow Windows, or force one. Independent of `theme`.
+    /// Optional; follows Windows.
+    #[serde(default)]
+    pub appearance: Appearance,
+    /// Color theme; each has a light and a dark variant. Optional; default.
+    #[serde(default)]
+    pub theme: ColorTheme,
+    /// Percent of the theme's background painted over Mica, overriding the
+    /// theme's default. Optional; absent uses the default.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mica_opacity: Option<u8>,
     /// Seconds a dismissed palette keeps its view, query, and drafts; 0
     /// always starts fresh. Optional; 30.
     #[serde(default = "default_keep_state_secs")]
@@ -175,6 +186,7 @@ fn default_web_search_url() -> String {
 }
 
 pub const DEFAULT_KEEP_STATE_SECS: u32 = 30;
+pub const MAX_MICA_OPACITY: u8 = 100;
 pub const MAX_KEEP_STATE_SECS: u32 = 3600;
 
 fn default_keep_state_secs() -> u32 {
@@ -236,6 +248,49 @@ impl ReduceMotion {
     }
 }
 
+/// Light or dark mode (`theme::install`).
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Appearance {
+    /// Follow Windows' app mode.
+    #[default]
+    System,
+    Light,
+    Dark,
+}
+
+impl Appearance {
+    pub const ALL: [Self; 3] = [Self::System, Self::Light, Self::Dark];
+}
+
+/// A color theme. Every theme has a light and a dark variant, so it combines
+/// with any [`Appearance`] (`theme::install`).
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ColorTheme {
+    /// Neutral grays and the brand red.
+    #[default]
+    Default,
+    /// Warm ivory and charcoal with Claude's clay.
+    Claude,
+    /// Cool blue-grays with a blue accent.
+    Slate,
+    /// Soft green-grays with a green accent.
+    Sage,
+    /// Paper white and ink black; the accent is the text color.
+    Mono,
+}
+
+impl ColorTheme {
+    pub const ALL: [Self; 5] = [
+        Self::Default,
+        Self::Claude,
+        Self::Slate,
+        Self::Sage,
+        Self::Mono,
+    ];
+}
+
 fn default_true() -> bool {
     true
 }
@@ -267,6 +322,9 @@ impl Default for Settings {
             text_size: TextSize::Medium,
             font: String::new(),
             reduce_motion: ReduceMotion::System,
+            appearance: Appearance::System,
+            theme: ColorTheme::Default,
+            mica_opacity: None,
             keep_state_secs: DEFAULT_KEEP_STATE_SECS,
             search_engine: SearchEngine::Google,
             web_search_url: default_web_search_url(),
@@ -390,6 +448,9 @@ impl ConfigFile {
 
 impl Settings {
     pub fn validate(&self, path: &Path) -> Result<(), ConfigError> {
+        if let Some(opacity) = self.mica_opacity {
+            check_range(path, "mica_opacity", opacity, 0..=MAX_MICA_OPACITY)?;
+        }
         check_range(
             path,
             "clipboard_max_entries",
