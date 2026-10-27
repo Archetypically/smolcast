@@ -333,6 +333,7 @@ impl AppModel {
         stores: LauncherStores,
         startup_notices: Vec<Notice>,
         force_visible: bool,
+        mica: bool,
         report: ReportView,
     ) -> Self {
         let mut notices = NoticeStore::new();
@@ -374,7 +375,7 @@ impl AppModel {
             quit_requested: false,
             force_show: force_visible,
             palette_window: None,
-            settings: SettingsView::new(&config.settings),
+            settings: SettingsView::new(&config.settings, mica),
             about: AboutView::default(),
             report,
             had_focus: false,
@@ -595,6 +596,17 @@ impl AppModel {
 
     pub fn set_palette_window(&mut self, window: Option<PaletteWindow>) {
         self.palette_window = window;
+    }
+
+    /// The settings the palette's colors follow: the settings form's draft
+    /// while it is open, so a theme shows as it is picked, and the accepted
+    /// config otherwise. Leaving the form unsaved restores the saved look.
+    pub fn look_settings(&self) -> &Settings {
+        if self.view == View::Settings {
+            self.settings.draft()
+        } else {
+            &self.config.settings
+        }
     }
 
     pub fn quit_requested(&self) -> bool {

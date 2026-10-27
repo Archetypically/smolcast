@@ -9,9 +9,10 @@ use std::path::Path;
 use egui::{Key, Modifiers, RichText};
 
 use crate::core::config::{
-    ClipboardSource, MAX_CLIPBOARD_AGE_DAYS, MAX_CLIPBOARD_ENTRIES, MAX_CLIPBOARD_ITEM_BYTES,
-    MAX_CLIPBOARD_TOTAL_BYTES, MAX_KEEP_STATE_SECS, MIN_CLIPBOARD_ENTRIES,
-    MIN_CLIPBOARD_ITEM_BYTES, PaletteSize, ReduceMotion, SearchEngine, Settings, TextSize,
+    Appearance, ClipboardSource, ColorTheme, MAX_CLIPBOARD_AGE_DAYS, MAX_CLIPBOARD_ENTRIES,
+    MAX_CLIPBOARD_ITEM_BYTES, MAX_CLIPBOARD_TOTAL_BYTES, MAX_KEEP_STATE_SECS, MAX_MICA_OPACITY,
+    MIN_CLIPBOARD_ENTRIES, MIN_CLIPBOARD_ITEM_BYTES, PaletteSize, ReduceMotion, SearchEngine,
+    Settings, TextSize,
 };
 use crate::win::{hotkey, package};
 
@@ -42,10 +43,12 @@ pub struct SettingsView {
     /// opens; `None` until the first list arrives.
     font_families: Option<Vec<String>>,
     font_list_pending: bool,
+    /// The window was created for Mica, so the opacity applies.
+    mica: bool,
 }
 
 impl SettingsView {
-    pub fn new(settings: &Settings) -> Self {
+    pub fn new(settings: &Settings, mica: bool) -> Self {
         Self {
             saved: settings.clone(),
             draft: settings.clone(),
@@ -56,6 +59,7 @@ impl SettingsView {
             confirm_discard: None,
             font_families: None,
             font_list_pending: false,
+            mica,
         }
     }
 
@@ -69,6 +73,11 @@ impl SettingsView {
         }
         self.confirm_discard = None;
         !std::mem::replace(&mut self.font_list_pending, true)
+    }
+
+    /// The form's current values, which the palette's colors preview.
+    pub fn draft(&self) -> &Settings {
+        &self.draft
     }
 
     pub fn font_families_listed(&mut self, families: Vec<String>) {
@@ -230,6 +239,25 @@ impl SettingsView {
         section_gap(ui);
         theme::section_label(ui, "Palette");
         form(ui, "palette", |ui| {
+            ui.label("Appearance");
+            choice(
+                ui,
+                "appearance",
+                SIZE_COMBO_WIDTH,
+                &mut draft.appearance,
+                Appearance::ALL,
+                appearance_label,
+            );
+            ui.end_row();
+
+            ui.label("Theme");
+            theme_choice(ui, &mut draft.theme);
+            ui.end_row();
+
+            ui.label("Mica opacity");
+            mica_opacity(ui, draft, self.mica);
+            ui.end_row();
+
             ui.label("Window size");
             ui.horizontal(|ui| {
                 choice(
@@ -484,6 +512,74 @@ fn font_choice(ui: &mut egui::Ui, font: &mut String, families: &[String]) {
                 }
             }
         });
+}
+
+/// A drop-down of the color themes, each led by a swatch of its variant
+/// for the mode showing now.
+fn theme_choice(ui: &mut egui::Ui, value: &mut ColorTheme) {
+    egui::ComboBox::from_id_salt("theme")
+        .width(SIZE_COMBO_WIDTH)
+        .selected_text(theme_label(*value))
+        .show_ui(ui, |ui| {
+            for option in ColorTheme::ALL {
+                let id = ui.id().with(("swatch", option as u8));
+                let row = egui::Button::selectable(
+                    *value == option,
+                    (
+                        egui::Atom::custom(id, egui::Vec2::splat(theme::SWATCH)),
+                        theme_label(option),
+                    ),
+                )
+                .atom_ui(ui);
+                if let Some(rect) = row.rect(id) {
+                    theme::swatch(ui, option, rect);
+                }
+                if row.response.clicked() {
+                    *value = option;
+                }
+            }
+        });
+}
+
+/// How much of the theme's background covers Mica: a slider with its
+/// number, starting at the theme's default, and a way back to it.
+fn mica_opacity(ui: &mut egui::Ui, draft: &mut Settings, mica: bool) {
+    let own = theme::mica_opacity(draft.theme);
+    ui.horizontal(|ui| {
+        ui.add_enabled_ui(mica, |ui| {
+            let mut opacity = draft.mica_opacity.unwrap_or(own);
+            let slider = egui::Slider::new(&mut opacity, 0..=MAX_MICA_OPACITY).suffix("%");
+            if ui.add(slider).changed() {
+                draft.mica_opacity = Some(opacity);
+            }
+            if draft.mica_opacity.is_some() && ui.button("Reset").clicked() {
+                draft.mica_opacity = None;
+            }
+        });
+        if !mica {
+            hint(ui, "Mica is off on this PC");
+        } else if draft.mica_opacity.is_none() {
+            hint(ui, "default");
+        }
+    });
+}
+
+fn theme_label(value: ColorTheme) -> &'static str {
+    match value {
+        ColorTheme::Default => "Default",
+        ColorTheme::Claude => "Claude",
+        ColorTheme::Slate => "Slate",
+        ColorTheme::Sage => "Sage",
+        ColorTheme::Mono => "Mono",
+    }
+}
+
+fn appearance_label(value: Appearance) -> &'static str {
+    match value {
+        Appearance::System => "Follow Windows",
+        Appearance::Light => "Light",
+        Appearance::Dark => "Dark",
+    }
 }
 
 fn source_label(source: ClipboardSource) -> &'static str {

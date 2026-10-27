@@ -292,10 +292,10 @@ impl EframeApp {
         }
     }
 
-    /// Follow the `palette_size`, `text_size`, `font` and `reduce_motion`
-    /// settings and Windows' animation and contrast switches: restyle,
-    /// reinstall the fonts, and resize the window when the palette size
-    /// changes.
+    /// Follow the `palette_size`, `text_size`, `font`, `reduce_motion`,
+    /// `appearance` and `theme` settings and Windows' animation and contrast
+    /// switches: restyle, reinstall the fonts, and resize the window when the
+    /// palette size changes.
     fn sync_look(&mut self, ctx: &Context) {
         let visible = self.model.is_visible();
         if visible && !self.was_visible {
@@ -309,10 +309,14 @@ impl EframeApp {
             // New fonts drop the glyph atlas; re-warm on the next hidden frame.
             self.glyphs_warmed = false;
         }
+        // Colors preview the settings form's draft; sizes wait for Save.
+        let colors = self.model.look_settings();
         let look = theme::Look {
             text: settings.text_size,
             reduced_motion: settings.reduce_motion.reduced(self.system_look.animations),
             high_contrast: self.system_look.high_contrast,
+            appearance: colors.appearance,
+            theme: colors.theme,
         };
         let size = settings.palette_size;
         if self.applied_look == Some((size, look)) {
@@ -777,7 +781,8 @@ impl eframe::App for EframeApp {
         if !std::mem::replace(&mut self.glyphs_warmed, true) && !self.model.is_visible() {
             theme::warm_glyphs(ui);
         }
-        // The DWM frame (border, Mica tint) follows egui's system-driven theme.
+        // The DWM frame (border, Mica tint) follows egui's theme, which the
+        // `appearance` setting picks or leaves to the system.
         let theme = ctx.theme();
         if self.frame_theme != Some(theme)
             && let Some(window) = &self.palette_window
@@ -787,9 +792,11 @@ impl eframe::App for EframeApp {
         }
         if self.model.is_painted() {
             // DWM draws the rounded corners and border; with Mica the panel is
-            // transparent so the backdrop shows through.
+            // clear or a tinted theme's background at partial opacity, so the
+            // backdrop shows through.
             let fill = if self.mica {
-                egui::Color32::TRANSPARENT
+                let colors = self.model.look_settings();
+                theme::mica_fill(ui, colors.theme, colors.mica_opacity)
             } else {
                 ui.visuals().panel_fill
             };

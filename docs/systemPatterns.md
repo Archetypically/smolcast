@@ -1085,6 +1085,9 @@ palette_size = "medium"    # optional: window size "small" | "medium" | "large" 
 text_size = "medium"       # optional: font sizes "small" | "medium" | "large" (§12.7)
 font = ""                  # optional: installed family name for interface text; "" is Segoe UI (§12.7)
 reduce_motion = "system"   # optional: "system" (Windows Animation effects) | "on" | "off" (§12.7)
+appearance = "system"      # optional: "system" | "light" | "dark" (§12.7)
+theme = "default"          # optional: "default" | "claude" | "slate" | "sage" | "mono" (§12.7)
+mica_opacity = 60          # optional: 0..=100; absent uses the theme's default (§12.7)
 clipboard_max_age_days = 0 # optional: 0..=365; 0 keeps items until the limits evict them (§7.5)
 keep_state_secs = 30       # optional: 0..=3600; 0 always starts fresh (§12.7)
 search_engine = "google"   # optional: google | bing | duckduckgo | brave | ecosia | startpage | kagi | custom
@@ -1137,6 +1140,9 @@ struct Settings {
     text_size: TextSize,               // #[serde(default)] = Medium (§12.7)
     font: String,                      // #[serde(default)] = "" (Segoe UI) (§12.7)
     reduce_motion: ReduceMotion,       // #[serde(default)] = System (§12.7)
+    appearance: Appearance,            // #[serde(default)] = System (§12.7)
+    theme: ColorTheme,                 // #[serde(default)] = Default (§12.7)
+    mica_opacity: Option<u8>,          // #[serde(default)] = None, max 100 (§12.7)
     clipboard_max_age_days: u32,       // #[serde(default)] = 0, max 365 (§7.5)
     keep_state_secs: u32,              // #[serde(default)] = 30, max 3600 (§12.7)
     search_engine: SearchEngine,       // #[serde(default)] = Google
@@ -1650,6 +1656,20 @@ made DWM draw minimize/maximize/close buttons over the palette.
 Look (2026-10-20, `app/theme.rs`; decision 028 on 2026-10-22): both egui
 themes are restyled once at startup, on Raycast's structure with smolcast's
 own details (search glyph, selection pip, dissolving edges).
+
+Themes (2026-10-27, decision 041): two independent settings. `theme` picks a
+color scheme (`theme::Scheme`: a light and a dark `Palette`, each with its
+own accent, and a Mica opacity); `theme::install` styles egui's dark and light
+styles from it. `appearance` picks which one shows through egui's
+`ThemePreference` (system, light or dark), and the DWM frame and Mica follow
+`ctx.theme()`. High contrast strengthens the active palette's fills as
+before. With Mica the panel is filled with `mica_opacity` percent of the
+palette's background (the setting, or the scheme's own: 0 for Default and
+Mono), so tinted themes keep their hue over the backdrop. While the settings
+form is open the host takes `appearance`, `theme` and `mica_opacity` from its
+draft (`AppModel::look_settings`), so picks preview live; leaving unsaved
+restores the accepted config. Sizes and the font still apply on save. A
+settings save removes keys the form cleared (an absent optional value).
 The palette has a frameless search field, the
 view, and a footer action bar pinned to the bottom. The base window is 640×460.
 [`docs/DESIGN.md`](DESIGN.md) holds the layout, tokens, and rules.

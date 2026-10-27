@@ -166,6 +166,7 @@ fn main() -> eframe::Result {
                 },
                 startup_notices,
                 force_visible,
+                mica,
                 report,
             );
             let app = EframeApp::build(

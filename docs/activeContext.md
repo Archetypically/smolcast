@@ -197,6 +197,21 @@ UI; Settings opens instantly with many fonts installed ("listing fonts…"
 shows briefly on the first open only), and a font installed while smolcast
 runs appears on the next open.
 
+## Themes and appearance (2026-10-27), unverified
+
+Decision 041: `appearance` (system/light/dark) and `theme` (Default, Claude,
+Slate, Sage, Mono) are independent settings; each theme has light and dark
+palettes and its own accent. Over Mica tinted themes paint `mica_opacity`
+percent of their background (the theme's default unless set). Settings
+previews the colors live from its draft. Never built or run on Windows.
+Windows check: each theme in Follow Windows, Light and Dark, flipping the
+Windows mode while forced and while following; the DWM frame and Mica tint
+follow a forced mode; the opacity slider changes the backdrop live and Reset
+clears it (key removed from the file); leaving Settings unsaved
+restores the saved look; the slider is disabled with Transparency effects
+off at startup; high contrast over each theme; the theme swatches in the
+drop-down.
+
 ## Pending Windows checks
 
 - Installed programs (decision 027, linted for GNU only): Overwatch and
@@ -303,10 +318,9 @@ runs appears on the next open.
   Twemoji, CC-BY/MIT with notice) costs ~1–2 MB. Also rank the Flags group
   above "flag in hole" for the bare query `flag`.
 - **Snippet expansion** tier 2 stays unapproved (decision 009).
-- **Theming**: shelved by the user (2026-10-22), "thinking about it for
-  sure". Sketch: color-only `%APPDATA%\smolcast\themes\<name>.toml` over
-  `dark`/`light`, overriding the `app/theme.rs` color tokens; layout, fonts
-  and radii fixed; high contrast wins; hot reload via config reload.
+- **User theme files**: built-in themes shipped (decision 041); color-only
+  `%APPDATA%\smolcast\themes\<name>.toml` filling a `Palette` pair stays
+  a parked idea.
 - **Tinycast gaps** (reviewed 2026-10-22, AI features ignored; Tinycast is
   AGPL, so ideas only, never code). Good fits not started: per-app hotkeys,
   app aliases, running apps with quit, Uninstall, clipboard pinning,
