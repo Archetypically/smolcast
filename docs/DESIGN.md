@@ -106,7 +106,9 @@ bottom padding so that shrinking works.
 | Icon to name gap (`ICON_GAP`) | 10 pt |
 | Emoji cell / glyph | 44 / 28 pt |
 
-The font is Segoe UI, with egui's bundled fonts as fallbacks.
+The font is Segoe UI, with egui's bundled fonts as fallbacks. The `font`
+setting can put any installed family ahead of Segoe UI for interface text;
+sizes and layout do not change with it, and monospace text keeps egui's font.
 
 ## Components
 

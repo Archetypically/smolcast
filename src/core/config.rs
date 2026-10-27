@@ -144,6 +144,11 @@ pub struct Settings {
     /// Font sizes, independent of the window size. Optional; medium.
     #[serde(default)]
     pub text_size: TextSize,
+    /// Family name of an installed font for the interface text, such as
+    /// "Inter"; empty is Segoe UI. A family that is not installed falls back
+    /// to Segoe UI. Optional; empty.
+    #[serde(default)]
+    pub font: String,
     /// Animations: follow Windows' "Animation effects", or force reduced
     /// motion on or off. Optional; follows Windows.
     #[serde(default)]
@@ -260,6 +265,7 @@ impl Default for Settings {
             start_at_login: false,
             palette_size: PaletteSize::Medium,
             text_size: TextSize::Medium,
+            font: String::new(),
             reduce_motion: ReduceMotion::System,
             keep_state_secs: DEFAULT_KEEP_STATE_SECS,
             search_engine: SearchEngine::Google,

@@ -13,7 +13,7 @@ use crate::core::config::{
     MAX_CLIPBOARD_TOTAL_BYTES, MAX_KEEP_STATE_SECS, MIN_CLIPBOARD_ENTRIES,
     MIN_CLIPBOARD_ITEM_BYTES, PaletteSize, ReduceMotion, SearchEngine, Settings, TextSize,
 };
-use crate::win::{hotkey, package};
+use crate::win::{fonts, hotkey, package};
 
 use super::theme;
 
@@ -38,6 +38,8 @@ pub struct SettingsView {
     /// The draft as it was when Escape was pressed with unsaved changes; a
     /// second press leaves and discards them unless the draft changed since.
     confirm_discard: Option<Settings>,
+    /// Installed font families, listed when the form is first shown.
+    font_families: Option<Vec<String>>,
 }
 
 impl SettingsView {
@@ -50,6 +52,7 @@ impl SettingsView {
             open_file: false,
             record_request: false,
             confirm_discard: None,
+            font_families: None,
         }
     }
 
@@ -234,6 +237,17 @@ impl SettingsView {
                 TextSize::ALL,
                 text_size_label,
             );
+            ui.end_row();
+
+            ui.label("Font");
+            let families = self.font_families.get_or_insert_with(fonts::families);
+            ui.horizontal(|ui| {
+                font_choice(ui, &mut draft.font, families);
+                let font = draft.font.trim();
+                if !font.is_empty() && !families.iter().any(|f| f.eq_ignore_ascii_case(font)) {
+                    hint(ui, "not installed; using Segoe UI");
+                }
+            });
             ui.end_row();
 
             ui.label("Reduce motion");
@@ -424,6 +438,33 @@ fn choice<T: Copy + PartialEq>(
         .show_ui(ui, |ui| {
             for option in options {
                 ui.selectable_value(&mut *value, option, label(option));
+            }
+        });
+}
+
+/// A drop-down of the installed families, with Segoe UI as the default.
+fn font_choice(ui: &mut egui::Ui, font: &mut String, families: &[String]) {
+    const DEFAULT: &str = "Segoe UI (default)";
+    let selected = if font.trim().is_empty() {
+        DEFAULT
+    } else {
+        font.as_str()
+    };
+    egui::ComboBox::from_id_salt("font")
+        .width(COMBO_WIDTH)
+        .selected_text(selected)
+        .height(320.0)
+        .show_ui(ui, |ui| {
+            if ui
+                .selectable_label(font.trim().is_empty(), DEFAULT)
+                .clicked()
+            {
+                font.clear();
+            }
+            for family in families {
+                if ui.selectable_label(font == family, family).clicked() {
+                    family.clone_into(font);
+                }
             }
         });
 }

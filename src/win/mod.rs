@@ -10,6 +10,7 @@ pub mod crash_log;
 pub mod emoji_render;
 pub mod file_dialog;
 pub mod file_search;
+pub mod fonts;
 pub mod hotkey;
 pub mod http;
 pub mod icon;
