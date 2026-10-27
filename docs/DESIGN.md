@@ -95,7 +95,8 @@ divider fills of a tinted theme are its own text color at the default
 theme's strengths (below), so they carry its hue. Secondary text keeps at
 least 4.5:1 against the background. A neutral theme leaves Mica clear; a
 tinted one paints part of its background over it (`mica_opacity` overrides
-the amount, 0–100%). The theme picker leads each name with a swatch (`theme::swatch`) of
+the amount, 0–100%). Settings previews a theme live while the form is
+open; the theme picker leads each name with a swatch (`theme::swatch`) of
 its background and accent pip.
 
 ## Tokens

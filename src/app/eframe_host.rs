@@ -309,12 +309,14 @@ impl EframeApp {
             // New fonts drop the glyph atlas; re-warm on the next hidden frame.
             self.glyphs_warmed = false;
         }
+        // Colors preview the settings form's draft; sizes wait for Save.
+        let colors = self.model.look_settings();
         let look = theme::Look {
             text: settings.text_size,
             reduced_motion: settings.reduce_motion.reduced(self.system_look.animations),
             high_contrast: self.system_look.high_contrast,
-            appearance: settings.appearance,
-            theme: settings.theme,
+            appearance: colors.appearance,
+            theme: colors.theme,
         };
         let size = settings.palette_size;
         if self.applied_look == Some((size, look)) {
@@ -793,8 +795,8 @@ impl eframe::App for EframeApp {
             // clear or a tinted theme's background at partial opacity, so the
             // backdrop shows through.
             let fill = if self.mica {
-                let settings = &self.model.config().settings;
-                theme::mica_fill(ui, settings.theme, settings.mica_opacity)
+                let colors = self.model.look_settings();
+                theme::mica_fill(ui, colors.theme, colors.mica_opacity)
             } else {
                 ui.visuals().panel_fill
             };

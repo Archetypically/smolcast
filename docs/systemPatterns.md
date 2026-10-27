@@ -1665,10 +1665,11 @@ styles from it. `appearance` picks which one shows through egui's
 `ctx.theme()`. High contrast strengthens the active palette's fills as
 before. With Mica the panel is filled with `mica_opacity` percent of the
 palette's background (the setting, or the scheme's own: 0 for Default and
-Mono), so tinted themes keep their hue over the backdrop. The host
-takes `appearance`, `theme` and `mica_opacity` from the accepted config, so
-they apply on save with the sizes and the font. A settings save removes keys
-the form cleared (an absent optional value).
+Mono), so tinted themes keep their hue over the backdrop. While the settings
+form is open the host takes `appearance`, `theme` and `mica_opacity` from its
+draft (`AppModel::look_settings`), so picks preview live; leaving unsaved
+restores the accepted config. Sizes and the font still apply on save. A
+settings save removes keys the form cleared (an absent optional value).
 The palette has a frameless search field, the
 view, and a footer action bar pinned to the bottom. The base window is 640×460.
 [`docs/DESIGN.md`](DESIGN.md) holds the layout, tokens, and rules.

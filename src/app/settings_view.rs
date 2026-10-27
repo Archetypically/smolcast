@@ -75,6 +75,11 @@ impl SettingsView {
         !std::mem::replace(&mut self.font_list_pending, true)
     }
 
+    /// The form's current values, which the palette's colors preview.
+    pub fn draft(&self) -> &Settings {
+        &self.draft
+    }
+
     pub fn font_families_listed(&mut self, families: Vec<String>) {
         self.font_families = Some(families);
         self.font_list_pending = false;

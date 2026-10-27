@@ -202,12 +202,13 @@ runs appears on the next open.
 Decision 041: `appearance` (system/light/dark) and `theme` (Default, Claude,
 Slate, Sage, Mono) are independent settings; each theme has light and dark
 palettes and its own accent. Over Mica tinted themes paint `mica_opacity`
-percent of their background (the theme's default unless set). Never built
-or run on Windows.
+percent of their background (the theme's default unless set). Settings
+previews the colors live from its draft. Never built or run on Windows.
 Windows check: each theme in Follow Windows, Light and Dark, flipping the
 Windows mode while forced and while following; the DWM frame and Mica tint
-follow a forced mode; the opacity slider applies on Save and Reset
-clears it (key removed from the file); the slider is disabled with Transparency effects
+follow a forced mode; the opacity slider changes the backdrop live and Reset
+clears it (key removed from the file); leaving Settings unsaved
+restores the saved look; the slider is disabled with Transparency effects
 off at startup; high contrast over each theme; the theme swatches in the
 drop-down.
 

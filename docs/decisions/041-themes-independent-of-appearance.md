@@ -18,6 +18,7 @@ light and one dark, each with its own accent, so any theme combines with any
 appearance. Themes are built into the app and change colors only. Over Mica,
 a tinted theme paints a share of its background (at its default opacity, or the
 optional `mica_opacity` override, 0–100%); neutral themes leave Mica clear.
+Settings previews the colors live while the form is open.
 
 ## Context
 
@@ -48,7 +49,7 @@ the override lets someone who prefers more or less backdrop tune it.
 ## Consequences
 
 - Plan §10.2 gains `appearance`, `theme` and `mica_opacity`; §12.7 Appearance
-  describes the scheme and the opacity.
+  describes the scheme, the opacity and the live preview.
 - The settings writer removes keys the form cleared, which optional keys
   such as `mica_opacity` need.
 - The website's `tokens.css` still comes from the Default palettes

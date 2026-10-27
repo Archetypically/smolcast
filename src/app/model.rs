@@ -598,6 +598,17 @@ impl AppModel {
         self.palette_window = window;
     }
 
+    /// The settings the palette's colors follow: the settings form's draft
+    /// while it is open, so a theme shows as it is picked, and the accepted
+    /// config otherwise. Leaving the form unsaved restores the saved look.
+    pub fn look_settings(&self) -> &Settings {
+        if self.view == View::Settings {
+            self.settings.draft()
+        } else {
+            &self.config.settings
+        }
+    }
+
     pub fn quit_requested(&self) -> bool {
         self.quit_requested
     }
