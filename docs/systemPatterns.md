@@ -1083,6 +1083,7 @@ clipboard_source = "auto" # optional: "auto" | "windows" | "smolcast"
 start_at_login = false     # optional (§12.7)
 palette_size = "medium"    # optional: window size "small" | "medium" | "large" (§12.7)
 text_size = "medium"       # optional: font sizes "small" | "medium" | "large" (§12.7)
+font = ""                  # optional: installed family name for interface text; "" is Segoe UI (§12.7)
 reduce_motion = "system"   # optional: "system" (Windows Animation effects) | "on" | "off" (§12.7)
 clipboard_max_age_days = 0 # optional: 0..=365; 0 keeps items until the limits evict them (§7.5)
 keep_state_secs = 30       # optional: 0..=3600; 0 always starts fresh (§12.7)
@@ -1134,6 +1135,7 @@ struct Settings {
     start_at_login: bool,              // #[serde(default)] = false (§12.7)
     palette_size: PaletteSize,         // #[serde(default)] = Medium (§12.7)
     text_size: TextSize,               // #[serde(default)] = Medium (§12.7)
+    font: String,                      // #[serde(default)] = "" (Segoe UI) (§12.7)
     reduce_motion: ReduceMotion,       // #[serde(default)] = System (§12.7)
     clipboard_max_age_days: u32,       // #[serde(default)] = 0, max 365 (§7.5)
     keep_state_secs: u32,              // #[serde(default)] = 30, max 3600 (§12.7)
@@ -1629,7 +1631,19 @@ off, decided at startup because the GL surface must be created transparent; the
 panel is then transparent and the clear color is zero. Otherwise the panel is
 solid `panel_fill`. Segoe UI (`%WINDIR%\Fonts\segoeui.ttf`) is placed first in
 the proportional family, with egui's bundled fonts kept as symbol/emoji
-fallbacks; a missing file keeps the defaults. Adds `dwmapi.dll` to imports.
+fallbacks; a missing file keeps the defaults. The `font` setting (2026-10-27,
+`win/fonts.rs`) puts a user-chosen family ahead of Segoe UI: DirectWrite's
+system collection (all-user and per-user installs) resolves the name to its
+regular face's file and face index, which egui loads; Segoe UI stays as the
+fallback for missing glyphs. An unknown family, a face split across files, or
+an unreadable file falls back to Segoe UI silently. Each time the settings
+form opens it asks for the installed families (`Effect::ListFonts`); the host
+lists them on a `smolcast-fonts` thread and returns `AppEvent::FontFamilies`,
+one list at a time. Until the first list arrives the picker offers only the
+default; afterwards the previous list shows while a new one is made, and a
+name that is not in it is marked. The host reinstalls
+the fonts when the setting changes (`sync_look`). Monospace stays egui's
+bundled font. Adds `dwmapi.dll` to imports.
 `DwmExtendFrameIntoClientArea` is not used: on this undecorated winit window it
 made DWM draw minimize/maximize/close buttons over the palette.
 

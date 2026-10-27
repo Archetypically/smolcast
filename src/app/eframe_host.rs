@@ -73,6 +73,7 @@ pub struct EframeApp {
     paste_jobs: Vec<(JoinHandle<()>, Arc<AtomicBool>)>,
     /// Clipboard image downscales.
     thumbnail_jobs: Vec<JoinHandle<()>>,
+    font_list_job: Option<JoinHandle<()>>,
     event_tx: Sender<AppEvent>,
     ctx: Context,
     paths: StatePaths,
@@ -94,6 +95,8 @@ pub struct EframeApp {
     glyphs_warmed: bool,
     /// The palette size and look the window and style were last set for.
     applied_look: Option<(PaletteSize, theme::Look)>,
+    /// The `font` setting the fonts were last installed for.
+    applied_font: String,
     /// Windows' "Animation effects" and high-contrast switches, re-read
     /// whenever the palette is shown.
     system_look: SystemLook,
@@ -145,7 +148,8 @@ impl EframeApp {
         if let Some(window) = &palette_window {
             appearance::style_window(window, startup.mica);
         }
-        install_system_font(&ctx);
+        let font = model.config().settings.font.clone();
+        install_fonts(&ctx, &font);
         // The style is installed by `sync_look` on the first step. Sizes
         // come from the settings; Ctrl+plus/minus must not zoom egui.
         ctx.options_mut(|o| o.zoom_with_keyboard = false);
@@ -268,6 +272,7 @@ impl EframeApp {
             launch_jobs: Vec::new(),
             paste_jobs: Vec::new(),
             thumbnail_jobs: Vec::new(),
+            font_list_job: None,
             event_tx,
             ctx,
             paths,
@@ -281,14 +286,16 @@ impl EframeApp {
             reveal_settled: false,
             glyphs_warmed: false,
             applied_look: None,
+            applied_font: font,
             system_look: SystemLook::read(),
             was_visible: false,
         }
     }
 
-    /// Follow the `palette_size`, `text_size` and `reduce_motion` settings
-    /// and Windows' animation and contrast switches: restyle, and resize the
-    /// window when the palette size changes.
+    /// Follow the `palette_size`, `text_size`, `font` and `reduce_motion`
+    /// settings and Windows' animation and contrast switches: restyle,
+    /// reinstall the fonts, and resize the window when the palette size
+    /// changes.
     fn sync_look(&mut self, ctx: &Context) {
         let visible = self.model.is_visible();
         if visible && !self.was_visible {
@@ -296,6 +303,12 @@ impl EframeApp {
         }
         self.was_visible = visible;
         let settings = &self.model.config().settings;
+        if settings.font != self.applied_font {
+            self.applied_font = settings.font.clone();
+            install_fonts(ctx, &self.applied_font);
+            // New fonts drop the glyph atlas; re-warm on the next hidden frame.
+            self.glyphs_warmed = false;
+        }
         let look = theme::Look {
             text: settings.text_size,
             reduced_motion: settings.reduce_motion.reduced(self.system_look.animations),
@@ -356,6 +369,9 @@ impl EframeApp {
         }
         self.launch_jobs.retain(|job| !job.is_finished());
         self.thumbnail_jobs.retain(|job| !job.is_finished());
+        if let Some(job) = self.font_list_job.take_if(|job| job.is_finished()) {
+            let _ = job.join();
+        }
         self.paste_jobs.retain(|(job, _)| !job.is_finished());
     }
 
@@ -452,6 +468,7 @@ impl EframeApp {
                 Effect::SaveConfig(edit) => self.queued_save = Some(edit),
                 Effect::RefreshConfig => refresh = true,
                 Effect::OpenConfigFile => open_config_file(&self.paths.config),
+                Effect::ListFonts => self.start_font_list(),
                 Effect::PickScriptFile => {
                     let owner = self.palette_window.as_ref().map(PaletteWindow::raw);
                     if let Err(e) = file_dialog::spawn_pick_script(owner, self.wake()) {
@@ -522,6 +539,20 @@ impl EframeApp {
                     format!("Could not start the image preview: {e}"),
                 ));
             }
+        }
+    }
+
+    /// List the installed font families off the UI thread; the settings form
+    /// asks for one list at a time.
+    fn start_font_list(&mut self) {
+        let wake = self.wake();
+        let spawned = std::thread::Builder::new()
+            .name("smolcast-fonts".into())
+            .spawn(move || wake.send(AppEvent::FontFamilies(crate::win::fonts::families())));
+        match spawned {
+            Ok(job) => self.font_list_job = Some(job),
+            // The picker keeps its previous list, or only the default.
+            Err(_) => self.model.font_list_failed(),
         }
     }
 
@@ -713,6 +744,9 @@ impl EframeApp {
         for job in self.thumbnail_jobs.drain(..) {
             join_by(job, Some(deadline));
         }
+        if let Some(job) = self.font_list_job.take() {
+            join_by(job, Some(deadline));
+        }
 
         if let Some(worker) = self.refresh_worker.take() {
             join_by(worker, Some(deadline));
@@ -849,19 +883,35 @@ fn open_config_file(path: &Path) {
     shell::open_in_notepad(path);
 }
 
-/// Put Segoe UI ahead of egui's bundled fonts, which remain as fallbacks for
-/// symbols it lacks, and add Windows' icon font as its own family
-/// (`theme::ICON_FAMILY`). A missing file keeps that part at its default.
-fn install_system_font(ctx: &Context) {
+/// Put the `font` setting's family, then Segoe UI, ahead of egui's bundled
+/// fonts, which remain as fallbacks for glyphs they lack, and add Windows'
+/// icon font as its own family (`theme::ICON_FAMILY`). A family that is not
+/// installed, or a missing file, keeps that part at its default.
+fn install_fonts(ctx: &Context, font: &str) {
     let mut fonts = egui::FontDefinitions::default();
+    let mut text_fonts = Vec::new();
+    let font = font.trim();
+    if !font.is_empty()
+        && let Some(file) = crate::win::fonts::load(font)
+    {
+        fonts.font_data.insert(
+            "user-font".into(),
+            Arc::new(egui::FontData {
+                index: file.index,
+                ..egui::FontData::from_owned(file.bytes)
+            }),
+        );
+        text_fonts.push("user-font".to_owned());
+    }
     if let Some(bytes) = appearance::system_font() {
         fonts.font_data.insert(
             "segoe-ui".into(),
             Arc::new(egui::FontData::from_owned(bytes)),
         );
-        if let Some(family) = fonts.families.get_mut(&egui::FontFamily::Proportional) {
-            family.insert(0, "segoe-ui".into());
-        }
+        text_fonts.push("segoe-ui".to_owned());
+    }
+    if let Some(family) = fonts.families.get_mut(&egui::FontFamily::Proportional) {
+        family.splice(0..0, text_fonts);
     }
     // Windows' icon font in a family of its own, never a text fallback.
     if let Some(bytes) = appearance::icon_font() {

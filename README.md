@@ -59,6 +59,7 @@ Open **smolcast settings** from the palette, or edit `%APPDATA%\smolcast\config.
 | `check_for_updates` | `true` | Check GitHub once a day for a new release |
 | `palette_size` | `medium` | `small`, `medium` or `large` window; larger shows more results |
 | `text_size` | `medium` | `small`, `medium` or `large` text |
+| `font` | `""` | Name of an installed font family for the interface text, such as `"Inter"`; empty uses Segoe UI |
 | `reduce_motion` | `system` | `system` (follow Windows' Animation effects), `on` (fades only, no sliding or zooming) or `off` |
 | `keep_state_secs` | `30` | How long a dismissed palette keeps your search and drafts (`0` = never) |
 | `search_engine` | `google` | `google`, `bing`, `duckduckgo`, `brave`, `ecosia`, `startpage`, `kagi` or `custom` |
