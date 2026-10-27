@@ -73,6 +73,7 @@ pub struct EframeApp {
     paste_jobs: Vec<(JoinHandle<()>, Arc<AtomicBool>)>,
     /// Clipboard image downscales.
     thumbnail_jobs: Vec<JoinHandle<()>>,
+    font_list_job: Option<JoinHandle<()>>,
     event_tx: Sender<AppEvent>,
     ctx: Context,
     paths: StatePaths,
@@ -271,6 +272,7 @@ impl EframeApp {
             launch_jobs: Vec::new(),
             paste_jobs: Vec::new(),
             thumbnail_jobs: Vec::new(),
+            font_list_job: None,
             event_tx,
             ctx,
             paths,
@@ -367,6 +369,9 @@ impl EframeApp {
         }
         self.launch_jobs.retain(|job| !job.is_finished());
         self.thumbnail_jobs.retain(|job| !job.is_finished());
+        if let Some(job) = self.font_list_job.take_if(|job| job.is_finished()) {
+            let _ = job.join();
+        }
         self.paste_jobs.retain(|(job, _)| !job.is_finished());
     }
 
@@ -463,6 +468,7 @@ impl EframeApp {
                 Effect::SaveConfig(edit) => self.queued_save = Some(edit),
                 Effect::RefreshConfig => refresh = true,
                 Effect::OpenConfigFile => open_config_file(&self.paths.config),
+                Effect::ListFonts => self.start_font_list(),
                 Effect::PickScriptFile => {
                     let owner = self.palette_window.as_ref().map(PaletteWindow::raw);
                     if let Err(e) = file_dialog::spawn_pick_script(owner, self.wake()) {
@@ -533,6 +539,20 @@ impl EframeApp {
                     format!("Could not start the image preview: {e}"),
                 ));
             }
+        }
+    }
+
+    /// List the installed font families off the UI thread; the settings form
+    /// asks for one list at a time.
+    fn start_font_list(&mut self) {
+        let wake = self.wake();
+        let spawned = std::thread::Builder::new()
+            .name("smolcast-fonts".into())
+            .spawn(move || wake.send(AppEvent::FontFamilies(crate::win::fonts::families())));
+        match spawned {
+            Ok(job) => self.font_list_job = Some(job),
+            // The picker keeps its previous list, or only the default.
+            Err(_) => self.model.font_list_failed(),
         }
     }
 
@@ -724,6 +744,9 @@ impl EframeApp {
         for job in self.thumbnail_jobs.drain(..) {
             join_by(job, Some(deadline));
         }
+        if let Some(job) = self.font_list_job.take() {
+            join_by(job, Some(deadline));
+        }
 
         if let Some(worker) = self.refresh_worker.take() {
             join_by(worker, Some(deadline));
@@ -867,8 +890,9 @@ fn open_config_file(path: &Path) {
 fn install_fonts(ctx: &Context, font: &str) {
     let mut fonts = egui::FontDefinitions::default();
     let mut text_fonts = Vec::new();
-    if !font.trim().is_empty()
-        && let Some(file) = crate::win::fonts::load(font.trim())
+    let font = font.trim();
+    if !font.is_empty()
+        && let Some(file) = crate::win::fonts::load(font)
     {
         fonts.font_data.insert(
             "user-font".into(),

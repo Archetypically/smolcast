@@ -131,6 +131,8 @@ pub enum AppEvent {
     },
     /// A chosen update was swapped in (the exe to relaunch), or not.
     UpdateInstalled(Result<PathBuf, String>),
+    /// The installed font families, for the settings form (§12.7).
+    FontFamilies(Vec<String>),
 }
 
 /// Work for the host's update worker (§13).
@@ -607,6 +609,10 @@ impl AppModel {
         self.clipboard.thumbnail_failed(id);
     }
 
+    pub fn font_list_failed(&mut self) {
+        self.settings.font_list_failed();
+    }
+
     pub fn push_notice(&mut self, notice: Notice) {
         self.notices.push(notice);
     }
@@ -964,6 +970,7 @@ impl AppModel {
                 self.files.on_results(generation, result);
             }
             AppEvent::UpdateChecked { manual, outcome } => self.on_update_checked(manual, outcome),
+            AppEvent::FontFamilies(families) => self.settings.font_families_listed(families),
             AppEvent::UpdateInstalled(result) => self.on_update_installed(result),
         }
     }
@@ -1117,7 +1124,11 @@ impl AppModel {
             View::Emoji => self.emoji.open(),
             View::Snippets => self.snippets.open(),
             View::Scripts => self.scripts.open(),
-            View::Settings => self.settings.open(),
+            View::Settings => {
+                if self.settings.open() {
+                    self.effects.push(Effect::ListFonts);
+                }
+            }
             View::About => self.about.open(),
             View::Files => self.files.open(),
             View::ReportBug => self.report.open(),

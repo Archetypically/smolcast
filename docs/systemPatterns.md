@@ -1636,8 +1636,12 @@ fallbacks; a missing file keeps the defaults. The `font` setting (2026-10-27,
 system collection (all-user and per-user installs) resolves the name to its
 regular face's file and face index, which egui loads; Segoe UI stays as the
 fallback for missing glyphs. An unknown family, a face split across files, or
-an unreadable file falls back to Segoe UI silently; the settings form lists
-the installed families and marks a name that is not one. The host reinstalls
+an unreadable file falls back to Segoe UI silently. Each time the settings
+form opens it asks for the installed families (`Effect::ListFonts`); the host
+lists them on a `smolcast-fonts` thread and returns `AppEvent::FontFamilies`,
+one list at a time. Until the first list arrives the picker offers only the
+default; afterwards the previous list shows while a new one is made, and a
+name that is not in it is marked. The host reinstalls
 the fonts when the setting changes (`sync_look`). Monospace stays egui's
 bundled font. Adds `dwmapi.dll` to imports.
 `DwmExtendFrameIntoClientArea` is not used: on this undecorated winit window it

@@ -25,7 +25,7 @@ pub struct FontFile {
 /// fails.
 pub fn families() -> Vec<String> {
     let mut names = family_names().unwrap_or_default();
-    names.sort_by_key(|name| name.to_lowercase());
+    names.sort_by_cached_key(|name| name.to_lowercase());
     names.dedup();
     names
 }

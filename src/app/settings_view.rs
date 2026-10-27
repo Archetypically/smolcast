@@ -13,7 +13,7 @@ use crate::core::config::{
     MAX_CLIPBOARD_TOTAL_BYTES, MAX_KEEP_STATE_SECS, MIN_CLIPBOARD_ENTRIES,
     MIN_CLIPBOARD_ITEM_BYTES, PaletteSize, ReduceMotion, SearchEngine, Settings, TextSize,
 };
-use crate::win::{fonts, hotkey, package};
+use crate::win::{hotkey, package};
 
 use super::theme;
 
@@ -38,8 +38,10 @@ pub struct SettingsView {
     /// The draft as it was when Escape was pressed with unsaved changes; a
     /// second press leaves and discards them unless the draft changed since.
     confirm_discard: Option<Settings>,
-    /// Installed font families, listed when the form is first shown.
+    /// Installed font families, listed off the UI thread each time the form
+    /// opens; `None` until the first list arrives.
     font_families: Option<Vec<String>>,
+    font_list_pending: bool,
 }
 
 impl SettingsView {
@@ -53,16 +55,30 @@ impl SettingsView {
             record_request: false,
             confirm_discard: None,
             font_families: None,
+            font_list_pending: false,
         }
     }
 
-    /// Opening the view starts from the accepted settings.
-    pub fn open(&mut self) {
+    /// Opening the view starts from the accepted settings. Returns whether
+    /// to list the installed fonts again, which picks up fonts installed
+    /// since the last list; the previous list shows meanwhile.
+    pub fn open(&mut self) -> bool {
         if !matches!(self.status, Status::Saving) {
             self.draft = self.saved.clone();
             self.status = Status::Idle;
         }
         self.confirm_discard = None;
+        !std::mem::replace(&mut self.font_list_pending, true)
+    }
+
+    pub fn font_families_listed(&mut self, families: Vec<String>) {
+        self.font_families = Some(families);
+        self.font_list_pending = false;
+    }
+
+    /// The list could not be started; the next open retries.
+    pub fn font_list_failed(&mut self) {
+        self.font_list_pending = false;
     }
 
     /// Escape with unsaved changes asks once; true when it was handled here
@@ -240,12 +256,19 @@ impl SettingsView {
             ui.end_row();
 
             ui.label("Font");
-            let families = self.font_families.get_or_insert_with(fonts::families);
+            let families = self.font_families.as_deref();
             ui.horizontal(|ui| {
-                font_choice(ui, &mut draft.font, families);
+                font_choice(ui, &mut draft.font, families.unwrap_or_default());
                 let font = draft.font.trim();
-                if !font.is_empty() && !families.iter().any(|f| f.eq_ignore_ascii_case(font)) {
-                    hint(ui, "not installed; using Segoe UI");
+                match families {
+                    None => hint(ui, "listing fonts…"),
+                    Some(families)
+                        if !font.is_empty()
+                            && !families.iter().any(|f| f.eq_ignore_ascii_case(font)) =>
+                    {
+                        hint(ui, "not installed; using Segoe UI")
+                    }
+                    Some(_) => {}
                 }
             });
             ui.end_row();
@@ -445,20 +468,14 @@ fn choice<T: Copy + PartialEq>(
 /// A drop-down of the installed families, with Segoe UI as the default.
 fn font_choice(ui: &mut egui::Ui, font: &mut String, families: &[String]) {
     const DEFAULT: &str = "Segoe UI (default)";
-    let selected = if font.trim().is_empty() {
-        DEFAULT
-    } else {
-        font.as_str()
-    };
+    let is_default = font.trim().is_empty();
+    let selected = if is_default { DEFAULT } else { font.as_str() };
     egui::ComboBox::from_id_salt("font")
         .width(COMBO_WIDTH)
         .selected_text(selected)
         .height(320.0)
         .show_ui(ui, |ui| {
-            if ui
-                .selectable_label(font.trim().is_empty(), DEFAULT)
-                .clicked()
-            {
+            if ui.selectable_label(is_default, DEFAULT).clicked() {
                 font.clear();
             }
             for family in families {

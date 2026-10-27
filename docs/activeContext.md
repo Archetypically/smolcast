@@ -187,12 +187,15 @@ glyph (U+ED1A) renders; persistence across restart.
 `font` in `[settings]` (plan §10.2, §12.7; `win/fonts.rs`): an installed
 family name, resolved through DirectWrite to its regular face and placed
 ahead of Segoe UI; empty or unknown uses Segoe UI. Settings > Palette > Font
-lists the installed families. Never built or run on Windows yet. Windows
+lists the installed families, enumerated on a worker thread each time the
+form opens. Never built or run on Windows yet. Windows
 check: the list includes a per-user installed font; picking one restyles the
 palette after Save without a restart; a `.ttc` family (e.g. Cambria) renders
 its own face; a hand-typed unknown name shows "not installed" and falls back;
 a CFF `.otf` and a variable font render; back to the default restores Segoe
-UI; settings form time-to-open stays fast with many fonts installed.
+UI; Settings opens instantly with many fonts installed ("listing fonts…"
+shows briefly on the first open only), and a font installed while smolcast
+runs appears on the next open.
 
 ## Pending Windows checks
 
