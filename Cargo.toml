@@ -20,7 +20,7 @@ path = "src/lib.rs"
 fuzzy-matcher = "=0.3.7"
 image = { version = "=0.25.10", default-features = false, features = ["bmp"] }
 serde = { version = "=1.0.229", features = ["derive"] }
-serde_json = "=1.0.151"
+serde_json = "=1.0.154"
 toml = "=1.1.6"
 toml_edit = { version = "=0.25.15", default-features = false, features = ["parse", "display"] }
 unicode-segmentation = "=1.13.3"
@@ -28,11 +28,11 @@ unicode-segmentation = "=1.13.3"
 # Windows-only UI/OS stack. These never compile on the Linux host; the binary
 # and every win/ module are gated on cfg(windows).
 [target.'cfg(windows)'.dependencies]
-eframe = { version = "=0.36.2", default-features = false, features = ["glow", "default_fonts"] }
-egui = { version = "=0.36.2", default-features = false, features = ["default_fonts"] }
-global-hotkey = "=0.8.0"
+eframe = { version = "=0.37.0", default-features = false, features = ["glow", "default_fonts"] }
+egui = { version = "=0.37.0", default-features = false, features = ["default_fonts"] }
+global-hotkey = "=0.9.0"
 raw-window-handle = "=0.6.2"
-tray-icon = "=0.25.1"
+tray-icon = "=0.26.1"
 windows = { version = "=0.62.2", features = [
     "ApplicationModel",
     "ApplicationModel_Activation",
