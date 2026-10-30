@@ -17,7 +17,7 @@ Shipped or in verification:
 - **Clipboard history**: text and images, searchable, pasted back into the
   previously focused app. Uses Windows clipboard history when it is on, or
   smolcast's own encrypted history.
-- **Emoji picker**: searchable grid, pasted back exactly.
+- **Emoji & symbols picker**: searchable grid of emoji and CLDR-named text symbols, pasted back exactly.
 - **Scripts**: named commands from config, run from the palette or a
   per-script hotkey.
 - **Snippets**: saved text searched and pasted from the palette, edited in

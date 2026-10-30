@@ -51,7 +51,13 @@ const ROWS = [
     jump: "#clipboard",
     words: "copy paste win+v",
   },
-  { name: "Emoji", type: "Command", icon: "emoji", view: "emoji", words: "picker emoticon smiley" },
+  {
+    name: "Emoji & Symbols",
+    type: "Command",
+    icon: "emoji",
+    view: "emoji",
+    words: "picker emoticon smiley symbols",
+  },
   {
     name: "Search Files",
     type: "Feature",
@@ -630,7 +636,7 @@ class Palette {
     } else {
       this.glyphSlot.append(icon("search"));
     }
-    this.input.placeholder = emoji ? "Search emoji…" : "Search apps and commands…";
+    this.input.placeholder = emoji ? "Search emoji & symbols…" : "Search apps and commands…";
     if (this.input.value !== this.query) this.input.value = this.query;
 
     this.header.replaceChildren(el("span", { text: header }));
@@ -778,7 +784,9 @@ class Palette {
 
   renderFooter(done) {
     const emoji = this.view === "emoji";
-    this.footerLeft.replaceChildren(el("span", { class: "where", text: emoji ? "Emoji" : "smolcast" }));
+    this.footerLeft.replaceChildren(
+      el("span", { class: "where", text: emoji ? "Emoji & Symbols" : "smolcast" }),
+    );
     if (!emoji) this.footerLeft.append(caps(["Ctrl", "Control"], ["Alt", "Alt"], ["Space", " "]));
     const label = this.actionLabel(this.current());
     this.footerRight.replaceChildren();

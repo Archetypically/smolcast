@@ -1,4 +1,4 @@
-//! Emoji lookup over the generated table (plan §9).
+//! Emoji and symbol lookup over the generated table (plan §9).
 //!
 //! Windows-free and host-testable. Pasting writes `Emoji::text` verbatim; ZWJ,
 //! modifier, variation-selector, and flag sequences are never reconstructed.
@@ -14,6 +14,8 @@
 //!   score, then table order.
 //! - Skin-tone variants (about half the table) are listed only when the query
 //!   mentions "tone" or "skin"; otherwise the base emoji stands for them.
+//! - A query that is the character itself ("€", or "©" for "©️") ranks that
+//!   entry first.
 
 use std::sync::OnceLock;
 
@@ -110,6 +112,9 @@ pub fn search(query: &str) -> Vec<usize> {
         .enumerate()
         .filter(|(_, (e, _))| wants_tones || !e.skin_tone)
         .filter_map(|(index, (emoji, keys))| {
+            if emoji.text.trim_end_matches('\u{FE0F}') == query {
+                return Some((10_000, index));
+            }
             let (name, normalized) = (keys.name.as_str(), keys.normalized.as_str());
             let mut total = if phrase.is_empty() {
                 0
@@ -149,7 +154,7 @@ mod tests {
     fn table_is_pinned_and_well_formed() {
         assert_eq!(UNICODE_EMOJI_VERSION, "17.0");
         assert_eq!(CLDR_VERSION, "48.2");
-        assert!(EMOJI.len() > 3900);
+        assert!(EMOJI.len() > 4300);
         for e in EMOJI {
             assert!((e.group as usize) < GROUPS.len());
             assert!(!e.name.is_empty());
@@ -184,6 +189,21 @@ mod tests {
             family.text,
             "\u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467}\u{200D}\u{1F466}"
         );
+    }
+
+    #[test]
+    fn text_symbols_are_searchable_after_the_emoji() {
+        assert_eq!(first("right-pointing arrow"), "\u{2192}");
+        assert_eq!(first("not equal"), "\u{2260}");
+        assert_eq!(first("euro"), "\u{20AC}");
+        let symbols = GROUPS.len() as u8 - 1;
+        assert_eq!(GROUPS[symbols as usize], "Text Symbols");
+        // Typing the character itself finds it.
+        assert_eq!(first("€"), "\u{20AC}");
+        assert_eq!(first(" ≠ "), "\u{2260}");
+        assert_eq!(first("©"), "\u{A9}\u{FE0F}");
+        let first_symbol = EMOJI.iter().position(|e| e.group == symbols).unwrap();
+        assert!(EMOJI[first_symbol..].iter().all(|e| e.group == symbols));
     }
 
     #[test]

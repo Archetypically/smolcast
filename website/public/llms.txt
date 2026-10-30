@@ -15,7 +15,7 @@ Every page listed here is also published as markdown at its URL plus `.md` (the 
 - System commands: Lock Screen, Sleep, Restart, Shut Down, Sign Out, Empty Recycle Bin, Toggle Dark Mode, Toggle Mute, Turn Off Display. Destructive ones ask for a second Enter.
 - Quicklinks: open a URL, file or folder by name, or type a query after its keyword (`gh rust egui`).
 - Clipboard history: text and images, searchable, pasted back into the previous app. Uses Windows clipboard history when it is on, or smolcast's own, encrypted on disk.
-- Emoji picker: every Unicode 17.0 emoji, in color, pasted exactly.
+- Emoji & symbols: every Unicode 17.0 emoji, in color, plus arrows, math, currency and punctuation symbols, pasted exactly.
 - Scripts: named commands from the config, run from the palette or their own hotkey.
 - Snippets: saved text found by name or keyword and edited in the palette.
 - Also: keeps a dismissed search for 30 seconds, self-updates from GitHub releases when you agree, offers to recycle broken Start Menu shortcuts, follows light and dark mode and Windows' Animation effects setting.

@@ -212,7 +212,7 @@ impl Command {
     pub fn title(self) -> &'static str {
         match self {
             Command::ClipboardHistory => "Clipboard History",
-            Command::Emoji => "Search Emoji",
+            Command::Emoji => "Emoji & Symbols",
             Command::Snippets => "Search Snippets",
             Command::CreateSnippet => "Create Snippet",
             Command::Scripts => "Manage Scripts",
@@ -229,6 +229,7 @@ impl Command {
     /// Other names a command is found by.
     pub fn aliases(self) -> &'static [&'static str] {
         match self {
+            Command::Emoji => &["Search Emoji", "Search Symbols"],
             Command::Scripts => &["Scripts", "Edit Scripts"],
             Command::TrackScript => &["Add Script", "New Script", "Import Script"],
             Command::About => &["Credits"],

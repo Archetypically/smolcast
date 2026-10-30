@@ -212,6 +212,15 @@ restores the saved look; the slider is disabled with Transparency effects
 off at startup; high contrast over each theme; the theme swatches in the
 drop-down.
 
+## Emoji & Symbols (2026-10-30), unverified
+
+Decision 042, plan §9: the picker (command "Emoji & Symbols", aliases
+"Search Emoji" and "Search Symbols", usage key still `emoji`) also lists
+369 CLDR-annotated text symbols in a trailing "Text Symbols" group.
+Windows check: arrows, ≠, €, ‰ and ASCII punctuation render (via
+DirectWrite font fallback where Segoe UI Emoji lacks them) and paste
+exactly; © and ™ still paste as their emoji sequences.
+
 ## Pending Windows checks
 
 - Installed programs (decision 027, linted for GNU only): Overwatch and

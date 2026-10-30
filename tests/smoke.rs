@@ -103,7 +103,7 @@ fn smoke() {
         target.clear();
         target.focus();
         app.summon();
-        open_command("Search Emoji");
+        open_command("Emoji & Symbols");
         type_and_enter("thumbs up");
         target.wait_for_text("👍");
     });

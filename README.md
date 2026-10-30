@@ -24,7 +24,7 @@ smolcast is a Windows take on [Tinycast](https://github.com/abue-ammar/tinycast)
 - **System commands**: Lock Screen, Sleep, Restart, Shut Down, Sign Out, Empty Recycle Bin, Toggle Dark Mode, Toggle Mute and Turn Off Display. The ones that close your apps or delete files ask for a second Enter.
 - **Quicklinks**: open a URL, file or folder by name, or type a query after its keyword (`gh rust egui`).
 - **Clipboard history**: text and images, searchable, with a preview, pasted straight back into the app you came from. Uses Windows clipboard history (Win+V) when it is on, or smolcast's own, encrypted on disk.
-- **Emoji picker**: searchable grid of every Unicode 17.0 emoji, in color, pasted exactly.
+- **Emoji & symbols**: searchable grid of every Unicode 17.0 emoji, in color, plus arrows, math, currency and punctuation symbols, pasted exactly.
 - **Scripts**: track a script file on disk, then run it from the search or its own hotkey, with saved arguments or ones you type for that run.
 - **Snippets**: save text you paste often, find it by name or keyword, and edit it right in the palette.
 - **Feels native**: a calm look of its own in Raycast's shape, Mica backdrop, rounded corners, light and dark modes with five color themes (Default, Claude, Slate, Sage, Mono), opens on the monitor under your cursor.
@@ -43,7 +43,7 @@ smolcast runs as a normal user and needs no installer, admin rights, or runtime.
 
 1. Press **Ctrl+Alt+Space** (change it in settings).
 2. Type to search; **Up/Down** to choose; **Enter** to open, paste, or run.
-3. Type `clipboard`, `emoji`, `snippets`, `files` or `settings` to open those views; **Esc** or **Backspace** on an empty search goes back.
+3. Type `clipboard`, `emoji`, `symbols`, `snippets`, `files` or `settings` to open those views; **Esc** or **Backspace** on an empty search goes back.
 4. Right-click any entry to add it to your favorites or hide it.
 
 The footer always shows what Enter will do. The tray icon has Open, Refresh and Quit. **About smolcast** shows the version and credits, **Check for Updates** asks for a new release right away, and **Report a Bug** opens a GitHub issue filled in with your version and Windows build (and, if you tick it, the last crash report).

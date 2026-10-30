@@ -1324,7 +1324,7 @@ impl AppModel {
         let hint = match self.view {
             View::Root => "Search apps and commands…",
             View::Clipboard => "Search clipboard history…",
-            View::Emoji => "Search emoji…",
+            View::Emoji => "Search emoji & symbols…",
             View::Snippets => "Search snippets…",
             View::Scripts => "Search scripts…",
             View::Files => "Search file names…",
