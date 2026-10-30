@@ -19,7 +19,7 @@
 
 use std::sync::OnceLock;
 
-use super::emoji_data::EMOJI;
+use super::emoji_data::{EMOJI, GROUPS};
 
 /// One fully-qualified emoji sequence.
 #[derive(Debug)]
@@ -34,6 +34,14 @@ pub struct Emoji {
     pub group: u8,
     /// Contains a Fitzpatrick skin-tone modifier.
     pub skin_tone: bool,
+}
+
+impl Emoji {
+    /// A text symbol rather than an emoji: drawn in one color, tinted to
+    /// the theme's text.
+    pub fn is_symbol(&self) -> bool {
+        GROUPS[self.group as usize] == "Text Symbols"
+    }
 }
 
 pub fn all() -> &'static [Emoji] {
@@ -143,7 +151,7 @@ pub fn search(query: &str) -> Vec<usize> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::emoji_data::{CLDR_VERSION, GROUPS, UNICODE_EMOJI_VERSION};
+    use crate::core::emoji_data::{CLDR_VERSION, UNICODE_EMOJI_VERSION};
     use unicode_segmentation::UnicodeSegmentation;
 
     fn first(query: &str) -> &'static str {
@@ -198,6 +206,8 @@ mod tests {
         assert_eq!(first("euro"), "\u{20AC}");
         let symbols = GROUPS.len() as u8 - 1;
         assert_eq!(GROUPS[symbols as usize], "Text Symbols");
+        assert!(EMOJI[search("euro")[0]].is_symbol());
+        assert!(!EMOJI[search("thumbs up")[0]].is_symbol());
         // Typing the character itself finds it.
         assert_eq!(first("€"), "\u{20AC}");
         assert_eq!(first(" ≠ "), "\u{2260}");

@@ -48,3 +48,5 @@ hashed input, so the table stays byte-for-byte reproducible.
   "Search Symbols"); its usage key stays `emoji`, so history carries over.
 - Symbols draw through the same DirectWrite path; characters Segoe UI Emoji
   lacks rely on DirectWrite's system font fallback (unverified on Windows).
+  The renderer's one-color brush is white and the picker tints symbols with
+  the theme's text color, so they read in light themes.

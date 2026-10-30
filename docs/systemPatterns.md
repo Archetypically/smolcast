@@ -1047,8 +1047,11 @@ appends every character `annotations/en.xml` names (its `tts` annotation)
 that emoji-test.txt does not list at any status, in en.xml order, in a
 trailing "Text Symbols" group: 369 single code points (arrows, math,
 currency, punctuation). Keywords come from the same annotations, so search
-and paste are unchanged. A query that is the character itself ranks that
-entry first. Generator version 2; 4,313 entries in all.
+and paste are unchanged. Generator version 2; 4,313 entries in all. The
+renderer's brush for glyphs without color layers is white, and the picker
+tints text symbols with the theme's text color when it draws them, so cached
+bitmaps survive appearance and theme changes. A query that is the character
+itself ranks that entry first.
 
 Superseded original text: Egui's approved v1 preview is monochrome. No color atlas is bundled. Destination
 color is not guaranteed because it depends on the destination renderer/font. The

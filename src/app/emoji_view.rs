@@ -241,7 +241,7 @@ impl EmojiView {
                 let size = Vec2::splat(GLYPH_SIZE * 1.5);
                 match &selected_glyph {
                     Some(texture) => {
-                        ui.add(egui::Image::new(texture).fit_to_exact_size(size));
+                        ui.add(glyph_image(ui, selected, texture).fit_to_exact_size(size));
                     }
                     None => {
                         ui.allocate_exact_size(size, egui::Sense::hover());
@@ -262,6 +262,17 @@ impl EmojiView {
                 });
             })
         });
+    }
+}
+
+/// Symbols are rendered white and take the theme's text color here, so a
+/// cached bitmap stays right when the appearance or theme changes.
+fn glyph_image<'a>(ui: &egui::Ui, emoji: &Emoji, texture: &'a TextureHandle) -> egui::Image<'a> {
+    let image = egui::Image::new(texture);
+    if emoji.is_symbol() {
+        image.tint(ui.visuals().text_color())
+    } else {
+        image
     }
 }
 
@@ -296,7 +307,7 @@ fn cell_ui(
         );
         let edge = GLYPH_SIZE * (1.0 + 0.08 * pop);
         let rect = egui::Rect::from_center_size(rect.center(), Vec2::splat(edge));
-        egui::Image::new(texture).paint_at(ui, rect);
+        glyph_image(ui, emoji, texture).paint_at(ui, rect);
     }
     response.on_hover_text(emoji.name)
 }

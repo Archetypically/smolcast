@@ -174,12 +174,13 @@ impl Stack {
                     minLevel: D2D1_FEATURE_LEVEL_DEFAULT,
                 },
             )?;
-            // The brush colors only glyphs without color layers.
+            // The brush colors only glyphs without color layers. White, so
+            // the picker can tint text symbols to the theme (emoji_view).
             let brush = target.CreateSolidColorBrush(
                 &D2D1_COLOR_F {
-                    r: 0.85,
-                    g: 0.85,
-                    b: 0.85,
+                    r: 1.0,
+                    g: 1.0,
+                    b: 1.0,
                     a: 1.0,
                 },
                 None,

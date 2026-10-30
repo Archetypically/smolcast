@@ -217,9 +217,12 @@ drop-down.
 Decision 042, plan §9: the picker (command "Emoji & Symbols", aliases
 "Search Emoji" and "Search Symbols", usage key still `emoji`) also lists
 369 CLDR-annotated text symbols in a trailing "Text Symbols" group.
-Windows check: arrows, ≠, €, ‰ and ASCII punctuation render (via
-DirectWrite font fallback where Segoe UI Emoji lacks them) and paste
-exactly; © and ™ still paste as their emoji sequences.
+Symbols render white and are tinted to the theme's text color; typing a
+symbol itself finds it. Windows check: arrows, ≠, €, ‰ and ASCII
+punctuation render (via DirectWrite font fallback where Segoe UI Emoji
+lacks them) in the theme's text color in light and dark, switching theme
+with the picker open, and paste exactly; © and ™ still paste as their
+emoji sequences.
 
 ## Pending Windows checks
 
