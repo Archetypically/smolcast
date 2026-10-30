@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
 """Generate src/core/emoji_data.rs from pinned Unicode and CLDR sources.
 
+The table holds every fully-qualified emoji sequence, then every other
+character CLDR's English annotations name (arrows, math, currency,
+punctuation), in a trailing "Text Symbols" group.
+
 Maintainer-only (plan §9): the app never runs this, and the generated file is
 committed. Standard library only. Output is byte-for-byte deterministic for
-the pinned inputs: entries follow emoji-test.txt order and keywords are
-lowercased, sorted, and deduplicated.
+the pinned inputs: emoji follow emoji-test.txt order, symbols follow en.xml
+order, and keywords are lowercased, sorted, and deduplicated.
 
 Usage: python3 scripts/generate_emoji.py [--out src/core/emoji_data.rs]
 
@@ -19,7 +23,7 @@ import sys
 import urllib.request
 import xml.etree.ElementTree as ET
 
-GENERATOR_VERSION = "1"
+GENERATOR_VERSION = "2"
 UNICODE_EMOJI_VERSION = "17.0"
 CLDR_VERSION = "48.2"
 SOURCES = {
@@ -29,11 +33,33 @@ SOURCES = {
 }
 SKIN_TONES = {chr(c) for c in range(0x1F3FB, 0x1F400)}
 VS16 = "️"
+SYMBOLS_GROUP = "Text Symbols"
 
 
 def fetch(url: str) -> bytes:
     with urllib.request.urlopen(url, timeout=60) as response:
         return response.read()
+
+
+def emoji_test_sequences(text: str):
+    """Every sequence emoji-test.txt lists, any status, without VS16."""
+    sequences = set()
+    for line in text.splitlines():
+        if not line or line.startswith("#"):
+            continue
+        codes = line.partition(";")[0].split()
+        sequences.add("".join(chr(int(cp, 16)) for cp in codes).replace(VS16, ""))
+    return sequences
+
+
+def parse_symbols(blob: bytes, emoji: set):
+    """Annotated non-emoji characters in en.xml order: (character, tts name)."""
+    root = ET.fromstring(blob)
+    return [
+        (node.get("cp"), node.text.strip())
+        for node in root.iter("annotation")
+        if node.get("type") == "tts" and node.text and node.get("cp", "").replace(VS16, "") not in emoji
+    ]
 
 
 def parse_emoji_test(text: str):
@@ -90,8 +116,11 @@ def main() -> int:
     blobs = {key: fetch(url) for key, url in SOURCES.items()}
     digests = {key: hashlib.sha256(blob).hexdigest() for key, blob in blobs.items()}
 
-    entries = parse_emoji_test(blobs["emoji_test"].decode("utf-8"))
+    emoji_test = blobs["emoji_test"].decode("utf-8")
+    entries = parse_emoji_test(emoji_test)
     keywords = parse_annotations(blobs["annotations"], blobs["annotations_derived"])
+    symbols = parse_symbols(blobs["annotations"], emoji_test_sequences(emoji_test))
+    entries += [(symbol, name, SYMBOLS_GROUP) for symbol, name in symbols]
 
     groups = []
     for _, _, group in entries:
@@ -116,11 +145,11 @@ def main() -> int:
         f"pub const UNICODE_EMOJI_VERSION: &str = {rust_str(UNICODE_EMOJI_VERSION)};",
         f"pub const CLDR_VERSION: &str = {rust_str(CLDR_VERSION)};",
         "",
-        "/// Emoji groups in emoji-test.txt order; `Emoji::group` indexes this.",
+        "/// Emoji groups in emoji-test.txt order, then the symbols group; `Emoji::group` indexes this.",
         "pub static GROUPS: &[&str] = &[",
     ]
     lines += [f"    {rust_str(g)}," for g in groups]
-    lines += ["];", "", "/// Every fully-qualified emoji sequence, in emoji-test.txt order.", "pub static EMOJI: &[Emoji] = &["]
+    lines += ["];", "", "/// Every fully-qualified emoji sequence in emoji-test.txt order, then annotated symbols in en.xml order.", "pub static EMOJI: &[Emoji] = &["]
     for sequence, name, group in entries:
         words = sorted(keywords.get(sequence.replace(VS16, ""), set()))
         skin_tone = any(ch in SKIN_TONES for ch in sequence)
@@ -137,7 +166,7 @@ def main() -> int:
 
     with open(args.out, "w", encoding="utf-8", newline="\n") as f:
         f.write("\n".join(lines))
-    print(f"wrote {len(entries)} emoji in {len(groups)} groups to {args.out}", file=sys.stderr)
+    print(f"wrote {len(entries)} entries ({len(symbols)} symbols) in {len(groups)} groups to {args.out}", file=sys.stderr)
     return 0
 
 

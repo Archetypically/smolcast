@@ -18,9 +18,9 @@ Fuzzy search over Start Menu shortcuts, Store apps and installed programs that a
 
 Text and images, searchable, with a preview, pasted straight back into the app you came from. Uses Windows clipboard history when it is on, or its own, encrypted on disk.
 
-### Emoji picker
+### Emoji & symbols
 
-A searchable grid of every Unicode 17.0 emoji, in color, pasted exactly as chosen, skin tones and all.
+A searchable grid of every Unicode 17.0 emoji, in color, plus arrows, math, currency and punctuation symbols, pasted exactly as chosen, skin tones and all.
 
 ### File search
 

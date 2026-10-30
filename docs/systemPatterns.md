@@ -1025,7 +1025,7 @@ regeneration. Search is deterministic, not fuzzy: every query word must match
 the name or a keyword, and scores are ranked (the whole-phrase match against
 the punctuation-normalized name ranks first). Skin-tone variants are listed
 only when the query mentions "tone" or "skin"; otherwise the base emoji stands
-for them. "Search Emoji" is a root Command (§5.4). Pasted emoji use the shared
+for them. "Emoji & Symbols" is a root Command (§5.4). Pasted emoji use the shared
 paste service and are not recorded in smolcast's clipboard history.
 
 **Rendering revision (2026-09-24, user decision, replaces the monochrome
@@ -1041,6 +1041,17 @@ only visible cells and the selected preview, caches at most 256 textures, and
 resets the cache when the display scale changes. No font or atlas is bundled.
 Windows features added: Graphics_Direct2D, Direct2D_Common, DirectWrite,
 Dxgi_Common and Imaging.
+
+**Text symbols (2026-10-30, decision 042):** After the emoji, the generator
+appends every character `annotations/en.xml` names (its `tts` annotation)
+that emoji-test.txt does not list at any status, in en.xml order, in a
+trailing "Text Symbols" group: 369 single code points (arrows, math,
+currency, punctuation). Keywords come from the same annotations, so search
+and paste are unchanged. Generator version 2; 4,313 entries in all. The
+renderer's brush for glyphs without color layers is white, and the picker
+tints text symbols with the theme's text color when it draws them, so cached
+bitmaps survive appearance and theme changes. A query that is the character
+itself ranks that entry first.
 
 Superseded original text: Egui's approved v1 preview is monochrome. No color atlas is bundled. Destination
 color is not guaranteed because it depends on the destination renderer/font. The

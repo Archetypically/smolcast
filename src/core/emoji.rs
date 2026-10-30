@@ -1,4 +1,4 @@
-//! Emoji lookup over the generated table (plan §9).
+//! Emoji and symbol lookup over the generated table (plan §9).
 //!
 //! Windows-free and host-testable. Pasting writes `Emoji::text` verbatim; ZWJ,
 //! modifier, variation-selector, and flag sequences are never reconstructed.
@@ -14,10 +14,12 @@
 //!   score, then table order.
 //! - Skin-tone variants (about half the table) are listed only when the query
 //!   mentions "tone" or "skin"; otherwise the base emoji stands for them.
+//! - A query that is the character itself ("€", or "©" for "©️") ranks that
+//!   entry first.
 
 use std::sync::OnceLock;
 
-use super::emoji_data::EMOJI;
+use super::emoji_data::{EMOJI, GROUPS};
 
 /// One fully-qualified emoji sequence.
 #[derive(Debug)]
@@ -32,6 +34,14 @@ pub struct Emoji {
     pub group: u8,
     /// Contains a Fitzpatrick skin-tone modifier.
     pub skin_tone: bool,
+}
+
+impl Emoji {
+    /// A text symbol rather than an emoji: drawn in one color, tinted to
+    /// the theme's text.
+    pub fn is_symbol(&self) -> bool {
+        GROUPS[self.group as usize] == "Text Symbols"
+    }
 }
 
 pub fn all() -> &'static [Emoji] {
@@ -110,6 +120,9 @@ pub fn search(query: &str) -> Vec<usize> {
         .enumerate()
         .filter(|(_, (e, _))| wants_tones || !e.skin_tone)
         .filter_map(|(index, (emoji, keys))| {
+            if emoji.text.trim_end_matches('\u{FE0F}') == query {
+                return Some((10_000, index));
+            }
             let (name, normalized) = (keys.name.as_str(), keys.normalized.as_str());
             let mut total = if phrase.is_empty() {
                 0
@@ -138,7 +151,7 @@ pub fn search(query: &str) -> Vec<usize> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::emoji_data::{CLDR_VERSION, GROUPS, UNICODE_EMOJI_VERSION};
+    use crate::core::emoji_data::{CLDR_VERSION, UNICODE_EMOJI_VERSION};
     use unicode_segmentation::UnicodeSegmentation;
 
     fn first(query: &str) -> &'static str {
@@ -149,7 +162,7 @@ mod tests {
     fn table_is_pinned_and_well_formed() {
         assert_eq!(UNICODE_EMOJI_VERSION, "17.0");
         assert_eq!(CLDR_VERSION, "48.2");
-        assert!(EMOJI.len() > 3900);
+        assert!(EMOJI.len() > 4300);
         for e in EMOJI {
             assert!((e.group as usize) < GROUPS.len());
             assert!(!e.name.is_empty());
@@ -184,6 +197,23 @@ mod tests {
             family.text,
             "\u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467}\u{200D}\u{1F466}"
         );
+    }
+
+    #[test]
+    fn text_symbols_are_searchable_after_the_emoji() {
+        assert_eq!(first("right-pointing arrow"), "\u{2192}");
+        assert_eq!(first("not equal"), "\u{2260}");
+        assert_eq!(first("euro"), "\u{20AC}");
+        let symbols = GROUPS.len() as u8 - 1;
+        assert_eq!(GROUPS[symbols as usize], "Text Symbols");
+        assert!(EMOJI[search("euro")[0]].is_symbol());
+        assert!(!EMOJI[search("thumbs up")[0]].is_symbol());
+        // Typing the character itself finds it.
+        assert_eq!(first("€"), "\u{20AC}");
+        assert_eq!(first(" ≠ "), "\u{2260}");
+        assert_eq!(first("©"), "\u{A9}\u{FE0F}");
+        let first_symbol = EMOJI.iter().position(|e| e.group == symbols).unwrap();
+        assert!(EMOJI[first_symbol..].iter().all(|e| e.group == symbols));
     }
 
     #[test]
