@@ -10,7 +10,7 @@ Open source
 
 - Free
 - Open source
-- 7 MB
+- 8 MB
 - Standalone
 
 **Best for** clipboard, emoji and snippets in one tiny app
@@ -51,7 +51,7 @@ Bold marks where smolcast comes out ahead, and only where the other side publish
 | AI | No | No |
 | Window management | No | Window switching |
 | **Under the hood** |  |  |
-| Download | **7 MB, one .exe** (No installer) (the better pick) | 309 MB installer (The whole PowerToys suite) |
+| Download | **8 MB, one .exe** (No installer) (the better pick) | 309 MB installer (The whole PowerToys suite) |
 | Idle | 0% CPU while hidden | Not published |
 | Privacy | **No telemetry** ([One daily update check](https://smolcast.evanlee.engineer/privacy), can be turned off) (the better pick) | Diagnostic data (Can be turned off) |
 
@@ -85,7 +85,7 @@ For plugins without the whole suite there is [smolcast vs Flow Launcher](https:/
 ## Try smolcast
 
 - Windows 11, x64
-- 7 MB
+- 8 MB
 - Free and open source
 
 [Download](https://github.com/Archetypically/smolcast/releases/latest)

@@ -10,7 +10,7 @@ Open source
 
 - Free
 - Open source
-- 7 MB
+- 8 MB
 - No account
 
 **Best for** clipboard, emoji and snippets in a tiny app
@@ -51,7 +51,7 @@ Bold marks where smolcast comes out ahead, and only where the other side publish
 | AI | No | AI Search |
 | Window management | No | Window search |
 | **Under the hood** |  |  |
-| Download | 7 MB, one .exe (No installer) | Installer, APPX, portable or WinGet (Size not published) |
+| Download | 8 MB, one .exe (No installer) | Installer, APPX, portable or WinGet (Size not published) |
 | Idle | 0% CPU while hidden | Not published |
 | Privacy | No telemetry ([One daily update check](https://smolcast.evanlee.engineer/privacy), can be turned off) | See its policy |
 
@@ -84,7 +84,7 @@ For files first, see [smolcast vs Listary](https://smolcast.evanlee.engineer/com
 ## Try smolcast
 
 - Windows 11, x64
-- 7 MB
+- 8 MB
 - Free and open source
 
 [Download](https://github.com/Archetypically/smolcast/releases/latest)

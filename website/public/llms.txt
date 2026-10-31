@@ -1,6 +1,6 @@
 # smolcast
 
-> smolcast is a small, fully native command palette for Windows 11: one hotkey (Ctrl+Alt+Space by default) for your apps, files, clipboard, emoji, scripts and snippets, in a single executable of about 7 MB. It is written in Rust with egui and the Windows APIs, has no Electron, WebView or Node runtime, no extensions, no AI features and no telemetry, and uses no CPU while hidden. Free and open source under the MIT license.
+> smolcast is a small, fully native command palette for Windows 11: one hotkey (Ctrl+Alt+Space by default) for your apps, files, clipboard, emoji, scripts and snippets, in a single executable of about 8 MB. It is written in Rust with egui and the Windows APIs, has no Electron, WebView or Node runtime, no extensions, no AI features and no telemetry, and uses no CPU while hidden. Free and open source under the MIT license.
 
 smolcast is a Windows take on the core features of Tinycast (a macOS launcher) and Raycast (macOS and Windows). It is not affiliated with either. It runs on Windows 11 x64 only, as a normal user, with no installer, admin rights or runtime.
 
@@ -57,7 +57,7 @@ smolcast compared with the alternatives, checked against each project's own site
 - [smolcast vs Wox](https://smolcast.evanlee.engineer/compare/wox): Wox is an open-source launcher for Windows, macOS and Linux with built-in plugins, a plugin store and AI chat; smolcast is Windows only, smaller, and has no AI.
 - [smolcast vs Alfred](https://smolcast.evanlee.engineer/compare/alfred): Alfred is Mac only, with clipboard history and snippets in its paid Powerpack; smolcast has them free on Windows 11.
 - [smolcast vs Keypirinha](https://smolcast.evanlee.engineer/compare/keypirinha): Keypirinha is a portable freeware launcher with Python plugins whose last release was November 2020; smolcast is actively developed.
-- [smolcast vs Ueli](https://smolcast.evanlee.engineer/compare/ueli): Ueli is an open-source Electron launcher for every OS with a 177 MB Windows installer; smolcast is native and 7 MB.
+- [smolcast vs Ueli](https://smolcast.evanlee.engineer/compare/ueli): Ueli is an open-source Electron launcher for every OS with a 177 MB Windows installer; smolcast is native and 8 MB.
 
 ## Docs
 

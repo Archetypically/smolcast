@@ -40,7 +40,7 @@ turndown.addRule("keys", {
   },
 });
 
-// A stat's figure leads its line: **7 MB** One executable.
+// A stat's figure leads its line: **8 MB** One executable.
 turndown.addRule("figures", {
   filter: (node) => node.classList.contains("figure"),
   replacement: (content) => `**${content}** `,

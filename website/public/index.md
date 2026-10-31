@@ -1,6 +1,6 @@
 # The smol command palette for Windows.
 
-Apps, files, clipboard, emoji, scripts and snippets behind one hotkey, in a free 7 MB app that sits idle until you need it.
+Apps, files, clipboard, emoji, scripts and snippets behind one hotkey, in a free 8 MB app that sits idle until you need it.
 
 ## One palette for the things you reach for all day.
 
@@ -100,7 +100,7 @@ smolcast is written in Rust with egui and the Windows APIs. It imports only Wind
 
 See how smolcast stacks up as an alternative to [Raycast for Windows](https://smolcast.evanlee.engineer/compare/raycast), [PowerToys Command Palette](https://smolcast.evanlee.engineer/compare/powertoys-command-palette) and [Flow Launcher](https://smolcast.evanlee.engineer/compare/flow-launcher), or [every Windows launcher alternative side by side](https://smolcast.evanlee.engineer/compare/).
 
-- **7 MB** One executable. No installer, admin rights or runtime.
+- **8 MB** One executable. No installer, admin rights or runtime.
 - **0%** CPU while hidden. It wakes on the hotkey and nothing else.
 - **0** Extensions, accounts, AI features or telemetry.
 - **MIT** Open source. Read it, build it, change it.
@@ -144,7 +144,7 @@ url  = "https://github.com/search?q={query}"
 [Download for Windows](https://github.com/Archetypically/smolcast/releases/latest)
 
 - Windows 11, x64
-- About 7 MB
+- About 8 MB
 - Free
 
 1.  Put `smolcast-<version>-x86_64.exe` in a folder you can write to, such as `%LOCALAPPDATA%\Programs\smolcast`, and run it.
@@ -174,7 +174,7 @@ Yes. It is free and open source under the MIT license, with no paid tier, no acc
 
 ### Is smolcast a Raycast alternative for Windows?
 
-Yes, for the everyday parts: launching apps, the calculator, clipboard history, emoji, file search, quicklinks, scripts and snippets, in a 7 MB app with no account. It has no extension store, AI or window management, which Raycast for Windows does. [Read smolcast vs Raycast for Windows](https://smolcast.evanlee.engineer/compare/raycast).
+Yes, for the everyday parts: launching apps, the calculator, clipboard history, emoji, file search, quicklinks, scripts and snippets, in an 8 MB app with no account. It has no extension store, AI or window management, which Raycast for Windows does. [Read smolcast vs Raycast for Windows](https://smolcast.evanlee.engineer/compare/raycast).
 
 ### Which Windows versions does it run on?
 
