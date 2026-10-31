@@ -100,7 +100,13 @@ keep all three true when behavior changes (e.g. snippet expansion, signing,
 supported systems). Chrome is stamped from `partials/`, colors come from
 `theme.rs`, and every indexable page has a generated markdown twin at its
 path plus `.md` (decision 036; `task web:sync`; CI checks all three).
-Comparison facts checked 2026-10-23; recheck when those products ship. Privacy contact: GitHub
+Comparison facts checked 2026-10-23; recheck when those products ship.
+The site, README and social cards say "8 MB": the release exe is built
+with MSVC (`release.yml`; 7.83 MB on 2026-10-31), while `task install`
+from WSL builds with GNU and comes out about 450 KB larger, so judge the
+stated size by CI's `windows-release` artifact. Past 8.5 MB, sweep "8 MB"
+(`compare.py`, `index.html`, `llms.txt`, `media/og.html`, README) and
+re-render the cards. Privacy contact: GitHub
 issues and evanlee.engineer until the user names an email. Domain
 `smolcast.evanlee.engineer` is hard-coded in `public/` (canonical, OG,
 JSON-LD, sitemap, robots, llms.txt): grep and replace it on a move. The demo

@@ -11,7 +11,7 @@
 
 **A small, fully native command palette for Windows 11. One hotkey for your apps, files, clipboard, emoji, scripts and snippets, in a single executable that sits idle until you need it.**
 
-smolcast is a Windows take on [Tinycast](https://github.com/abue-ammar/tinycast) and Raycast's core features, written in Rust with egui and the Windows APIs. No Electron, no WebView, no Node runtime, no extensions, no AI, and no telemetry: about a 7 MB exe that imports only Windows system DLLs and uses no CPU while hidden.
+smolcast is a Windows take on [Tinycast](https://github.com/abue-ammar/tinycast) and Raycast's core features, written in Rust with egui and the Windows APIs. No Electron, no WebView, no Node runtime, no extensions, no AI, and no telemetry: about an 8 MB exe that imports only Windows system DLLs and uses no CPU while hidden.
 
 ## Features
 

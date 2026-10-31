@@ -11,7 +11,7 @@ Open source
 - Windows 11
 - Free
 - Open source
-- 7 MB
+- 8 MB
 
 **Best for** an Alfred-style launcher on Windows
 
@@ -51,7 +51,7 @@ Bold marks where smolcast comes out ahead, and only where the other side publish
 | AI | No | Not listed |
 | Window management | No | Not listed |
 | **Under the hood** |  |  |
-| Download | 7 MB, one .exe (No installer) | Mac app |
+| Download | 8 MB, one .exe (No installer) | Mac app |
 | Idle | 0% CPU while hidden | Not published |
 | Privacy | No telemetry ([One daily update check](https://smolcast.evanlee.engineer/privacy), can be turned off) | See its policy |
 
@@ -83,7 +83,7 @@ The free, open-source Mac cousin is Tinycast, and Raycast now has a Windows app:
 ## Try smolcast
 
 - Windows 11, x64
-- 7 MB
+- 8 MB
 - Free and open source
 
 [Download](https://github.com/Archetypically/smolcast/releases/latest)

@@ -10,7 +10,7 @@ Open source
 
 - Windows 11
 - Open source
-- 7 MB
+- 8 MB
 - No account
 
 **Best for** the Tinycast feel on Windows
@@ -51,7 +51,7 @@ Bold marks where smolcast comes out ahead, and only where the other side publish
 | AI | No | Optional (Off by default) |
 | Window management | No | Built in (35 commands, saved layouts) |
 | **Under the hood** |  |  |
-| Download | 7 MB, one .exe (No installer) | Mac app |
+| Download | 8 MB, one .exe (No installer) | Mac app |
 | Idle | 0% CPU while hidden | Under 100 MB of memory |
 | Privacy | No telemetry ([One daily update check](https://smolcast.evanlee.engineer/privacy), can be turned off) | No telemetry |
 
@@ -83,7 +83,7 @@ Tinycast borrows from Raycast, which now runs on Windows too: [smolcast vs Rayca
 ## Try smolcast
 
 - Windows 11, x64
-- 7 MB
+- 8 MB
 - Free and open source
 
 [Download](https://github.com/Archetypically/smolcast/releases/latest)

@@ -1,6 +1,6 @@
 # smolcast vs Ueli
 
-Ueli is an open-source Electron launcher for every OS. smolcast is native, Windows only, and about 25 times smaller.
+Ueli is an open-source Electron launcher for every OS. smolcast is native, Windows only, and over 20 times smaller.
 
 Updated 23 Oct 2026. Checked against [its repository and releases](https://github.com/oliverschwendener/ueli) (v9.29.1). [Sources](https://smolcast.evanlee.engineer/compare/ueli#sources)
 
@@ -10,7 +10,7 @@ Open source
 
 - Native
 - Open source
-- 7 MB
+- 8 MB
 - Windows 11
 
 **Best for** a native, tiny Windows launcher
@@ -51,7 +51,7 @@ Bold marks where smolcast comes out ahead, and only where the other side publish
 | AI | No | Not listed |
 | Window management | No | Not listed |
 | **Under the hood** |  |  |
-| Download | **7 MB, one .exe** (No installer) (the better pick) | 177 MB installer (Unsigned) |
+| Download | **8 MB, one .exe** (No installer) (the better pick) | 177 MB installer (Unsigned) |
 | Idle | 0% CPU while hidden | Not published |
 | Privacy | No telemetry ([One daily update check](https://smolcast.evanlee.engineer/privacy), can be turned off) | See the project |
 
@@ -61,7 +61,7 @@ Bold marks where smolcast comes out ahead, and only where the other side publish
 
 - You want a native app, not Electron
 - You want clipboard, emoji and snippets built in
-- You want a 7 MB download
+- You want an 8 MB download
 - You’re on Windows 11
 
 ### Go with Ueli if
@@ -83,7 +83,7 @@ Another open-source launcher for every OS: [smolcast vs Wox](https://smolcast.ev
 ## Try smolcast
 
 - Windows 11, x64
-- 7 MB
+- 8 MB
 - Free and open source
 
 [Download](https://github.com/Archetypically/smolcast/releases/latest)

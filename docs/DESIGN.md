@@ -333,7 +333,7 @@ key, a pip that slides to the row you chose. Motion:
 
 - An eyebrow label over a heading, or labels in tracked capitals. The
   heading says it.
-- Middle-dot meta strings ("Windows 11 · x64 · 7 MB") or arrows glued to
+- Middle-dot meta strings ("Windows 11 · x64 · 8 MB") or arrows glued to
   link text ("Compare →"). Use pills, line breaks, or a verb as the label.
 - Decorative status dots, emoji as icons, a card inside a card, a
   purple-to-blue gradient, a hand-drawn browser window.

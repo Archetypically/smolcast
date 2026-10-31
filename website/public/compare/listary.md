@@ -10,7 +10,7 @@ Open source
 
 - Free
 - Open source
-- 7 MB
+- 8 MB
 - Launcher first
 
 **Best for** a launcher with clipboard, emoji and snippets
@@ -51,7 +51,7 @@ Bold marks where smolcast comes out ahead, and only where the other side publish
 | AI | No | Not listed |
 | Window management | No | Not listed |
 | **Under the hood** |  |  |
-| Download | 7 MB, one .exe (No installer) | Installer (Size not published) |
+| Download | 8 MB, one .exe (No installer) | Installer (Size not published) |
 | Idle | 0% CPU while hidden | Not published |
 | Privacy | No telemetry ([One daily update check](https://smolcast.evanlee.engineer/privacy), can be turned off) | See its policy |
 
@@ -84,7 +84,7 @@ For one search over files, tabs and windows, see [smolcast vs Fluent Search](htt
 ## Try smolcast
 
 - Windows 11, x64
-- 7 MB
+- 8 MB
 - Free and open source
 
 [Download](https://github.com/Archetypically/smolcast/releases/latest)

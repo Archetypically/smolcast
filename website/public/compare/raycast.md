@@ -1,6 +1,6 @@
 # smolcast vs Raycast for Windows
 
-Raycast brings an extension store, AI and Mac sync. smolcast skips all three and fits in 7 MB with no account.
+Raycast brings an extension store, AI and Mac sync. smolcast skips all three and fits in 8 MB with no account.
 
 Updated 23 Oct 2026. Checked against [raycast.com/windows](https://www.raycast.com/windows) (v2.9). [Sources](https://smolcast.evanlee.engineer/compare/raycast#sources)
 
@@ -10,7 +10,7 @@ Open source
 
 - Free
 - Open source
-- 7 MB
+- 8 MB
 - No account
 
 **Best for** the essentials, small and private
@@ -51,7 +51,7 @@ Bold marks where smolcast comes out ahead, and only where the other side publish
 | AI | No | Pro (Quick AI and AI Chat) |
 | Window management | No | Built in |
 | **Under the hood** |  |  |
-| Download | 7 MB, one .exe (No installer) | Microsoft Store or WinGet (Size not published) |
+| Download | 8 MB, one .exe (No installer) | Microsoft Store or WinGet (Size not published) |
 | Idle | 0% CPU while hidden | Not published |
 | Privacy | **No telemetry** ([One daily update check](https://smolcast.evanlee.engineer/privacy), can be turned off) (the better pick) | Collects usage data for analytics (Per its privacy policy) |
 
@@ -86,7 +86,7 @@ On a Mac too? Tinycast is the free, open-source take on Raycast, and Alfred is t
 ## Try smolcast
 
 - Windows 11, x64
-- 7 MB
+- 8 MB
 - Free and open source
 
 [Download](https://github.com/Archetypically/smolcast/releases/latest)

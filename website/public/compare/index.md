@@ -10,7 +10,7 @@ Open source
 
 - Free
 - Open source
-- 7 MB
+- 8 MB
 - No account
 
 **Best for** the essentials, small and private
@@ -75,7 +75,7 @@ Bold marks where smolcast comes out ahead of all three, and only on published fa
 | AI | No | Pro (Quick AI and AI Chat) | No | No |
 | Window management | No | Built in | Window switching | No |
 | **Under the hood** |  |  |  |  |
-| Download | **7 MB, one .exe** (No installer) (the better pick) | Microsoft Store or WinGet (Size not published) | 309 MB installer (The whole PowerToys suite) | 97 MB installer |
+| Download | **8 MB, one .exe** (No installer) (the better pick) | Microsoft Store or WinGet (Size not published) | 309 MB installer (The whole PowerToys suite) | 97 MB installer |
 
 ## Tinycast and Alfred are the Mac cousins
 
@@ -84,7 +84,7 @@ Tinycast is free, open source and Mac only, and Alfred is the long-standing Mac 
 ## Try smolcast
 
 - Windows 11, x64
-- 7 MB
+- 8 MB
 - Free and open source
 
 [Download](https://github.com/Archetypically/smolcast/releases/latest)

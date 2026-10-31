@@ -36,7 +36,7 @@ US = {
  "ext": (N,"No","Scripts and quicklinks instead",False),
  "ai": (N,"No",None,False),
  "win": (N,"No",None,False),
- "size": (None,"7 MB, one .exe","No installer",False),
+ "size": (None,"8 MB, one .exe","No installer",False),
  "idle": (None,"0% CPU while hidden",None,False),
  "privacy": (None,"No telemetry",'<a href="/privacy">One daily update check</a>, can be turned off',False),
 }
@@ -56,9 +56,9 @@ PAGES = [
   checked='<a href="https://www.raycast.com/windows">raycast.com/windows</a> (v2.9)',
   sources=[("Raycast for Windows 2.9", "https://www.raycast.com/windows", "raycast.com/windows"), ("Raycast pricing", "https://www.raycast.com/pricing", "raycast.com/pricing"), ("Raycast privacy policy (usage data)", "https://www.raycast.com/privacy", "raycast.com/privacy")],
   title="smolcast vs Raycast for Windows: a free Raycast alternative",
-  desc="Raycast for Windows has extensions, AI and window management, with a paid Pro plan. smolcast does the everyday stuff in a free, open-source 7 MB app with no account.",
-  lead="Raycast brings an extension store, AI and Mac sync. smolcast skips all three and fits in 7 MB with no account.",
-  us_tags=["Free","Open source","7 MB","No account"], them_tags=["Free + Pro $10/mo","Closed source","Extensions","AI"],
+  desc="Raycast for Windows has extensions, AI and window management, with a paid Pro plan. smolcast does the everyday stuff in a free, open-source 8 MB app with no account.",
+  lead="Raycast brings an extension store, AI and Mac sync. smolcast skips all three and fits in 8 MB with no account.",
+  us_tags=["Free","Open source","8 MB","No account"], them_tags=["Free + Pro $10/mo","Closed source","Extensions","AI"],
   us_best="the essentials, small and private", them_best="extensions, AI and a Mac + PC setup", them_by="Raycast",
   them=dict(price=(None,"Free; Pro $10/mo",None,False), license=(None,"Closed source","Extensions are open",False),
    os=(None,"Windows 10 and 11, plus macOS",None,True), account=(None,"Needed for Pro, AI and sync",None,False),
@@ -78,9 +78,9 @@ PAGES = [
   checked='<a href="https://learn.microsoft.com/windows/powertoys/command-palette/overview">Microsoft\'s docs</a> (PowerToys 0.102)',
   sources=[("PowerToys Command Palette overview, updated October 2026", "https://learn.microsoft.com/windows/powertoys/command-palette/overview", "learn.microsoft.com"), ("PowerToys 0.102.2933.0 release (installer size)", "https://github.com/microsoft/PowerToys/releases/tag/v0.102.2933.0", "github.com/microsoft/PowerToys")],
   title="smolcast vs PowerToys: a PowerToys Run alternative",
-  desc="PowerToys Command Palette is Microsoft's extensible launcher, great for Windows admin tasks. smolcast is a single 7 MB app with clipboard history, emoji and snippets built in.",
+  desc="PowerToys Command Palette is Microsoft's extensible launcher, great for Windows admin tasks. smolcast is a single 8 MB app with clipboard history, emoji and snippets built in.",
   lead="Command Palette, the successor to PowerToys Run, reaches deep into Windows: WinGet, services, the registry. smolcast adds clipboard history, emoji and snippets instead.",
-  us_tags=["Free","Open source","7 MB","Standalone"], them_tags=["Free","Open source","Part of PowerToys","Extensions"],
+  us_tags=["Free","Open source","8 MB","Standalone"], them_tags=["Free","Open source","Part of PowerToys","Extensions"],
   us_best="clipboard, emoji and snippets in one tiny app", them_best="Windows admin and extensions", them_by="Microsoft",
   them=dict(price=(None,"Free",None,False), license=(None,"Open source (MIT)",None,False),
    os=(None,"Windows 10 and 11",None,True), account=(None,"None",None,False), hotkey=(None,k("Win","Alt","Space"),None,False),
@@ -100,9 +100,9 @@ PAGES = [
   checked='<a href="https://github.com/Flow-Launcher/Flow.Launcher">its README and releases</a> (v2.1.4)',
   sources=[("Flow Launcher README", "https://github.com/Flow-Launcher/Flow.Launcher", "github.com/Flow-Launcher"), ("Flow Launcher 2.1.4 release (installer size)", "https://github.com/Flow-Launcher/Flow.Launcher/releases/tag/v2.1.4", "github.com/Flow-Launcher"), ("Flow Launcher attribution (its Wox roots)", "https://github.com/Flow-Launcher/Flow.Launcher/blob/dev/attribution.md", "github.com/Flow-Launcher")],
   title="smolcast vs Flow Launcher: a Flow Launcher alternative",
-  desc="Flow Launcher is a plugin-driven open-source launcher for Windows with great file search. smolcast builds in clipboard history, emoji and snippets, in a 7 MB app.",
+  desc="Flow Launcher is a plugin-driven open-source launcher for Windows with great file search. smolcast builds in clipboard history, emoji and snippets, in an 8 MB app.",
   lead="Flow Launcher grows with plugins and searches inside files through Everything. smolcast has no plugins and builds clipboard history, emoji and snippets in.",
-  us_tags=["Free","Open source","7 MB","Batteries included"], them_tags=["Free","Open source","Plugins","Everything search"],
+  us_tags=["Free","Open source","8 MB","Batteries included"], them_tags=["Free","Open source","Plugins","Everything search"],
   us_best="built-in clipboard, emoji and snippets", them_best="plugins and deep file search", them_by="Open-source community",
   them=dict(price=(None,"Free",None,False), license=(None,"Open source (MIT)",None,False),
    os=(None,"Windows 10 and 11",None,True), account=(None,"None",None,False), hotkey=(None,k("Alt","Space"),None,False),
@@ -120,9 +120,9 @@ PAGES = [
   checked='<a href="https://tinycast.dev">tinycast.dev</a> (v0.12.1)',
   sources=[("Tinycast 0.12.1", "https://tinycast.dev", "tinycast.dev")],
   title="smolcast vs Tinycast: a Tinycast alternative for Windows",
-  desc="Tinycast is a free, open-source Raycast-style launcher for macOS only. smolcast is the same idea for Windows 11: free, open source and 7 MB, with fewer features.",
+  desc="Tinycast is a free, open-source Raycast-style launcher for macOS only. smolcast is the same idea for Windows 11: free, open source and 8 MB, with fewer features.",
   lead="Tinycast is Mac only. smolcast is the same idea for Windows 11, its own project, and it does less.",
-  us_tags=["Windows 11","Open source","7 MB","No account"], them_tags=["macOS","Open source","No account","Optional AI"],
+  us_tags=["Windows 11","Open source","8 MB","No account"], them_tags=["macOS","Open source","No account","Optional AI"],
   us_best="the Tinycast feel on Windows", them_best="everything, on a Mac", them_by="Open-source project",
   them=dict(price=(None,"Free; tips welcome",None,False), license=(None,"Open source (AGPL-3.0)",None,False),
    os=(None,"macOS 26+",None,False), account=(None,"None",None,False), hotkey=(None,"Configurable",None,False),
@@ -142,7 +142,7 @@ PAGES = [
   title="smolcast vs Fluent Search: a Fluent Search alternative",
   desc="Fluent Search searches everything on your PC, from browser tabs to text on screen, with its own file indexer and C# plugins. smolcast is a small, open-source launcher with clipboard history, emoji and snippets built in.",
   lead="Fluent Search searches tabs, windows, files and even text on screen. smolcast searches less and pastes more: clipboard history, emoji and snippets.",
-  us_tags=["Free","Open source","7 MB","No account"], them_tags=["Free","Own file indexer","Screen search","Plugins"],
+  us_tags=["Free","Open source","8 MB","No account"], them_tags=["Free","Own file indexer","Screen search","Plugins"],
   us_best="clipboard, emoji and snippets in a tiny app", them_best="searching everything, even text on screen", them_by="Independent project",
   them=dict(price=(None,"Free; donations welcome",None,False), license=(None,"License not published",None,False),
    os=(None,"Windows 10 and 11, x64 and ARM64",None,False), account=(None,"Not published",None,False), hotkey=(None,"Not published",None,False),
@@ -162,7 +162,7 @@ PAGES = [
   title="smolcast vs Listary: a Listary alternative for launching",
   desc="Listary is a file search tool for Windows that also jumps Open and Save dialogs to your folders, free with a $19.95 Pro. smolcast is a launcher with clipboard history, emoji and snippets built in.",
   lead="Listary finds files and points Open and Save dialogs straight at them. smolcast launches apps and pastes from clipboard history, emoji and snippets.",
-  us_tags=["Free","Open source","7 MB","Launcher first"], them_tags=["Free + Pro $19.95","Files first","Quick Switch","Double Ctrl"],
+  us_tags=["Free","Open source","8 MB","Launcher first"], them_tags=["Free + Pro $19.95","Files first","Quick Switch","Double Ctrl"],
   us_best="a launcher with clipboard, emoji and snippets", them_best="finding files and taming Open and Save dialogs", them_by="Little Carved",
   them=dict(price=(None,"Free; Pro $19.95 once",None,False), license=(None,"Source not published",None,False),
    os=(None,"Windows",None,False), account=(None,"Not published",None,False), hotkey=(None,"Double-tap Ctrl",None,False),
@@ -181,7 +181,7 @@ PAGES = [
   title="smolcast vs Wox: a smaller Wox alternative without AI",
   desc="Wox is an open-source, cross-platform launcher with about 30 built-in plugins, AI chat and a plugin store. smolcast is a smaller, Windows-only app with the everyday features and no AI.",
   lead="Wox runs everywhere and does a lot, AI included. smolcast is Windows only, smaller, and stays out of AI.",
-  us_tags=["Windows 11","Open source","7 MB","No AI"], them_tags=["Windows, Mac, Linux","Open source","Plugin store","AI"],
+  us_tags=["Windows 11","Open source","8 MB","No AI"], them_tags=["Windows, Mac, Linux","Open source","Plugin store","AI"],
   us_best="a small, quiet Windows launcher", them_best="one launcher on every OS, with AI", them_by="Open-source project",
   them=dict(price=(None,"Free",None,False), license=(None,"Open source (GPL-3.0)",None,False),
    os=(None,"Windows, macOS and Linux",None,False), account=(None,"None; optional Cloud Sync",None,False), hotkey=(None,"Not published",None,False),
@@ -201,7 +201,7 @@ PAGES = [
   title="smolcast vs Alfred: an Alfred alternative for Windows",
   desc="Alfred is a Mac-only launcher with a free core and a paid Powerpack for clipboard history, snippets and workflows. smolcast is a free, open-source launcher for Windows 11 with those built in.",
   lead="Alfred is Mac only. On Windows, smolcast gives you a launcher with clipboard history and snippets built in, free.",
-  us_tags=["Windows 11","Free","Open source","7 MB"], them_tags=["macOS","Free + Powerpack £34","Workflows","Snippet expansion"],
+  us_tags=["Windows 11","Free","Open source","8 MB"], them_tags=["macOS","Free + Powerpack £34","Workflows","Snippet expansion"],
   us_best="an Alfred-style launcher on Windows", them_best="workflows and power features on a Mac", them_by="Running with Crayons",
   them=dict(price=(None,"Free; Powerpack £34",None,False), license=(None,"Source not published",None,False),
    os=(None,"macOS 10.14 or later",None,False), account=(None,"Not published",None,False), hotkey=(None,"Configurable",None,False),
@@ -221,7 +221,7 @@ PAGES = [
   title="smolcast vs Keypirinha: a maintained Keypirinha alternative",
   desc="Keypirinha is a fast, portable freeware launcher for Windows with Python plugins; its last release was in November 2020. smolcast is actively developed and builds in clipboard history, emoji and snippets.",
   lead="Keypirinha is fast, portable and scriptable in Python, but its last release was in 2020. smolcast is new and still shipping.",
-  us_tags=["Free","Open source","7 MB","Actively developed"], them_tags=["Freeware","Portable","Python plugins","Last release 2020"],
+  us_tags=["Free","Open source","8 MB","Actively developed"], them_tags=["Freeware","Portable","Python plugins","Last release 2020"],
   us_best="a launcher that still ships updates", them_best="a portable, scriptable launcher", them_by="Independent project",
   them=dict(price=(None,"Freeware",None,False), license=(None,"Freeware; source not published",None,False),
    os=(None,"Windows",None,False), account=(None,"None",None,False), hotkey=(None,"Not published",None,False),
@@ -239,9 +239,9 @@ PAGES = [
   checked='<a href="https://github.com/oliverschwendener/ueli">its repository and releases</a> (v9.29.1)',
   sources=[("Ueli repository", "https://github.com/oliverschwendener/ueli", "github.com/oliverschwendener/ueli"), ("Ueli 9.29.1 release (installer size)", "https://github.com/oliverschwendener/ueli/releases/tag/v9.29.1", "github.com/oliverschwendener/ueli")],
   title="smolcast vs Ueli: a native Ueli alternative",
-  desc="Ueli is an open-source, cross-platform Electron launcher with toggleable extensions; its Windows installer is 177 MB. smolcast is a native 7 MB Windows app with clipboard history, emoji and snippets built in.",
-  lead="Ueli is an open-source Electron launcher for every OS. smolcast is native, Windows only, and about 25 times smaller.",
-  us_tags=["Native","Open source","7 MB","Windows 11"], them_tags=["Electron","Open source","Windows, Mac, Linux","Extensions"],
+  desc="Ueli is an open-source, cross-platform Electron launcher with toggleable extensions; its Windows installer is 177 MB. smolcast is a native 8 MB Windows app with clipboard history, emoji and snippets built in.",
+  lead="Ueli is an open-source Electron launcher for every OS. smolcast is native, Windows only, and over 20 times smaller.",
+  us_tags=["Native","Open source","8 MB","Windows 11"], them_tags=["Electron","Open source","Windows, Mac, Linux","Extensions"],
   us_best="a native, tiny Windows launcher", them_best="one open-source launcher on every OS", them_by="Open-source project",
   them=dict(price=(None,"Free",None,False), license=(None,"Open source (MIT)",None,False),
    os=(None,"Windows, macOS and Linux",None,False), account=(None,"None",None,False), hotkey=(None,k("Alt","Space"),None,False),
@@ -251,7 +251,7 @@ PAGES = [
    size=(None,"177 MB installer","Unsigned",False), idle=(None,"Not published",None,False), privacy=(None,"See the project",None,False)),
   us_wins=["size"],
   them_if=["You want the same launcher on Windows, Mac and Linux","You want currency conversion","You like toggling extensions on and off"],
-  us_if=["You want a native app, not Electron","You want clipboard, emoji and snippets built in","You want a 7 MB download","You're on Windows 11"],
+  us_if=["You want a native app, not Electron","You want clipboard, emoji and snippets built in","You want an 8 MB download","You're on Windows 11"],
   maps=[("Web search","Quicklinks with a <code>{query}</code> URL, and a web row after every search"),
    ("Hotkey",HOTKEY + " by default, so it won't fight Ueli's " + k("Alt","Space")),
    ("Calculator","Math and unit conversions, offline; Enter pastes the answer")]),
@@ -319,7 +319,7 @@ CTA = '''      <section class="cta" aria-labelledby="get-title">
         <img src="/favicon.svg" alt="" width="56" height="56" />
         <div>
           <h2 id="get-title">Try smolcast</h2>
-          <ul class="tags"><li class="tag">Windows 11, x64</li><li class="tag">7 MB</li><li class="tag">Free and open source</li></ul>
+          <ul class="tags"><li class="tag">Windows 11, x64</li><li class="tag">8 MB</li><li class="tag">Free and open source</li></ul>
         </div>
         <a class="button" href="https://github.com/Archetypically/smolcast/releases/latest"><svg aria-hidden="true"><use href="/icons.svg#download" /></svg>Download</a>
       </section>'''
@@ -460,7 +460,7 @@ graph=[{"@type":"CollectionPage","@id":SITE+path,"url":SITE+path,"name":title,"d
     "itemListElement":[{"@type":"ListItem","position":i+1,"name":f"smolcast vs {p['full']}","url":SITE+f"/compare/{p['slug']}"} for i,p in enumerate(PAGES)]}}, bc_ld(bc)]
 hubus = marked(["size"])
 # On the hub, as on every page, only smolcast's wins are bold.
-cards=[card("smolcast","Open source",["Free","Open source","7 MB","No account"],"the essentials, small and private",us=True)]
+cards=[card("smolcast","Open source",["Free","Open source","8 MB","No account"],"the essentials, small and private",us=True)]
 for p in HUB: cards.append(card(p["full"],p["them_by"],p["them_tags"],p["them_best"],href=f"/compare/{p['slug']}",visit=p["visit"]))
 HUBROWS=[("The basics",[("price","Price"),("license","Source"),("os","Runs on"),("account","Account")]),
  ("Features",[("clip","Clipboard history"),("snip","Snippets"),("emoji","Emoji picker"),("files","File search"),("calc","Calculator"),("ext","Extensions"),("ai","AI"),("win","Window management")]),

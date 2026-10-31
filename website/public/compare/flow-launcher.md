@@ -10,7 +10,7 @@ Open source
 
 - Free
 - Open source
-- 7 MB
+- 8 MB
 - Batteries included
 
 **Best for** built-in clipboard, emoji and snippets
@@ -51,7 +51,7 @@ Bold marks where smolcast comes out ahead, and only where the other side publish
 | AI | No | No |
 | Window management | No | No |
 | **Under the hood** |  |  |
-| Download | **7 MB, one .exe** (No installer) (the better pick) | 97 MB installer |
+| Download | **8 MB, one .exe** (No installer) (the better pick) | 97 MB installer |
 | Idle | 0% CPU while hidden | Not published |
 | Privacy | No telemetry ([One daily update check](https://smolcast.evanlee.engineer/privacy), can be turned off) | See the project |
 
@@ -84,7 +84,7 @@ Flow Launcher began as a fork of Wox, which is still going: [smolcast vs Wox](ht
 ## Try smolcast
 
 - Windows 11, x64
-- 7 MB
+- 8 MB
 - Free and open source
 
 [Download](https://github.com/Archetypically/smolcast/releases/latest)
