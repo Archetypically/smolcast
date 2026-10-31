@@ -53,7 +53,7 @@ Encrypted, on your PC
 
 ### Google Analytics
 
-This website loads Google Analytics (Google tag, gtag.js), which counts visits and may set cookies and send your IP address and page views to Google. The app never loads it. Everything else on a page comes from this site. Light or dark is remembered in your browser's local storage and never leaves it.
+This website loads Google Analytics (Google tag, gtag.js), which counts visits and may set cookies and send your IP address and page views to Google. Its advertising features (Google signals and ad personalization) are off. The app never loads it. Everything else on a page comes from this site. Light or dark is remembered in your browser's local storage and never leaves it.
 
 ### Hosting and downloads
 

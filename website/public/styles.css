@@ -637,6 +637,10 @@ h1 {
   transition: opacity 140ms ease;
 }
 
+a.pal-row {
+  text-decoration: none;
+}
+
 .pal-row:hover {
   background: var(--hover);
 }
@@ -1403,12 +1407,6 @@ h2 {
   border-bottom: 1px solid var(--divider);
 }
 
-.faq h3 {
-  margin: 0 0 6px;
-  font-size: 17px;
-  font-weight: 650;
-}
-
 .faq p {
   margin: 0;
   color: var(--muted);
@@ -1778,7 +1776,8 @@ h2 {
   margin-top: 4px;
 }
 
-.doc h3 {
+.doc h3,
+.faq h3 {
   margin: 0 0 6px;
   font-size: 17px;
   font-weight: 650;
