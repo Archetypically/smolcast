@@ -55,7 +55,7 @@ PAGES = [
  dict(slug="raycast", visit="https://www.raycast.com/windows?ref=smolcast", name="Raycast", full="Raycast for Windows", url="https://www.raycast.com/windows",
   checked='<a href="https://www.raycast.com/windows">raycast.com/windows</a> (v2.9)',
   sources=[("Raycast for Windows 2.9", "https://www.raycast.com/windows", "raycast.com/windows"), ("Raycast pricing", "https://www.raycast.com/pricing", "raycast.com/pricing"), ("Raycast privacy policy (usage data)", "https://www.raycast.com/privacy", "raycast.com/privacy")],
-  title="smolcast vs Raycast for Windows",
+  title="smolcast vs Raycast for Windows: a free Raycast alternative",
   desc="Raycast for Windows has extensions, AI and window management, with a paid Pro plan. smolcast does the everyday stuff in a free, open-source 7 MB app with no account.",
   lead="Raycast brings an extension store, AI and Mac sync. smolcast skips all three and fits in 7 MB with no account.",
   us_tags=["Free","Open source","7 MB","No account"], them_tags=["Free + Pro $10/mo","Closed source","Extensions","AI"],
@@ -77,7 +77,7 @@ PAGES = [
  dict(slug="powertoys-command-palette", visit="https://learn.microsoft.com/windows/powertoys/install?ref=smolcast", name="Command Palette", full="PowerToys Command Palette", url="https://learn.microsoft.com/windows/powertoys/command-palette/overview",
   checked='<a href="https://learn.microsoft.com/windows/powertoys/command-palette/overview">Microsoft\'s docs</a> (PowerToys 0.102)',
   sources=[("PowerToys Command Palette overview, updated October 2026", "https://learn.microsoft.com/windows/powertoys/command-palette/overview", "learn.microsoft.com"), ("PowerToys 0.102.2933.0 release (installer size)", "https://github.com/microsoft/PowerToys/releases/tag/v0.102.2933.0", "github.com/microsoft/PowerToys")],
-  title="smolcast vs PowerToys Command Palette and PowerToys Run",
+  title="smolcast vs PowerToys: a PowerToys Run alternative",
   desc="PowerToys Command Palette is Microsoft's extensible launcher, great for Windows admin tasks. smolcast is a single 7 MB app with clipboard history, emoji and snippets built in.",
   lead="Command Palette, the successor to PowerToys Run, reaches deep into Windows: WinGet, services, the registry. smolcast adds clipboard history, emoji and snippets instead.",
   us_tags=["Free","Open source","7 MB","Standalone"], them_tags=["Free","Open source","Part of PowerToys","Extensions"],
@@ -99,7 +99,7 @@ PAGES = [
  dict(slug="flow-launcher", visit="https://www.flowlauncher.com/?ref=smolcast", name="Flow Launcher", full="Flow Launcher", url="https://www.flowlauncher.com/",
   checked='<a href="https://github.com/Flow-Launcher/Flow.Launcher">its README and releases</a> (v2.1.4)',
   sources=[("Flow Launcher README", "https://github.com/Flow-Launcher/Flow.Launcher", "github.com/Flow-Launcher"), ("Flow Launcher 2.1.4 release (installer size)", "https://github.com/Flow-Launcher/Flow.Launcher/releases/tag/v2.1.4", "github.com/Flow-Launcher"), ("Flow Launcher attribution (its Wox roots)", "https://github.com/Flow-Launcher/Flow.Launcher/blob/dev/attribution.md", "github.com/Flow-Launcher")],
-  title="smolcast vs Flow Launcher",
+  title="smolcast vs Flow Launcher: a Flow Launcher alternative",
   desc="Flow Launcher is a plugin-driven open-source launcher for Windows with great file search. smolcast builds in clipboard history, emoji and snippets, in a 7 MB app.",
   lead="Flow Launcher grows with plugins and searches inside files through Everything. smolcast has no plugins and builds clipboard history, emoji and snippets in.",
   us_tags=["Free","Open source","7 MB","Batteries included"], them_tags=["Free","Open source","Plugins","Everything search"],
@@ -139,7 +139,7 @@ PAGES = [
  dict(slug="fluent-search", visit="https://www.fluentsearch.net/?ref=smolcast", name="Fluent Search", full="Fluent Search", url="https://www.fluentsearch.net/",
   checked='<a href="https://www.fluentsearch.net/">fluentsearch.net</a> and its docs',
   sources=[("Fluent Search site", "https://www.fluentsearch.net/", "fluentsearch.net"), ("Fluent Search docs", "https://www.fluentsearch.net/docs", "fluentsearch.net/docs"), ("Fluent Search repository", "https://github.com/adirh3/Fluent-Search", "github.com/adirh3/Fluent-Search")],
-  title="smolcast vs Fluent Search",
+  title="smolcast vs Fluent Search: a Fluent Search alternative",
   desc="Fluent Search searches everything on your PC, from browser tabs to text on screen, with its own file indexer and C# plugins. smolcast is a small, open-source launcher with clipboard history, emoji and snippets built in.",
   lead="Fluent Search searches tabs, windows, files and even text on screen. smolcast searches less and pastes more: clipboard history, emoji and snippets.",
   us_tags=["Free","Open source","7 MB","No account"], them_tags=["Free","Own file indexer","Screen search","Plugins"],
@@ -159,7 +159,7 @@ PAGES = [
  dict(slug="listary", visit="https://www.listary.com/?ref=smolcast", name="Listary", full="Listary", url="https://www.listary.com/",
   checked='<a href="https://www.listary.com/">listary.com</a>, its Pro page and its help',
   sources=[("Listary site", "https://www.listary.com/", "listary.com"), ("Listary Pro", "https://www.listary.com/pro", "listary.com/pro"), ("Listary hotkeys", "https://help.listary.com/hotkeys", "help.listary.com")],
-  title="smolcast vs Listary",
+  title="smolcast vs Listary: a Listary alternative for launching",
   desc="Listary is a file search tool for Windows that also jumps Open and Save dialogs to your folders, free with a $19.95 Pro. smolcast is a launcher with clipboard history, emoji and snippets built in.",
   lead="Listary finds files and points Open and Save dialogs straight at them. smolcast launches apps and pastes from clipboard history, emoji and snippets.",
   us_tags=["Free","Open source","7 MB","Launcher first"], them_tags=["Free + Pro $19.95","Files first","Quick Switch","Double Ctrl"],
@@ -178,7 +178,7 @@ PAGES = [
  dict(slug="wox", visit="https://www.woxlauncher.com/?ref=smolcast", name="Wox", full="Wox", url="https://www.woxlauncher.com/",
   checked='<a href="https://www.woxlauncher.com/">woxlauncher.com</a> and <a href="https://github.com/Wox-launcher/Wox">its repository</a> (v2.4.7)',
   sources=[("Wox site", "https://www.woxlauncher.com/", "woxlauncher.com"), ("Wox 2.4.7 repository", "https://github.com/Wox-launcher/Wox", "github.com/Wox-launcher/Wox"), ("Flow Launcher attribution (its Wox roots)", "https://github.com/Flow-Launcher/Flow.Launcher/blob/dev/attribution.md", "github.com/Flow-Launcher")],
-  title="smolcast vs Wox",
+  title="smolcast vs Wox: a smaller Wox alternative without AI",
   desc="Wox is an open-source, cross-platform launcher with about 30 built-in plugins, AI chat and a plugin store. smolcast is a smaller, Windows-only app with the everyday features and no AI.",
   lead="Wox runs everywhere and does a lot, AI included. smolcast is Windows only, smaller, and stays out of AI.",
   us_tags=["Windows 11","Open source","7 MB","No AI"], them_tags=["Windows, Mac, Linux","Open source","Plugin store","AI"],
@@ -218,7 +218,7 @@ PAGES = [
  dict(slug="keypirinha", visit="https://keypirinha.com/?ref=smolcast", name="Keypirinha", full="Keypirinha", url="https://keypirinha.com/",
   checked='<a href="https://keypirinha.com/">keypirinha.com</a> (v2.26, released November 2020)',
   sources=[("Keypirinha 2.26", "https://keypirinha.com/", "keypirinha.com"), ("Keypirinha releases", "https://github.com/Keypirinha/Keypirinha/releases", "github.com/Keypirinha")],
-  title="smolcast vs Keypirinha",
+  title="smolcast vs Keypirinha: a maintained Keypirinha alternative",
   desc="Keypirinha is a fast, portable freeware launcher for Windows with Python plugins; its last release was in November 2020. smolcast is actively developed and builds in clipboard history, emoji and snippets.",
   lead="Keypirinha is fast, portable and scriptable in Python, but its last release was in 2020. smolcast is new and still shipping.",
   us_tags=["Free","Open source","7 MB","Actively developed"], them_tags=["Freeware","Portable","Python plugins","Last release 2020"],
@@ -238,7 +238,7 @@ PAGES = [
  dict(slug="ueli", visit="https://ueli.app/?ref=smolcast", name="Ueli", full="Ueli", url="https://ueli.app/",
   checked='<a href="https://github.com/oliverschwendener/ueli">its repository and releases</a> (v9.29.1)',
   sources=[("Ueli repository", "https://github.com/oliverschwendener/ueli", "github.com/oliverschwendener/ueli"), ("Ueli 9.29.1 release (installer size)", "https://github.com/oliverschwendener/ueli/releases/tag/v9.29.1", "github.com/oliverschwendener/ueli")],
-  title="smolcast vs Ueli",
+  title="smolcast vs Ueli: a native Ueli alternative",
   desc="Ueli is an open-source, cross-platform Electron launcher with toggleable extensions; its Windows installer is 177 MB. smolcast is a native 7 MB Windows app with clipboard history, emoji and snippets built in.",
   lead="Ueli is an open-source Electron launcher for every OS. smolcast is native, Windows only, and about 25 times smaller.",
   us_tags=["Native","Open source","7 MB","Windows 11"], them_tags=["Electron","Open source","Windows, Mac, Linux","Extensions"],
@@ -305,9 +305,9 @@ def table(cols, rows=ROWS, wide=False):
 def tags(ts): return '<ul class="tags">' + "".join(f'<li class="tag">{t}</li>' for t in ts) + '</ul>'
 
 def rows_html(current):
-  items = [("/compare/", "All the launchers, side by side", "Compare")] if current != "hub" else []
+  items = [("/compare/", "Every alternative, side by side", "Alternatives")] if current != "hub" else []
   for p in PAGES:
-    if p["slug"] != current: items.append((f"/compare/{p['slug']}", f"smolcast vs {p['full']}", "Compare"))
+    if p["slug"] != current: items.append((f"/compare/{p['slug']}", f"smolcast vs {p['full']}", "Alternative"))
   items.append(("/privacy", "What smolcast keeps on your PC", "Privacy"))
   out = ['        <ul class="rows">']
   for href, name, trail in items:
@@ -423,7 +423,7 @@ def write(path, text):
 os.makedirs(os.path.join(OUT,"compare"), exist_ok=True)
 for p in PAGES:
   path=f"/compare/{p['slug']}"
-  bc=[("smolcast","/"),("Compare","/compare/"),(p["name"],None)]
+  bc=[("smolcast","/"),("Alternatives","/compare/"),(p["name"],None)]
   us = marked(p["us_wins"])
   graph=[{"@type":"WebPage","@id":SITE+path,"url":SITE+path,"name":p["title"],"description":p["desc"],
     "datePublished":DATE,"dateModified":DATE,"isPartOf":{"@id":SITE+"/#website"},
@@ -443,18 +443,21 @@ for p in PAGES:
    '      <section class="doc-section" aria-labelledby="moving-title">',f'        <h2 id="moving-title">Coming from {p["name"]}</h2>','        <ul class="maps">']
   body += [f'          <li><span class="from">{a}</span><span>{b}</span></li>' for a,b in p["maps"]]
   body += ['        </ul>','      </section>','',CTA,'',
-   '      <section class="doc-section" aria-labelledby="more-title">','        <h2 id="more-title">More comparisons</h2>', rows_html(p["slug"]),'      </section>','',footnotes(p["sources"]), TAIL]
+   '      <section class="doc-section" aria-labelledby="more-title">','        <h2 id="more-title">More alternatives</h2>', rows_html(p["slug"]),'      </section>','',footnotes(p["sources"]), TAIL]
   write(os.path.join(OUT,"compare",p["slug"]+".html"), "\n".join(body))
 
 # hub
 HUB=PAGES[:3]
 path="/compare/"
-title="Windows launchers, compared"
-desc="smolcast, Raycast for Windows, PowerToys Command Palette and Flow Launcher side by side: price, source, extensions, AI, clipboard history, snippets, emoji, file search and size."
-bc=[("smolcast","/"),("Compare",None)]
+title="Windows launcher alternatives, compared"
+desc=f"smolcast, Raycast for Windows, PowerToys Command Palette and Flow Launcher side by side, with one-on-one pages for {len(PAGES)} alternatives: price, extensions, AI, clipboard history, snippets and size."
+bc=[("smolcast","/"),("Alternatives",None)]
 graph=[{"@type":"CollectionPage","@id":SITE+path,"url":SITE+path,"name":title,"description":desc,"datePublished":DATE,"dateModified":DATE,
   "isPartOf":{"@id":SITE+"/#website"},"about":[{"@id":SITE+"/#app"}]+[{"@type":"SoftwareApplication","name":p["full"],"url":p["url"]} for p in HUB],
-  "hasPart":[{"@id":SITE+f"/compare/{p['slug']}"} for p in PAGES]}, bc_ld(bc)]
+  "hasPart":[{"@id":SITE+f"/compare/{p['slug']}"} for p in PAGES],
+  # The same pages, in the order the visible "Alternatives, one on one" list gives them.
+  "mainEntity":{"@type":"ItemList","name":"smolcast alternatives","numberOfItems":len(PAGES),
+    "itemListElement":[{"@type":"ListItem","position":i+1,"name":f"smolcast vs {p['full']}","url":SITE+f"/compare/{p['slug']}"} for i,p in enumerate(PAGES)]}}, bc_ld(bc)]
 hubus = marked(["size"])
 # On the hub, as on every page, only smolcast's wins are bold.
 cards=[card("smolcast","Open source",["Free","Open source","7 MB","No account"],"the essentials, small and private",us=True)]
@@ -462,16 +465,16 @@ for p in HUB: cards.append(card(p["full"],p["them_by"],p["them_tags"],p["them_be
 HUBROWS=[("The basics",[("price","Price"),("license","Source"),("os","Runs on"),("account","Account")]),
  ("Features",[("clip","Clipboard history"),("snip","Snippets"),("emoji","Emoji picker"),("files","File search"),("calc","Calculator"),("ext","Extensions"),("ai","AI"),("win","Window management")]),
  ("Under the hood",[("size","Download")])]
-body=[head(title,desc,path,ldjson(graph),"website",alt="Windows launchers compared: smolcast, Raycast for Windows, PowerToys Command Palette and Flow Launcher, feature by feature."),
+body=[head(title,desc,path,ldjson(graph),"website",alt="Windows launcher alternatives compared: smolcast, Raycast for Windows, PowerToys Command Palette and Flow Launcher, feature by feature."),
  '      <header class="doc-hero">', crumbs(bc), f'        <h1>{title}</h1>',
- '        <p class="lead">Four keyboard launchers for Windows, from one small app to a full extension platform.</p>',
+ '        <p class="lead">smolcast and three alternatives, from one small app to a full extension platform.</p>',
  f'        <p class="stamp"><span class="tag">Updated <time datetime="{DATE}">{DATE_TEXT}</time></span> Checked against each project\'s own site. smolcast is ours, so the <a href="#sources">sources</a> are below.</p>',
  '      </header>','','      <div class="cards">', *cards, '      </div>','',
  '      <section class="doc-section" aria-labelledby="table-title">','        <h2 id="table-title">Feature by feature</h2>',
  '        <p>Bold marks where smolcast comes out ahead of all three, and only on published facts.</p>',
  '        <div class="table-wrap">', table([("smolcast",hubus)]+[(p["full"],p["them"]) for p in HUB], HUBROWS, wide=True), '        </div>','      </section>','',
  '      <section class="doc-section" aria-labelledby="mac-title">','        <h2 id="mac-title">Tinycast and Alfred are the Mac cousins</h2>',
- '        <p>Tinycast is free, open source and Mac only, and Alfred is the long-standing Mac favorite. smolcast is the closest thing to either on Windows: <a href="/compare/tinycast">smolcast vs Tinycast</a>, <a href="/compare/alfred">smolcast vs Alfred</a>.</p>','      </section>','',
- CTA,'','      <section class="doc-section" aria-labelledby="more-title">','        <h2 id="more-title">One-on-one comparisons</h2>', rows_html("hub"),'      </section>','',footnotes(list(dict.fromkeys(src for p in PAGES for src in p["sources"]))), TAIL]
+ '        <p>Tinycast is free, open source and Mac only, and Alfred is the long-standing Mac favorite. smolcast is the closest Windows alternative to either: <a href="/compare/tinycast">smolcast vs Tinycast</a>, <a href="/compare/alfred">smolcast vs Alfred</a>.</p>','      </section>','',
+ CTA,'','      <section class="doc-section" aria-labelledby="more-title">','        <h2 id="more-title">Alternatives, one on one</h2>', rows_html("hub"),'      </section>','',footnotes(list(dict.fromkeys(src for p in PAGES for src in p["sources"]))), TAIL]
 write(os.path.join(OUT,"compare","index.html"), "\n".join(body))
 print("wrote public/compare/")

@@ -98,7 +98,7 @@ Go back from an empty search
 
 smolcast is written in Rust with egui and the Windows APIs. It imports only Windows system DLLs and stays out of the way until you call it.
 
-See how smolcast compares with [Raycast for Windows](https://smolcast.evanlee.engineer/compare/raycast), [PowerToys Command Palette](https://smolcast.evanlee.engineer/compare/powertoys-command-palette) and [Flow Launcher](https://smolcast.evanlee.engineer/compare/flow-launcher), or [every Windows launcher side by side](https://smolcast.evanlee.engineer/compare/).
+See how smolcast stacks up as an alternative to [Raycast for Windows](https://smolcast.evanlee.engineer/compare/raycast), [PowerToys Command Palette](https://smolcast.evanlee.engineer/compare/powertoys-command-palette) and [Flow Launcher](https://smolcast.evanlee.engineer/compare/flow-launcher), or [every Windows launcher alternative side by side](https://smolcast.evanlee.engineer/compare/).
 
 - **7 MB** One executable. No installer, admin rights or runtime.
 - **0%** CPU while hidden. It wakes on the hotkey and nothing else.
@@ -163,6 +163,50 @@ cd smolcast
 task up
 task build-release
 ```
+
+## Questions, answered.
+
+Missing one? [Ask on GitHub](https://github.com/Archetypically/smolcast/issues).
+
+### Is smolcast free?
+
+Yes. It is free and open source under the MIT license, with no paid tier, no account and no ads.
+
+### Is smolcast a Raycast alternative for Windows?
+
+Yes, for the everyday parts: launching apps, the calculator, clipboard history, emoji, file search, quicklinks, scripts and snippets, in a 7 MB app with no account. It has no extension store, AI or window management, which Raycast for Windows does. [Read smolcast vs Raycast for Windows](https://smolcast.evanlee.engineer/compare/raycast).
+
+### Which Windows versions does it run on?
+
+Windows 11 on x64 PCs, which is where it is built and tested. There is no native Arm build.
+
+### Does smolcast collect any data?
+
+No. There is no telemetry and no account. The only request it makes on its own is a daily check of its GitHub releases, which sends nothing beyond its version, and you can turn it off with `check_for_updates`. [Read the privacy policy](https://smolcast.evanlee.engineer/privacy).
+
+### Does it support plugins or extensions?
+
+No, on purpose: an extension runtime is what makes launchers heavy. Instead, track any `.ps1`, `.cmd`, `.py` or program as a script with its own hotkey, and add quicklinks with a `{query}` keyword.
+
+### Does it replace Win+V clipboard history?
+
+It reads Windows clipboard history when that is on, and keeps its own, encrypted for your Windows account, when it is off. Either way you search it and Enter pastes into the app you were in.
+
+### Do snippets expand as I type?
+
+Not yet. You find a snippet by its name or keyword in the palette, and Enter pastes it. Expanding as you type needs a keyboard hook, so it is left for later.
+
+### Why does SmartScreen warn about the download?
+
+Releases are not code-signed yet. Updates installed from inside smolcast come only from its GitHub releases and are checked against each release’s SHA-256 checksum. [Read the code signing policy](https://smolcast.evanlee.engineer/code-signing).
+
+### How do I change the hotkey?
+
+Open **smolcast settings** from the palette and record a new one, or set `summon_hotkey` in `%APPDATA%\smolcast\config.toml`. The default is `Ctrl`+`Alt`+`Space`.
+
+### How do I uninstall it?
+
+Turn off **Start smolcast when you sign in**, choose Quit from its tray icon, then delete the executable and the `smolcast` folders in `%APPDATA%` and `%LOCALAPPDATA%`. There is no installer, so nothing else is left behind.
 
 ---
 

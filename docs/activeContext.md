@@ -84,7 +84,7 @@ key caps with a lower lip. Not seen on Windows yet: check every view in both
 themes, at 100/150/200%, reduced motion and high contrast; divider crispness
 at 150%.
 
-## Website (2026-10-22), on main, not deployed
+## Website (2026-10-22), on main, deployed
 
 Decision 030: `website/`, a static site for Cloudflare Pages (`task
 web:*`), whose hero is a working recreation of the palette. Since
@@ -93,7 +93,11 @@ web:*`), whose hero is a working recreation of the palette. Since
 link; its "being set up" badge comes off once releases are signed) and
 `/compare/` (hub plus Raycast, PowerToys Command Palette/Run, Flow
 Launcher, Tinycast, Fluent Search, Listary, Wox, Alfred, Keypirinha, Ueli;
-`task web:compare`). Chrome is stamped from `partials/`, colors come from
+`task web:compare`), named as "alternatives" in titles, breadcrumb, footer
+and hub (decision 043). The home page ends with a questions-and-answers
+section (`#faq`) with matching `FAQPage` JSON-LD and an `llms.txt` line;
+keep all three true when behavior changes (e.g. snippet expansion, signing,
+supported systems). Chrome is stamped from `partials/`, colors come from
 `theme.rs`, and every indexable page has a generated markdown twin at its
 path plus `.md` (decision 036; `task web:sync`; CI checks all three).
 Comparison facts checked 2026-10-23; recheck when those products ship. Privacy contact: GitHub
@@ -105,9 +109,15 @@ with the app. It now carries restrained motion graphics (backdrop stippled
 with s. marks, drifting; chapter captions, camera lean, title card), loops
 seamlessly at 36 s in three cuts: wide for the page, square and vertical in
 `media/out/` for social posts. To do: check touch scrolling on a real phone;
-create the Pages project and DNS (turn off Cloudflare's AI-crawler
-blocking and managed robots.txt), deploy, then point `Cargo.toml`
-`homepage` and the README at it. Then backlinks (outbound links do not
+point `Cargo.toml` `homepage` and the README at the site. A crawl on
+2026-10-31 found it live on Cloudflare and open to Google and AI crawlers
+(our robots.txt, no blocks), with three leftovers: Rocket Loader rewrites
+script tags for some user agents (turn it off: the scripts already
+`defer`); the `_headers` CSP `connect-src` blocks GA4's
+`stats.g.doubleclick.net` and `google.com/ads/ga-audiences` beacons; and
+the scripted palette replaces the static link list with non-link rows, so
+seven comparison pages lose their home-page link once JS runs (the hub and
+sitemap still link them). Then backlinks (outbound links do not
 build ours): AlternativeTo listings as an alternative to Raycast, PowerToys
 Run / Command Palette, Flow Launcher and Wox; winget and Scoop manifests
 with the homepage; awesome-list PRs (Windows apps, Rust GUI); Show HN,

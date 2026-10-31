@@ -387,6 +387,11 @@ only adds behavior on top.
 - **Never optimize visibly.** No keyword stuffing, hidden text, doorway
   pages or FAQ filler written for crawlers. A page earns its ranking by
   being the clearest, most honest answer, and reads as written for people.
+- **Questions on home.** The home page's last section (`#faq`, decision
+  043) answers the questions people actually ask, each a question heading
+  over one short paragraph, visible at rest, with a matching `FAQPage` in
+  the JSON-LD and a line in `llms.txt`. Comparison titles and the hub say
+  "alternative(s)", the word people search with.
 
 ## Website
 
@@ -399,6 +404,9 @@ The website (`website/`, decision 030) speaks the same language on the web:
   it the way the app is dismissed.
 - **Feature tiles are palette states**, not screenshots or icons: each shows
   the query and rows that feature produces.
+- **FAQ**: a split section like Privacy; questions as 17-point semibold
+  headings, answers in the muted body size, items divided like the
+  keyboard list (`.faq`).
 - **Other pages** (privacy, code signing, comparisons) share the home page's top bar,
   footer, type and tokens, in a 1040-wide column. Each opens with a hero
   (breadcrumb, short headline, a lead that answers the page's question in

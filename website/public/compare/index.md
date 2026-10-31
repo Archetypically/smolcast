@@ -1,6 +1,6 @@
-# Windows launchers, compared
+# Windows launcher alternatives, compared
 
-Four keyboard launchers for Windows, from one small app to a full extension platform.
+smolcast and three alternatives, from one small app to a full extension platform.
 
 Updated 23 Oct 2026. Checked against each project’s own site. smolcast is ours, so the [sources](https://smolcast.evanlee.engineer/compare/#sources) are below.
 
@@ -79,7 +79,7 @@ Bold marks where smolcast comes out ahead of all three, and only on published fa
 
 ## Tinycast and Alfred are the Mac cousins
 
-Tinycast is free, open source and Mac only, and Alfred is the long-standing Mac favorite. smolcast is the closest thing to either on Windows: [smolcast vs Tinycast](https://smolcast.evanlee.engineer/compare/tinycast), [smolcast vs Alfred](https://smolcast.evanlee.engineer/compare/alfred).
+Tinycast is free, open source and Mac only, and Alfred is the long-standing Mac favorite. smolcast is the closest Windows alternative to either: [smolcast vs Tinycast](https://smolcast.evanlee.engineer/compare/tinycast), [smolcast vs Alfred](https://smolcast.evanlee.engineer/compare/alfred).
 
 ## Try smolcast
 
@@ -89,18 +89,18 @@ Tinycast is free, open source and Mac only, and Alfred is the long-standing Mac 
 
 [Download](https://github.com/Archetypically/smolcast/releases/latest)
 
-## One-on-one comparisons
+## Alternatives, one on one
 
-- [smolcast vs Raycast for WindowsCompare](https://smolcast.evanlee.engineer/compare/raycast)
-- [smolcast vs PowerToys Command PaletteCompare](https://smolcast.evanlee.engineer/compare/powertoys-command-palette)
-- [smolcast vs Flow LauncherCompare](https://smolcast.evanlee.engineer/compare/flow-launcher)
-- [smolcast vs TinycastCompare](https://smolcast.evanlee.engineer/compare/tinycast)
-- [smolcast vs Fluent SearchCompare](https://smolcast.evanlee.engineer/compare/fluent-search)
-- [smolcast vs ListaryCompare](https://smolcast.evanlee.engineer/compare/listary)
-- [smolcast vs WoxCompare](https://smolcast.evanlee.engineer/compare/wox)
-- [smolcast vs AlfredCompare](https://smolcast.evanlee.engineer/compare/alfred)
-- [smolcast vs KeypirinhaCompare](https://smolcast.evanlee.engineer/compare/keypirinha)
-- [smolcast vs UeliCompare](https://smolcast.evanlee.engineer/compare/ueli)
+- [smolcast vs Raycast for WindowsAlternative](https://smolcast.evanlee.engineer/compare/raycast)
+- [smolcast vs PowerToys Command PaletteAlternative](https://smolcast.evanlee.engineer/compare/powertoys-command-palette)
+- [smolcast vs Flow LauncherAlternative](https://smolcast.evanlee.engineer/compare/flow-launcher)
+- [smolcast vs TinycastAlternative](https://smolcast.evanlee.engineer/compare/tinycast)
+- [smolcast vs Fluent SearchAlternative](https://smolcast.evanlee.engineer/compare/fluent-search)
+- [smolcast vs ListaryAlternative](https://smolcast.evanlee.engineer/compare/listary)
+- [smolcast vs WoxAlternative](https://smolcast.evanlee.engineer/compare/wox)
+- [smolcast vs AlfredAlternative](https://smolcast.evanlee.engineer/compare/alfred)
+- [smolcast vs KeypirinhaAlternative](https://smolcast.evanlee.engineer/compare/keypirinha)
+- [smolcast vs UeliAlternative](https://smolcast.evanlee.engineer/compare/ueli)
 - [What smolcast keeps on your PCPrivacy](https://smolcast.evanlee.engineer/privacy)
 
 ## Sources
