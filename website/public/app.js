@@ -485,6 +485,10 @@ class Palette {
     this.list.addEventListener("click", (e) => {
       const target = e.target.closest("[data-index]");
       if (!target) return;
+      // A modified click on a link row opens it the browser's way (new tab
+      // or window); a plain one goes through the palette like Enter.
+      if (target.href && (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey)) return;
+      e.preventDefault();
       this.sel = Number(target.dataset.index);
       this.render();
       this.activate();
@@ -710,14 +714,19 @@ class Palette {
         );
         return;
       }
+      // Rows that lead somewhere on this site stay real links, as in the
+      // static list they replace, so crawlers that run the script still
+      // find every page (docs/DESIGN.md, discovery).
+      const link = it.page ?? (it.jump && `/${it.jump}`);
       const row = el(
-        "div",
+        link ? "a" : "div",
         {
           class: `pal-row${i === this.sel ? " sel" : ""}${fresh && i < 12 ? " enter" : ""}`,
           role: "option",
           id,
           "data-index": i,
           "aria-selected": String(i === this.sel),
+          ...(link && { href: link, tabindex: "-1" }),
         },
         el("span", { class: "icon" }, icon(it.icon)),
         highlight(it.name, it.hits),

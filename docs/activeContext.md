@@ -111,13 +111,12 @@ seamlessly at 36 s in three cuts: wide for the page, square and vertical in
 `media/out/` for social posts. To do: check touch scrolling on a real phone;
 point `Cargo.toml` `homepage` and the README at the site. A crawl on
 2026-10-31 found it live on Cloudflare and open to Google and AI crawlers
-(our robots.txt, no blocks), with three leftovers: Rocket Loader rewrites
-script tags for some user agents (turn it off: the scripts already
-`defer`); the `_headers` CSP `connect-src` blocks GA4's
-`stats.g.doubleclick.net` and `google.com/ads/ga-audiences` beacons; and
-the scripted palette replaces the static link list with non-link rows, so
-seven comparison pages lose their home-page link once JS runs (the hub and
-sitemap still link them). Then backlinks (outbound links do not
+(our robots.txt, no blocks). Leftover, a dashboard setting for the user:
+Cloudflare Rocket Loader rewrites script tags for some user agents (turn
+it off under Speed → Optimization; the scripts already `defer`). Google
+Signals and ad personalization are off in `gtag.js`, so GA4 sends no
+doubleclick or ga-audiences beacons for the CSP to block; turn Signals
+off in the GA property too. Then backlinks (outbound links do not
 build ours): AlternativeTo listings as an alternative to Raycast, PowerToys
 Run / Command Palette, Flow Launcher and Wox; winget and Scoop manifests
 with the homepage; awesome-list PRs (Windows apps, Rust GUI); Show HN,

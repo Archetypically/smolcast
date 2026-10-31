@@ -373,7 +373,10 @@ only adds behavior on top.
 - **Real links, linked from home.** Every page is reachable through plain
   `<a href>` links with descriptive text, from home and from its neighbors;
   the sync check fails when an indexable page is not linked from home, the
-  sitemap or `llms.txt`.
+  sitemap or `llms.txt`. The scripted palette keeps them links: its page and
+  section rows are `<a href>` (a plain click still goes through the
+  palette; a modified click opens a tab), so a crawler that runs the script
+  finds the same pages as one that does not.
 - **Answer first.** A page's title, description and lead state its answer
   in plain words a reader or a model can quote ("smolcast collects
   nothing."); facts sit in tables, lists and pills, not buried in prose.
