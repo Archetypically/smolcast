@@ -22,7 +22,7 @@
     <title>smolcast: a small, native command palette for Windows 11</title>
     <meta
       name="description"
-      content="One hotkey for your apps, files, clipboard, emoji, scripts and snippets. A single 7 MB Windows executable with no Electron, no telemetry and no CPU use while hidden. Free and open source."
+      content="A small, native command palette for Windows 11: apps, files, clipboard, emoji, scripts and snippets behind one hotkey. 7 MB, free and open source."
     />
     <link rel="canonical" href="https://smolcast.evanlee.engineer/" />
     <link rel="alternate" type="text/markdown" href="https://smolcast.evanlee.engineer/index.md" />
@@ -83,13 +83,34 @@
             "isAccessibleForFree": true,
             "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
             "author": { "@id": "https://smolcast.evanlee.engineer/#author" },
+            "featureList": [
+              "App launcher",
+              "Calculator and unit conversions",
+              "Clipboard history",
+              "Emoji and symbols picker",
+              "File search",
+              "System commands",
+              "Quicklinks and web search",
+              "Scripts and snippets"
+            ],
             "sameAs": ["https://github.com/Archetypically/smolcast"]
+          },
+          {
+            "@type": "SoftwareSourceCode",
+            "@id": "https://smolcast.evanlee.engineer/#source",
+            "name": "smolcast source code",
+            "codeRepository": "https://github.com/Archetypically/smolcast",
+            "programmingLanguage": "Rust",
+            "license": "https://opensource.org/licenses/MIT",
+            "targetProduct": { "@id": "https://smolcast.evanlee.engineer/#app" },
+            "author": { "@id": "https://smolcast.evanlee.engineer/#author" }
           },
           {
             "@type": "Person",
             "@id": "https://smolcast.evanlee.engineer/#author",
             "name": "Evan Lee",
-            "url": "https://evanlee.engineer"
+            "url": "https://evanlee.engineer",
+            "sameAs": ["https://github.com/Archetypically"]
           },
           {
             "@type": "WebSite",
@@ -100,12 +121,102 @@
           },
           {
             "@type": "VideoObject",
+            "@id": "https://smolcast.evanlee.engineer/#film",
+            "isPartOf": { "@id": "https://smolcast.evanlee.engineer/#website" },
+            "about": { "@id": "https://smolcast.evanlee.engineer/#app" },
             "name": "smolcast in motion",
             "description": "A simulation of smolcast on Windows 11, drawn to the app's own measurements and labels: a unit conversion and an emoji pasted into a notes window, a paste from clipboard history, and the web and file fallbacks.",
             "thumbnailUrl": "https://smolcast.evanlee.engineer/media/smolcast-demo.jpg",
             "contentUrl": "https://smolcast.evanlee.engineer/media/smolcast-demo.mp4",
             "uploadDate": "2026-10-22",
             "duration": "PT36S"
+          },
+          {
+            "@type": "FAQPage",
+            "@id": "https://smolcast.evanlee.engineer/#faq",
+            "about": { "@id": "https://smolcast.evanlee.engineer/#app" },
+            "mainEntity": [
+              {
+                "@type": "Question",
+                "name": "Is smolcast free?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Yes. It is free and open source under the MIT license, with no paid tier, no account and no ads."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Is smolcast a Raycast alternative for Windows?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Yes, for the everyday parts: launching apps, the calculator, clipboard history, emoji, file search, quicklinks, scripts and snippets, in a 7 MB app with no account. It has no extension store, AI or window management, which Raycast for Windows does."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Which Windows versions does it run on?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Windows 11 on x64 PCs, which is where it is built and tested. There is no native Arm build."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Does smolcast collect any data?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "No. There is no telemetry and no account. The only request it makes on its own is a daily check of its GitHub releases, which sends nothing beyond its version, and you can turn it off with check_for_updates."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Does it support plugins or extensions?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "No, on purpose: an extension runtime is what makes launchers heavy. Instead, track any .ps1, .cmd, .py or program as a script with its own hotkey, and add quicklinks with a {query} keyword."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Does it replace Win+V clipboard history?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "It reads Windows clipboard history when that is on, and keeps its own, encrypted for your Windows account, when it is off. Either way you search it and Enter pastes into the app you were in."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Do snippets expand as I type?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Not yet. You find a snippet by its name or keyword in the palette, and Enter pastes it. Expanding as you type needs a keyboard hook, so it is left for later."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Why does SmartScreen warn about the download?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Releases are not code-signed yet. Updates installed from inside smolcast come only from its GitHub releases and are checked against each release’s SHA-256 checksum."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "How do I change the hotkey?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Open smolcast settings from the palette and record a new one, or set summon_hotkey in %APPDATA%\\smolcast\\config.toml. The default is Ctrl+Alt+Space."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "How do I uninstall it?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Turn off Start smolcast when you sign in, choose Quit from its tray icon, then delete the executable and the smolcast folders in %APPDATA% and %LOCALAPPDATA%. There is no installer, so nothing else is left behind."
+                }
+              }
+            ]
           }
         ]
       }
@@ -225,6 +336,12 @@
                   <a href="/#config"
                     ><svg aria-hidden="true"><use href="/icons.svg#gear" /></svg><span class="name">Configuration</span
                     ><span class="trail">Section</span></a
+                  >
+                </li>
+                <li>
+                  <a href="/#faq"
+                    ><svg aria-hidden="true"><use href="/icons.svg#info" /></svg
+                    ><span class="name">Questions and Answers</span><span class="trail">Section</span></a
                   >
                 </li>
                 <li>
@@ -792,6 +909,88 @@
 cd smolcast
 task up
 task build-release</code></pre>
+          </div>
+        </div>
+      </section>
+
+      <section class="section split" id="faq" aria-labelledby="faq-title" tabindex="-1">
+        <div class="section-head">
+          <h2 id="faq-title">Questions, answered.</h2>
+          <p class="lead">
+            Missing one? <a href="https://github.com/Archetypically/smolcast/issues">Ask on GitHub</a>.
+          </p>
+        </div>
+        <div class="faq">
+          <div>
+            <h3>Is smolcast free?</h3>
+            <p>Yes. It is free and open source under the MIT license, with no paid tier, no account and no ads.</p>
+          </div>
+          <div>
+            <h3>Is smolcast a Raycast alternative for Windows?</h3>
+            <p>
+              Yes, for the everyday parts: launching apps, the calculator, clipboard history, emoji, file search,
+              quicklinks, scripts and snippets, in a 7&nbsp;MB app with no account. It has no extension store, AI or
+              window management, which Raycast for Windows does.
+              <a href="/compare/raycast">Read smolcast vs Raycast for Windows</a>.
+            </p>
+          </div>
+          <div>
+            <h3>Which Windows versions does it run on?</h3>
+            <p>Windows 11 on x64 PCs, which is where it is built and tested. There is no native Arm build.</p>
+          </div>
+          <div>
+            <h3>Does smolcast collect any data?</h3>
+            <p>
+              No. There is no telemetry and no account. The only request it makes on its own is a daily check of its
+              GitHub releases, which sends nothing beyond its version, and you can turn it off with
+              <code>check_for_updates</code>. <a href="/privacy">Read the privacy policy</a>.
+            </p>
+          </div>
+          <div>
+            <h3>Does it support plugins or extensions?</h3>
+            <p>
+              No, on purpose: an extension runtime is what makes launchers heavy. Instead, track any
+              <code>.ps1</code>, <code>.cmd</code>, <code>.py</code> or program as a script with its own hotkey, and add
+              quicklinks with a <code>{query}</code> keyword.
+            </p>
+          </div>
+          <div>
+            <h3>Does it replace Win+V clipboard history?</h3>
+            <p>
+              It reads Windows clipboard history when that is on, and keeps its own, encrypted for your Windows account,
+              when it is off. Either way you search it and Enter pastes into the app you were in.
+            </p>
+          </div>
+          <div>
+            <h3>Do snippets expand as I type?</h3>
+            <p>
+              Not yet. You find a snippet by its name or keyword in the palette, and Enter pastes it. Expanding as you
+              type needs a keyboard hook, so it is left for later.
+            </p>
+          </div>
+          <div>
+            <h3>Why does SmartScreen warn about the download?</h3>
+            <p>
+              Releases are not code-signed yet. Updates installed from inside smolcast come only from its GitHub
+              releases and are checked against each release’s SHA-256 checksum.
+              <a href="/code-signing">Read the code signing policy</a>.
+            </p>
+          </div>
+          <div>
+            <h3>How do I change the hotkey?</h3>
+            <p>
+              Open <b>smolcast settings</b> from the palette and record a new one, or set <code>summon_hotkey</code> in
+              <code>%APPDATA%\smolcast\config.toml</code>. The default is <kbd class="cap" data-key="Control">Ctrl</kbd
+              ><kbd class="cap" data-key="Alt">Alt</kbd><kbd class="cap" data-key=" ">Space</kbd>.
+            </p>
+          </div>
+          <div>
+            <h3>How do I uninstall it?</h3>
+            <p>
+              Turn off <b>Start smolcast when you sign in</b>, choose Quit from its tray icon, then delete the
+              executable and the <code>smolcast</code> folders in <code>%APPDATA%</code> and
+              <code>%LOCALAPPDATA%</code>. There is no installer, so nothing else is left behind.
+            </p>
           </div>
         </div>
       </section>

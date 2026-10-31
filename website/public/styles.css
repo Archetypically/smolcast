@@ -1393,6 +1393,29 @@ h2 {
   margin-top: 30px;
 }
 
+/* FAQ: each question over its answer, divided like the keyboard list. */
+.faq {
+  margin-top: 22px;
+}
+
+.faq > div {
+  padding: 18px 0;
+  border-bottom: 1px solid var(--divider);
+}
+
+.faq h3 {
+  margin: 0 0 6px;
+  font-size: 17px;
+  font-weight: 650;
+}
+
+.faq p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 16px;
+  text-wrap: pretty;
+}
+
 .code {
   position: relative;
   overflow: hidden;
@@ -2384,6 +2407,10 @@ body::before {
   }
 
   .prose p:first-child {
+    margin-top: 0;
+  }
+
+  .faq {
     margin-top: 0;
   }
 }

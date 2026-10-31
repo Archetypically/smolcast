@@ -93,7 +93,11 @@ web:*`), whose hero is a working recreation of the palette. Since
 link; its "being set up" badge comes off once releases are signed) and
 `/compare/` (hub plus Raycast, PowerToys Command Palette/Run, Flow
 Launcher, Tinycast, Fluent Search, Listary, Wox, Alfred, Keypirinha, Ueli;
-`task web:compare`). Chrome is stamped from `partials/`, colors come from
+`task web:compare`), named as "alternatives" in titles, breadcrumb, footer
+and hub (decision 043). The home page ends with a questions-and-answers
+section (`#faq`) with matching `FAQPage` JSON-LD and an `llms.txt` line;
+keep all three true when behavior changes (e.g. snippet expansion, signing,
+supported systems). Chrome is stamped from `partials/`, colors come from
 `theme.rs`, and every indexable page has a generated markdown twin at its
 path plus `.md` (decision 036; `task web:sync`; CI checks all three).
 Comparison facts checked 2026-10-23; recheck when those products ship. Privacy contact: GitHub

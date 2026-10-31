@@ -111,6 +111,13 @@ const ROWS = [
     jump: "#install-source",
     words: "rust cargo task compile",
   },
+  {
+    name: "Questions and Answers",
+    type: "Section",
+    icon: "info",
+    jump: "#faq",
+    words: "faq help questions uninstall free",
+  },
   pageRow("Compare Windows Launchers", "/compare/", "alternatives versus vs", "grid"),
   pageRow("smolcast vs Raycast", "/compare/raycast", "raycast for windows alternative"),
   pageRow(

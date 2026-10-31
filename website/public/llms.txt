@@ -39,6 +39,10 @@ Data stays on the computer. The only request smolcast makes on its own is a dail
 - [Privacy policy](https://smolcast.evanlee.engineer/privacy): the files smolcast keeps and where, the update check, clipboard encryption and exclusions, and what the website records.
 - [Code signing policy](https://smolcast.evanlee.engineer/code-signing): once signing is on, releases are built from a tagged commit on GitHub and signed through SignPath Foundation after a maintainer approves each one (being set up; releases so far are unsigned); who holds each role, and how to check a download's signature, checksum and build attestation.
 
+## Questions
+
+The home page's [questions and answers](https://smolcast.evanlee.engineer/#faq) cover: price (free, MIT, no paid tier), whether it is a Raycast alternative (for the everyday features; no extensions, AI or window management), supported systems (Windows 11 x64; no native Arm build), data collection (none beyond the update check), plugins (none; scripts and quicklinks instead), Win+V clipboard history (used when on), snippet expansion as you type (not yet), the SmartScreen warning (releases are not signed yet), changing the hotkey, and uninstalling (quit, delete the exe and the smolcast folders in %APPDATA% and %LOCALAPPDATA%).
+
 ## Comparisons
 
 Checked against each project's own site on 2026-10-23.
