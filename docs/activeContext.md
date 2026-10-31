@@ -9,7 +9,7 @@ contracts are in `systemPatterns.md` (cited as "plan §N"), decisions in
 All seven milestones are implemented (§12) and on `main`. Windows 11 is
 the acceptance environment; Linux runs library tests and cross-links only.
 
-`Cargo.toml` is at `1.0.0-rc.1` (a semver prerelease: it sorts below
+`Cargo.toml` is at `1.0.0-rc.2` (a semver prerelease: it sorts below
 `1.0.0` and is never offered as an update). `main`'s history was rewritten
 again on 2026-10-24 so every commit is signed by the maintainer; GitHub
 still serves the pre-rewrite objects (see Next, 2).
