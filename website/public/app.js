@@ -118,7 +118,7 @@ const ROWS = [
     jump: "#faq",
     words: "faq help questions uninstall free",
   },
-  pageRow("Compare Windows Launchers", "/compare/", "alternatives versus vs", "grid"),
+  pageRow("Windows Launcher Alternatives", "/compare/", "compare comparison versus vs", "grid"),
   pageRow("smolcast vs Raycast", "/compare/raycast", "raycast for windows alternative"),
   pageRow(
     "smolcast vs PowerToys Command Palette",

@@ -98,7 +98,7 @@ Go back from an empty search
 
 smolcast is written in Rust with egui and the Windows APIs. It imports only Windows system DLLs and stays out of the way until you call it.
 
-See how smolcast compares with [Raycast for Windows](https://smolcast.evanlee.engineer/compare/raycast), [PowerToys Command Palette](https://smolcast.evanlee.engineer/compare/powertoys-command-palette) and [Flow Launcher](https://smolcast.evanlee.engineer/compare/flow-launcher), or [every Windows launcher side by side](https://smolcast.evanlee.engineer/compare/).
+See how smolcast stacks up as an alternative to [Raycast for Windows](https://smolcast.evanlee.engineer/compare/raycast), [PowerToys Command Palette](https://smolcast.evanlee.engineer/compare/powertoys-command-palette) and [Flow Launcher](https://smolcast.evanlee.engineer/compare/flow-launcher), or [every Windows launcher alternative side by side](https://smolcast.evanlee.engineer/compare/).
 
 - **7 MB** One executable. No installer, admin rights or runtime.
 - **0%** CPU while hidden. It wakes on the hotkey and nothing else.

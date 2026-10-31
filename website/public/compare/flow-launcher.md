@@ -89,18 +89,18 @@ Flow Launcher began as a fork of Wox, which is still going: [smolcast vs Wox](ht
 
 [Download](https://github.com/Archetypically/smolcast/releases/latest)
 
-## More comparisons
+## More alternatives
 
-- [All the launchers, side by sideCompare](https://smolcast.evanlee.engineer/compare/)
-- [smolcast vs Raycast for WindowsCompare](https://smolcast.evanlee.engineer/compare/raycast)
-- [smolcast vs PowerToys Command PaletteCompare](https://smolcast.evanlee.engineer/compare/powertoys-command-palette)
-- [smolcast vs TinycastCompare](https://smolcast.evanlee.engineer/compare/tinycast)
-- [smolcast vs Fluent SearchCompare](https://smolcast.evanlee.engineer/compare/fluent-search)
-- [smolcast vs ListaryCompare](https://smolcast.evanlee.engineer/compare/listary)
-- [smolcast vs WoxCompare](https://smolcast.evanlee.engineer/compare/wox)
-- [smolcast vs AlfredCompare](https://smolcast.evanlee.engineer/compare/alfred)
-- [smolcast vs KeypirinhaCompare](https://smolcast.evanlee.engineer/compare/keypirinha)
-- [smolcast vs UeliCompare](https://smolcast.evanlee.engineer/compare/ueli)
+- [Every alternative, side by sideAlternatives](https://smolcast.evanlee.engineer/compare/)
+- [smolcast vs Raycast for WindowsAlternative](https://smolcast.evanlee.engineer/compare/raycast)
+- [smolcast vs PowerToys Command PaletteAlternative](https://smolcast.evanlee.engineer/compare/powertoys-command-palette)
+- [smolcast vs TinycastAlternative](https://smolcast.evanlee.engineer/compare/tinycast)
+- [smolcast vs Fluent SearchAlternative](https://smolcast.evanlee.engineer/compare/fluent-search)
+- [smolcast vs ListaryAlternative](https://smolcast.evanlee.engineer/compare/listary)
+- [smolcast vs WoxAlternative](https://smolcast.evanlee.engineer/compare/wox)
+- [smolcast vs AlfredAlternative](https://smolcast.evanlee.engineer/compare/alfred)
+- [smolcast vs KeypirinhaAlternative](https://smolcast.evanlee.engineer/compare/keypirinha)
+- [smolcast vs UeliAlternative](https://smolcast.evanlee.engineer/compare/ueli)
 - [What smolcast keeps on your PCPrivacy](https://smolcast.evanlee.engineer/privacy)
 
 ## Sources
