@@ -129,6 +129,16 @@ with the homepage; awesome-list PRs (Windows apps, Rust GUI); Show HN,
 r/Windows, r/rust, Product Hunt linking the site; the GitHub repo's website
 field; a link from evanlee.engineer; a note to Tinycast's author.
 
+## Comparison facts in Jsonnet (2026-11-02), on main, not deployed
+
+Decision 043: the comparison pages' facts live in
+`website/scripts/compare.jsonnet`; `scripts/compare.py` is the renderer
+only and evaluates it with the Jsonnet Python binding, which
+`task web:compare` now needs. The "alternatives" title pass and the
+8 MB size correction are carried in the Jsonnet data. Verified at the
+switch: the Jsonnet pair renders byte-identical output to the previous
+all-Python generator.
+
 ## Full-repo review (2026-10-23), on main, unverified
 
 Fixes are in `git log` (PR #17). Its deferred items were settled on
