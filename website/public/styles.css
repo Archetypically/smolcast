@@ -2511,3 +2511,11 @@ body::before {
     transform: none;
   }
 }
+
+/* Cross-document view transitions: a plain cross-fade on same-origin
+   navigations, only where the visitor has not asked for reduced motion. */
+@media (prefers-reduced-motion: no-preference) {
+  @view-transition {
+    navigation: auto;
+  }
+}

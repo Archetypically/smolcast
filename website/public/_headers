@@ -1,6 +1,9 @@
 # Cloudflare Pages response headers.
+# The 'sha256-…' source in script-src is taken over the speculation rules
+# JSON in partials/head.html, byte for byte; 'inline-speculation-rules'
+# scopes it to that block alone. Edit the two together or the rules stop.
 /*
-  Content-Security-Policy: default-src 'self'; script-src 'self' https://www.googletagmanager.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://*.google-analytics.com https://*.googletagmanager.com; media-src 'self'; connect-src 'self' https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com; frame-ancestors 'none'; base-uri 'self'; form-action 'none'
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'inline-speculation-rules' 'sha256-xVmObneuXptw9K+cCThR/oRpDAN7wnt+RZSWkHVSuXs=' https://www.googletagmanager.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://*.google-analytics.com https://*.googletagmanager.com; media-src 'self'; connect-src 'self' https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com; frame-ancestors 'none'; base-uri 'self'; form-action 'none'
   Referrer-Policy: strict-origin-when-cross-origin
   X-Content-Type-Options: nosniff
   Permissions-Policy: camera=(), microphone=(), geolocation=(), clipboard-write=(self)

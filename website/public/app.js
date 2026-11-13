@@ -1025,6 +1025,8 @@ function setTheme(next) {
   const root = document.documentElement;
   root.classList.add("theme-fade");
   root.dataset.theme = next;
+  const scheme = document.querySelector('meta[name="color-scheme"]');
+  if (scheme) scheme.content = next;
   try {
     localStorage.setItem("theme", next);
   } catch {
