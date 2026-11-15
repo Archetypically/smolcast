@@ -843,9 +843,18 @@
           </p>
         </div>
         <div class="code" data-copy-target>
-          <button type="button" class="copy" aria-label="Copy the example configuration">
-            <svg aria-hidden="true"><use href="/icons.svg#copy" /></svg><span>Copy</span>
+          <button type="button" class="copy" data-state="copy" aria-label="Copy the example configuration">
+            <span class="swap icons" aria-hidden="true">
+              <svg class="s-copy"><use href="/icons.svg#copy" /></svg>
+              <svg class="s-copied"><use href="/icons.svg#check" /></svg>
+            </span>
+            <span class="swap labels">
+              <span class="s-copy" aria-hidden="true">Copy</span>
+              <span class="s-copied" aria-hidden="true">Copied</span>
+              <span class="s-selected" aria-hidden="true">Selected</span>
+            </span>
           </button>
+          <span class="sr-only" aria-live="polite" data-copy-live></span>
           <pre><code><span class="t-c"># Open the palette with Ctrl+Alt+Space</span>
 <span class="t-k">summon_hotkey</span> = <span class="t-s">"control+alt+Space"</span>
 <span class="t-k">search_engine</span> = <span class="t-s">"duckduckgo"</span>
@@ -911,9 +920,18 @@
             cross-compiles from Linux or WSL.
           </p>
           <div class="code" data-copy-target>
-            <button type="button" class="copy" aria-label="Copy the build commands">
-              <svg aria-hidden="true"><use href="/icons.svg#copy" /></svg><span>Copy</span>
+            <button type="button" class="copy" data-state="copy" aria-label="Copy the build commands">
+              <span class="swap icons" aria-hidden="true">
+                <svg class="s-copy"><use href="/icons.svg#copy" /></svg>
+                <svg class="s-copied"><use href="/icons.svg#check" /></svg>
+              </span>
+              <span class="swap labels">
+                <span class="s-copy" aria-hidden="true">Copy</span>
+                <span class="s-copied" aria-hidden="true">Copied</span>
+                <span class="s-selected" aria-hidden="true">Selected</span>
+              </span>
             </button>
+            <span class="sr-only" aria-live="polite" data-copy-live></span>
             <pre><code>git clone https://github.com/Archetypically/smolcast
 cd smolcast
 task up

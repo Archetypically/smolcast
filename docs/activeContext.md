@@ -100,6 +100,9 @@ keep all three true when behavior changes (e.g. snippet expansion, signing,
 supported systems). Chrome is stamped from `partials/`, colors come from
 `theme.rs`, and every indexable page has a generated markdown twin at its
 path plus `.md` (decision 036; `task web:sync`; CI checks all three).
+The code blocks' copy buttons stack their icon and label states (Copy,
+Copied, and Selected, which selects the text when the clipboard
+refuses) in one grid cell, so a swap never resizes the button.
 Comparison facts checked 2026-10-23; recheck when those products ship.
 The site, README and social cards say "8 MB": the release exe is built
 with MSVC (`release.yml`; 7.83 MB on 2026-10-31), while `task install`

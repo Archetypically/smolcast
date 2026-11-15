@@ -1322,25 +1322,39 @@ function init() {
     pressed.clear();
   });
 
-  // Copy buttons.
+  // Copy buttons. The button's states are stacked (styles.css), so a
+  // swap never resizes it; this only names the state, announces it in
+  // the block's live region and, when the clipboard refuses, selects
+  // the text so the Selected label tells the truth.
   for (const block of document.querySelectorAll("[data-copy-target]")) {
     const button = block.querySelector(".copy");
-    const label = button.querySelector("span");
-    const use = button.querySelector("use");
+    const live = block.querySelector("[data-copy-live]");
+    let timer;
+    let attempt = 0;
+    const show = (state, announcement) => {
+      button.dataset.state = state;
+      live.textContent = announcement;
+    };
     button.addEventListener("click", async () => {
+      clearTimeout(timer);
+      // Only the latest click may land: a slow clipboard write from an
+      // earlier click must not overwrite a newer click's state, select
+      // the text, or schedule a revert over it.
+      const mine = ++attempt;
       try {
         await navigator.clipboard.writeText(block.querySelector("pre").innerText);
-        label.textContent = "Copied";
-        button.classList.add("done");
-        use.setAttribute("href", `${ICONS}#check`);
+        if (mine !== attempt) return;
+        show("copied", "Copied.");
       } catch {
-        label.textContent = "Select and copy";
+        if (mine !== attempt) return;
+        const range = document.createRange();
+        range.selectNodeContents(block.querySelector("pre"));
+        const selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+        show("selected", "The clipboard was unavailable, so the code is selected. Press Ctrl+C to copy it.");
       }
-      setTimeout(() => {
-        label.textContent = "Copy";
-        button.classList.remove("done");
-        use.setAttribute("href", `${ICONS}#copy`);
-      }, 1600);
+      timer = setTimeout(() => show("copy", ""), 1600);
     });
   }
 

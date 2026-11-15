@@ -308,7 +308,7 @@ svg {
   cursor: pointer;
   transition:
     opacity 180ms ease,
-    transform 220ms var(--ease),
+    transform 180ms var(--ease),
     background-color 120ms ease;
 }
 
@@ -335,6 +335,10 @@ html:not(.js) .summon-pill {
 
 .summon-pill:hover {
   background: var(--sel);
+}
+
+.summon-pill:active {
+  transform: scale(0.98);
 }
 
 /* Hero */
@@ -1468,9 +1472,11 @@ h2 {
   color: var(--weak);
   font: 12px var(--font);
   cursor: pointer;
+  white-space: nowrap;
   transition:
     background-color 120ms ease,
-    color 120ms ease;
+    color 120ms ease,
+    transform 120ms var(--ease);
 }
 
 .copy:hover {
@@ -1478,16 +1484,55 @@ h2 {
   color: var(--text);
 }
 
+.copy:active {
+  transform: scale(0.98);
+}
+
 .copy svg {
   width: 13px;
   height: 13px;
 }
 
-.copy.done {
+/* The icon and label states are stacked in one grid cell, sized by the
+   widest state, so a swap never changes the button's size. The incoming
+   state fades and settles up; the check also grows into place. Without
+   the script the button can only ever read Copy, so the other states
+   are simply not shown; with it, the stack hides them by opacity. */
+html:not(.js) .copy .s-copied,
+html:not(.js) .copy .s-selected {
+  display: none;
+}
+
+.copy .swap {
+  display: grid;
+}
+
+.js .copy .swap > * {
+  grid-area: 1 / 1;
+  opacity: 0;
+  transform: translateY(4px);
+  transition:
+    opacity 160ms var(--ease),
+    transform 160ms var(--ease);
+}
+
+.copy .icons .s-copied {
+  transform: translateY(4px) scale(0.7);
+}
+
+.copy[data-state="copy"] .s-copy,
+.copy[data-state="copied"] .s-copied,
+.copy[data-state="selected"] .s-selected,
+.copy[data-state="selected"] .icons .s-copy {
+  opacity: 1;
+  transform: none;
+}
+
+.copy[data-state="copied"] {
   color: var(--text);
 }
 
-.copy.done svg {
+.copy[data-state="copied"] .icons .s-copied {
   color: var(--accent);
 }
 
